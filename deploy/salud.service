@@ -1,0 +1,26 @@
+[Unit]
+Description=Salud website + API (servidor con cuentas)
+After=network.target
+
+[Service]
+Type=simple
+User=eulogioqt
+Group=eulogioqt
+WorkingDirectory=/srv/salud/app
+Environment="PYTHONDONTWRITEBYTECODE=1"
+Environment="TZ=Europe/Madrid"
+EnvironmentFile=-/srv/salud/.env
+ExecStart=/usr/bin/python3 /srv/salud/app/servidor.py --multiusuario /srv/salud/private --host 127.0.0.1 --port 7670 --no-browser
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGINT
+UMask=0027
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

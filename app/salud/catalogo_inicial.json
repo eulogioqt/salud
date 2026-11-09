@@ -1,0 +1,805 @@
+{
+  "titulo": "Catálogo de alimentos aprobado para Salud / Claude Cowork",
+  "fecha_revision": "2026-11-08",
+  "registros_aprobados": 34,
+  "registros_rechazados": 17,
+  "moneda": "EUR",
+  "unidades_macros": "gramos",
+  "notas": [
+    "Excluir por completo los ítems 35–51 del archivo original: fueron rechazados por el usuario.",
+    "Los 34 primeros están aprobados, con CAMBIAR en 1, 4 y 8.",
+    "Los datos incompletos se representan con null, nunca convertirlos en 0 por defecto.",
+    "Los valores nutricionales de fuentes anteriores no prevalecen sobre etiquetas nuevas.",
+    "Las raciones estimadas o antiguas deben estar etiquetadas; la app deberá permitir modificarlas."
+  ],
+  "alimentos": [
+    {
+      "id": "alimento_01",
+      "id_original": 1,
+      "nombre": "HSN Evowhey Protein — doble chocolate (30 g por scoop; verificar etiqueta exacta)",
+      "nombre_anterior": "Proteína en polvo",
+      "decision_usuario": "CAMBIAR",
+      "estado": "pending_verification",
+      "raciones_referencia": [
+        {
+          "cantidad": "30 g (1 scoop)",
+          "kcal": null,
+          "proteinas_g": null,
+          "carbohidratos_g": null,
+          "grasas_g": null,
+          "tipo_dato": "pending",
+          "observacion": "No heredar 108 kcal/22 P del polvo anterior. EVOWHEY Double Chocolate: variantes históricas online con discrepancias. Pedir foto del envase o ficha HSN de ese sabor/lote."
+        }
+      ],
+      "referencia_textual_historica": "(Referencias anteriores sustituidas: NO importar valores antiguos de esta entrada.)",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_02",
+      "id_original": 2,
+      "nombre": "Avena molida",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "100 g",
+          "kcal": 374,
+          "proteinas_g": 13.5,
+          "carbohidratos_g": 58.7,
+          "grasas_g": 7,
+          "tipo_dato": "historical"
+        }
+      ],
+      "referencia_textual_historica": "### 100 g\n- 374 kcal\n- 13.5 g proteína\n- 58.7 g carbohidratos\n- 7 g grasa",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_03",
+      "id_original": 3,
+      "nombre": "Tortitas de legumbres",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "ración habitual (cantidad física pendiente)",
+          "kcal": 100,
+          "proteinas_g": 3,
+          "carbohidratos_g": 15,
+          "grasas_g": 1,
+          "tipo_dato": "historical",
+          "observacion": "Confirmar número de tortitas/peso por ración."
+        }
+      ],
+      "referencia_textual_historica": "### Ración habitual\n- 100 kcal\n- 3 g proteína\n- 15 g carbohidratos\n- 1 g grasa",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_04",
+      "id_original": 4,
+      "nombre": "Blue Chameleon — bebida energética clásica (250 ml, provisional)",
+      "nombre_anterior": "Powerking",
+      "decision_usuario": "CAMBIAR",
+      "estado": "provisional",
+      "raciones_referencia": [
+        {
+          "cantidad": "250 ml lata clásica",
+          "kcal": 115,
+          "proteinas_g": null,
+          "carbohidratos_g": 27.5,
+          "grasas_g": 0,
+          "tipo_dato": "external_provisional",
+          "observacion": "Variante clásica, no Light. OCU: ~115 kcal y 28 g azúcares; ficha comercial: 46 kcal y 11 g HC por 100 ml. Verificar etiqueta."
+        }
+      ],
+      "referencia_textual_historica": "(Referencias anteriores sustituidas: NO importar valores antiguos de esta entrada.)",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_05",
+      "id_original": 5,
+      "nombre": "Monster Zero / Monster blanco",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "1 lata (volumen pendiente)",
+          "kcal": 12,
+          "proteinas_g": 0,
+          "carbohidratos_g": 3,
+          "grasas_g": 0,
+          "tipo_dato": "historical"
+        }
+      ],
+      "referencia_textual_historica": "### 1 lata\n- 12 kcal\n- 0 g proteína\n- 3 g carbohidratos\n- 0 g grasa",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_06",
+      "id_original": 6,
+      "nombre": "Miel",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "21 g",
+          "kcal": 64,
+          "proteinas_g": null,
+          "carbohidratos_g": 17,
+          "grasas_g": null,
+          "tipo_dato": "historical"
+        },
+        {
+          "cantidad": "26 g",
+          "kcal": 79,
+          "proteinas_g": null,
+          "carbohidratos_g": 21,
+          "grasas_g": null,
+          "tipo_dato": "historical"
+        },
+        {
+          "cantidad": "27 g",
+          "kcal": 82,
+          "proteinas_g": null,
+          "carbohidratos_g": 22,
+          "grasas_g": null,
+          "tipo_dato": "historical"
+        },
+        {
+          "cantidad": "29 g",
+          "kcal": 88,
+          "proteinas_g": null,
+          "carbohidratos_g": 24,
+          "grasas_g": null,
+          "tipo_dato": "historical"
+        }
+      ],
+      "referencia_textual_historica": "Usar gramos exactos cuando se den.\nReferencias ya usadas:\n- 21 g -> 64 kcal, 17 g carbohidratos\n- 26 g -> 79 kcal, 21 g carbohidratos\n- 27 g -> 82 kcal, 22 g carbohidratos\n- 29 g -> 88 kcal, 24 g carbohidratos",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_07",
+      "id_original": 7,
+      "nombre": "Isodrink",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "ración sin volumen anotado",
+          "kcal": 60,
+          "proteinas_g": 0,
+          "carbohidratos_g": 15,
+          "grasas_g": 0,
+          "tipo_dato": "historical",
+          "observacion": "Confirmar volumen o peso."
+        }
+      ],
+      "referencia_textual_historica": "- 60 kcal\n- 0 g proteína\n- 15 g carbohidratos\n- 0 g grasa",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_08",
+      "id_original": 8,
+      "nombre": "Yogur Protecito sabor caramelo (variante exacta pendiente)",
+      "nombre_anterior": "Yogur proteico (modelo de 12 g proteína)",
+      "decision_usuario": "CAMBIAR",
+      "estado": "pending_verification",
+      "raciones_referencia": [
+        {
+          "cantidad": "1 unidad (gramaje pendiente)",
+          "kcal": null,
+          "proteinas_g": null,
+          "carbohidratos_g": null,
+          "grasas_g": null,
+          "tipo_dato": "pending",
+          "observacion": "Usuario dijo Protecito caramelo, sin referencia inequívoca. NO heredar los macros del yogur anterior; solicitar foto de etiqueta."
+        }
+      ],
+      "referencia_textual_historica": "(Referencias anteriores sustituidas: NO importar valores antiguos de esta entrada.)",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_09",
+      "id_original": 9,
+      "nombre": "Mousse proteico",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "unidad sin gramaje",
+          "kcal": 74,
+          "proteinas_g": 10,
+          "carbohidratos_g": 6,
+          "grasas_g": 1,
+          "tipo_dato": "historical_estimate"
+        }
+      ],
+      "referencia_textual_historica": "- 74 kcal\n- 10 g proteína\n- ~6 g carbohidratos\n- ~1 g grasa",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_10",
+      "id_original": 10,
+      "nombre": "Flan proteico",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "1 unidad",
+          "kcal": 62,
+          "proteinas_g": 10,
+          "carbohidratos_g": 5.9,
+          "grasas_g": 0.2,
+          "tipo_dato": "historical"
+        }
+      ],
+      "referencia_textual_historica": "### 1 unidad\n- 62 kcal\n- 10 g proteína\n- 5.9 g carbohidratos\n- 0.2 g grasa",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_11",
+      "id_original": 11,
+      "nombre": "Batido yogur / batido bebible de proteína",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "100 g",
+          "kcal": 48,
+          "proteinas_g": 7,
+          "carbohidratos_g": 4.2,
+          "grasas_g": 0,
+          "tipo_dato": "historical_estimate",
+          "observacion": "Grasas aproximadas a 0; etiqueta prima."
+        }
+      ],
+      "referencia_textual_historica": "### 100 g\n- 48 kcal\n- 7 g proteína\n- 4.2 g carbohidratos\n- grasa muy baja / prácticamente 0 g salvo que la etiqueta del día diga otra cosa",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_12",
+      "id_original": 12,
+      "nombre": "Pack de lomo",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "1 pack",
+          "kcal": 75,
+          "proteinas_g": 14,
+          "carbohidratos_g": 1,
+          "grasas_g": 2,
+          "tipo_dato": "historical"
+        }
+      ],
+      "referencia_textual_historica": "### 1 pack\n- 75 kcal\n- 14 g proteína\n- 1 g carbohidratos\n- 2 g grasa",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_13",
+      "id_original": 13,
+      "nombre": "Soja texturizada",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "100 g (seco)",
+          "kcal": 361,
+          "proteinas_g": 50,
+          "carbohidratos_g": 13,
+          "grasas_g": 8.8,
+          "tipo_dato": "historical"
+        },
+        {
+          "cantidad": "40 g (seco)",
+          "kcal": 144,
+          "proteinas_g": 20,
+          "carbohidratos_g": 5.2,
+          "grasas_g": 3.5,
+          "tipo_dato": "historical"
+        },
+        {
+          "cantidad": "35 g (seco)",
+          "kcal": 126,
+          "proteinas_g": 17.5,
+          "carbohidratos_g": 4.6,
+          "grasas_g": 3.1,
+          "tipo_dato": "historical"
+        }
+      ],
+      "referencia_textual_historica": "### 100 g\n- 361 kcal\n- 50 g proteína\n- 13 g carbohidratos\n- 8.8 g grasa\n\n### 40 g\n- 144 kcal\n- 20 g proteína\n- 5.2 g carbohidratos\n- 3.5 g grasa\n\n### 35 g\n- 126 kcal\n- 17.5 g proteína\n- 4.6 g carbohidratos\n- 3.1 g grasa",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_14",
+      "id_original": 14,
+      "nombre": "Limonada",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "330 ml",
+          "kcal": 76,
+          "proteinas_g": 0,
+          "carbohidratos_g": 18.5,
+          "grasas_g": 0,
+          "tipo_dato": "historical"
+        }
+      ],
+      "referencia_textual_historica": "### 330 ml\n- 76 kcal\n- 0 g proteína\n- 18.5 g carbohidratos\n- 0 g grasa",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_15",
+      "id_original": 15,
+      "nombre": "Lata de atún al natural (amarilla)",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "100 g escurridos",
+          "kcal": 98,
+          "proteinas_g": 21,
+          "carbohidratos_g": 0.9,
+          "grasas_g": 0.4,
+          "tipo_dato": "historical"
+        },
+        {
+          "cantidad": "1 lata escurrida (60 g)",
+          "kcal": 59,
+          "proteinas_g": 12.6,
+          "carbohidratos_g": 0.54,
+          "grasas_g": 0.24,
+          "tipo_dato": "historical"
+        }
+      ],
+      "referencia_textual_historica": "### Por 100 g escurrido\n- 98 kcal\n- 21 g proteína\n- 0.9 g carbohidratos\n- 0.4 g grasa\n\n### Por lata escurrida (60 g)\n- 59 kcal\n- 12.6 g proteína\n- 0.54 g carbohidratos\n- 0.24 g grasa",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_16",
+      "id_original": 16,
+      "nombre": "Lata de atún en aceite de girasol",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "100 g escurridos",
+          "kcal": 254,
+          "proteinas_g": 20,
+          "carbohidratos_g": 0.7,
+          "grasas_g": 19,
+          "tipo_dato": "historical"
+        }
+      ],
+      "referencia_textual_historica": "### Por 100 g escurrido\n- 254 kcal\n- 20 g proteína\n- 0.7 g carbohidratos\n- 19 g grasa\n\nNota:\n- usar estos valores por 100 g escurrido\n- si se conoce el peso escurrido exacto de la lata, calcular la lata completa a partir de ahí",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_17",
+      "id_original": 17,
+      "nombre": "Melva canutera con pimiento del piquillo",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "ración escurrida (gramaje pendiente)",
+          "kcal": 150,
+          "proteinas_g": 19,
+          "carbohidratos_g": 1.2,
+          "grasas_g": 7.3,
+          "tipo_dato": "historical"
+        }
+      ],
+      "referencia_textual_historica": "### Escurrida\n- 150 kcal\n- 19 g proteína\n- 1.2 g carbohidratos\n- 7.3 g grasa",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_18",
+      "id_original": 18,
+      "nombre": "Sardinas / melva / caballa en conserva",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [],
+      "referencia_textual_historica": "Usar etiqueta real si se aporta foto.",
+      "nota_importacion": "Producto genérico aprobado sin macros: pedir etiqueta o datos de cada marca antes de registrar."
+    },
+    {
+      "id": "alimento_19",
+      "id_original": 19,
+      "nombre": "Maíz en lata",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [],
+      "referencia_textual_historica": "Usar etiqueta real si se aporta foto.",
+      "nota_importacion": "Producto genérico aprobado sin macros: pedir etiqueta o datos de cada marca antes de registrar."
+    },
+    {
+      "id": "alimento_20",
+      "id_original": 20,
+      "nombre": "Salchichón",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "100 g",
+          "kcal": 421,
+          "proteinas_g": 27.5,
+          "carbohidratos_g": null,
+          "grasas_g": null,
+          "tipo_dato": "historical"
+        },
+        {
+          "cantidad": "50 g aproximados",
+          "kcal": 211,
+          "proteinas_g": 13.8,
+          "carbohidratos_g": 0.8,
+          "grasas_g": 17,
+          "tipo_dato": "historical_estimate"
+        },
+        {
+          "cantidad": "41 g",
+          "kcal": 173,
+          "proteinas_g": 11.3,
+          "carbohidratos_g": 0.6,
+          "grasas_g": 13.9,
+          "tipo_dato": "historical"
+        },
+        {
+          "cantidad": "47 g",
+          "kcal": 198,
+          "proteinas_g": 12.9,
+          "carbohidratos_g": 0.7,
+          "grasas_g": 16,
+          "tipo_dato": "historical_estimate"
+        }
+      ],
+      "referencia_textual_historica": "### 100 g\n- 421 kcal\n- 27.5 g proteína\n- carbohidratos muy bajos\n- grasa alta\n\n### 50 g aproximados\n- 211 kcal\n- 13.8 g proteína\n- ~0.8 g carbohidratos\n- ~17 g grasa\n\n### 41 g\n- 173 kcal\n- 11.3 g proteína\n- 0.6 g carbohidratos\n- 13.9 g grasa\n\n### 47 g\n- 198 kcal\n- 12.9 g proteína\n- ~0.7 g carbohidratos\n- ~16 g grasa",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_21",
+      "id_original": 21,
+      "nombre": "Jamón del producto de 240 g total",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "100 g",
+          "kcal": 247.8,
+          "proteinas_g": 33.5,
+          "carbohidratos_g": null,
+          "grasas_g": 12.2,
+          "tipo_dato": "historical"
+        },
+        {
+          "cantidad": "166 g",
+          "kcal": 412,
+          "proteinas_g": 55.7,
+          "carbohidratos_g": 0,
+          "grasas_g": 20.3,
+          "tipo_dato": "historical_estimate"
+        },
+        {
+          "cantidad": "74 g",
+          "kcal": 183,
+          "proteinas_g": 24.7,
+          "carbohidratos_g": 0,
+          "grasas_g": 9,
+          "tipo_dato": "historical_estimate"
+        }
+      ],
+      "referencia_textual_historica": "### 100 g\n- 247.8 kcal\n- 33.5 g proteína\n- 12.2 g grasa\n\n### 166 g aprox\n- 412 kcal\n- 55.7 g proteína\n- 0 g carbohidratos\n- 20.3 g grasa\n\n### 74 g aprox\n- 183 kcal\n- 24.7 g proteína\n- 0 g carbohidratos\n- 9 g grasa",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_22",
+      "id_original": 22,
+      "nombre": "Arroz en bolsa",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "bolsa habitual 167 g",
+          "kcal": 250,
+          "proteinas_g": 5,
+          "carbohidratos_g": 54,
+          "grasas_g": 1,
+          "tipo_dato": "historical_estimate"
+        }
+      ],
+      "referencia_textual_historica": "### Bolsa habitual 167 g\n(estimación ya usada muchas veces)\n- 250 kcal\n- 5 g proteína\n- 54 g carbohidratos\n- 1 g grasa",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_23",
+      "id_original": 23,
+      "nombre": "Tiras de pollo Mercadona",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "pack 140 g",
+          "kcal": 150,
+          "proteinas_g": 32.8,
+          "carbohidratos_g": 0.8,
+          "grasas_g": 1.7,
+          "tipo_dato": "historical"
+        }
+      ],
+      "referencia_textual_historica": "### Pack 140 g\n- 150 kcal\n- 32.8 g proteína\n- 0.8 g carbohidratos\n- 1.7 g grasa",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_24",
+      "id_original": 24,
+      "nombre": "Lomo adobado",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "200 g",
+          "kcal": 380,
+          "proteinas_g": 42,
+          "carbohidratos_g": 2,
+          "grasas_g": 24,
+          "tipo_dato": "historical_estimate"
+        },
+        {
+          "cantidad": "130 g",
+          "kcal": 247,
+          "proteinas_g": 27.3,
+          "carbohidratos_g": 1.3,
+          "grasas_g": 15.6,
+          "tipo_dato": "historical_estimate"
+        }
+      ],
+      "referencia_textual_historica": "No hay etiqueta fija guardada. Usar estimación razonable cuando no haya etiqueta real.\n\n### 200 g (estimación)\n- 380 kcal\n- 42 g proteína\n- 2 g carbohidratos\n- 24 g grasa\n\n### 130 g (estimación)\n- 247 kcal\n- 27.3 g proteína\n- 1.3 g carbohidratos\n- 15.6 g grasa",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_25",
+      "id_original": 25,
+      "nombre": "Pollo asado / pechuga de pollería",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "231 g comidos",
+          "kcal": 381,
+          "proteinas_g": 72,
+          "carbohidratos_g": 0,
+          "grasas_g": 8,
+          "tipo_dato": "historical_estimate"
+        }
+      ],
+      "referencia_textual_historica": "Usar estimación de pechuga asada normal, no frita, si no hay aceite indicado.\n\n### 231 g comidos (estimación usada)\n- 381 kcal\n- 72 g proteína\n- 0 g carbohidratos\n- 8 g grasa",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_26",
+      "id_original": 26,
+      "nombre": "Picos / regañás",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "14 unidades",
+          "kcal": 130,
+          "proteinas_g": 3,
+          "carbohidratos_g": 24,
+          "grasas_g": 1.5,
+          "tipo_dato": "historical_estimate"
+        },
+        {
+          "cantidad": "15 unidades",
+          "kcal": 160,
+          "proteinas_g": 4,
+          "carbohidratos_g": 28,
+          "grasas_g": 2,
+          "tipo_dato": "historical_estimate"
+        },
+        {
+          "cantidad": "16 unidades",
+          "kcal": 150,
+          "proteinas_g": 3,
+          "carbohidratos_g": 28,
+          "grasas_g": 2,
+          "tipo_dato": "historical_estimate"
+        },
+        {
+          "cantidad": "3 unidades",
+          "kcal": 63,
+          "proteinas_g": 2.1,
+          "carbohidratos_g": 11.4,
+          "grasas_g": 0.9,
+          "tipo_dato": "historical_estimate"
+        }
+      ],
+      "referencia_textual_historica": "No hay valor exacto fijo guardado. Usar estimación prudente según cantidad.\n\nReferencias ya usadas:\n- 14 picos -> 130 kcal, 3 g proteína, 24 g carbohidratos, 1.5 g grasa\n- 15 picos -> 160 kcal, 4 g proteína, 28 g carbohidratos, 2 g grasa\n- 16 picos -> 150 kcal, 3 g proteína, 28 g carbohidratos, 2 g grasa\n- 3 picos -> 63 kcal, 2.1 g proteína, 11.4 g carbohidratos, 0.9 g grasa",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_27",
+      "id_original": 27,
+      "nombre": "Cocacola Zero",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "ración bebida",
+          "kcal": 0,
+          "proteinas_g": null,
+          "carbohidratos_g": null,
+          "grasas_g": null,
+          "tipo_dato": "historical"
+        }
+      ],
+      "referencia_textual_historica": "- 0 kcal",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_28",
+      "id_original": 28,
+      "nombre": "Cocacola normal",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "lata/vaso habitual, volumen no confirmado",
+          "kcal": 139,
+          "proteinas_g": null,
+          "carbohidratos_g": 35,
+          "grasas_g": null,
+          "tipo_dato": "historical"
+        }
+      ],
+      "referencia_textual_historica": "### lata/vaso razonable\n- 139 kcal\n- 35 g carbohidratos",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_29",
+      "id_original": 29,
+      "nombre": "Tinto de verano",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "1 vaso habitual",
+          "kcal": 120,
+          "proteinas_g": null,
+          "carbohidratos_g": 14,
+          "grasas_g": null,
+          "tipo_dato": "historical"
+        }
+      ],
+      "referencia_textual_historica": "### 1 vaso / ración habitual\n- 120 kcal\n- 14 g carbohidratos",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_30",
+      "id_original": 30,
+      "nombre": "Caña",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "1 caña habitual",
+          "kcal": 90,
+          "proteinas_g": null,
+          "carbohidratos_g": 7,
+          "grasas_g": null,
+          "tipo_dato": "historical"
+        }
+      ],
+      "referencia_textual_historica": "### ración habitual\n- 90 kcal\n- 7 g carbohidratos",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_31",
+      "id_original": 31,
+      "nombre": "Tercio de cerveza",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "1 tercio",
+          "kcal": 145,
+          "proteinas_g": null,
+          "carbohidratos_g": 11,
+          "grasas_g": null,
+          "tipo_dato": "historical"
+        }
+      ],
+      "referencia_textual_historica": "### ración habitual\n- 145 kcal\n- 11 g carbohidratos",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_32",
+      "id_original": 32,
+      "nombre": "Pinta",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "1 pinta cerveza lager",
+          "kcal": 244,
+          "proteinas_g": null,
+          "carbohidratos_g": 19,
+          "grasas_g": null,
+          "tipo_dato": "historical"
+        }
+      ],
+      "referencia_textual_historica": "### cerveza tipo lager\n- 244 kcal\n- 19 g carbohidratos",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_33",
+      "id_original": 33,
+      "nombre": "Whisky con Coca-Cola Zero",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "1 cubata estándar",
+          "kcal": 112,
+          "proteinas_g": null,
+          "carbohidratos_g": 0.5,
+          "grasas_g": null,
+          "tipo_dato": "historical"
+        }
+      ],
+      "referencia_textual_historica": "### cubata estándar\n- 112 kcal\n- ~0.5 g carbohidratos",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    },
+    {
+      "id": "alimento_34",
+      "id_original": 34,
+      "nombre": "Victoria lata",
+      "nombre_anterior": null,
+      "decision_usuario": "SÍ",
+      "estado": "historical_reference",
+      "raciones_referencia": [
+        {
+          "cantidad": "330 ml lata",
+          "kcal": 145,
+          "proteinas_g": null,
+          "carbohidratos_g": null,
+          "grasas_g": null,
+          "tipo_dato": "historical_estimate"
+        }
+      ],
+      "referencia_textual_historica": "### 330 ml\nBasado en 44 kcal por 100 ml\n- 145 kcal por lata aprox",
+      "nota_importacion": "Valores no confirmados con etiqueta vigente: editar cuando el usuario comparta etiqueta. Los campos null son desconocidos, no equivalen a cero."
+    }
+  ]
+}

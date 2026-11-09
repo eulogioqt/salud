@@ -1,0 +1,18 @@
+# Datos personales: nunca al repositorio
+data/
+backups/
+exportaciones/
+Claude outputs/
+*.db
+*.db-journal
+__pycache__/
+*.pyc
+.env
+secrets/
+
+# Datos y notas personales: viven en el servidor (BD de cada usuario) o solo en la carpeta local
+docs/traspaso_chatgpt/
+app/tools/
+CLAUDE.local.md
+.salud_token
+*.token

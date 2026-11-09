@@ -1,0 +1,3 @@
+#!/bin/sh
+# Atajo de la CLI en el servidor:  salud --usuario eulogio hoy   ·   salud usuario-crear raquel
+exec env SALUD_DATOS=/srv/salud/private PYTHONDONTWRITEBYTECODE=1 TZ=Europe/Madrid python3 /srv/salud/app/salud_cli.py "$@"
