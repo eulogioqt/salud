@@ -2,7 +2,7 @@
 
 Solo biblioteca estándar. Cada token da acceso únicamente a la cuenta de su dueño.
 
-    python3 app/salud_remoto.py login sal_xxxxx        # guarda el token en ~/.salud_token (una vez por sesión/equipo)
+    python3 app/salud_remoto.py login sal_xxxxx --agente codex   # guarda el token (~/.salud_token) y quién eres (claude, chatgpt, codex…)
     python3 app/salud_remoto.py yo                     # comprobar de quién es el token
     python3 app/salud_remoto.py contexto               # notas personales para Claude (leer al empezar)
     python3 app/salud_remoto.py hoy
@@ -21,6 +21,15 @@ import urllib.request
 
 URL = os.environ.get("SALUD_URL", "https://salud.eulogioqt.com").rstrip("/")
 TOKEN_FILE = os.path.join(os.path.expanduser("~"), ".salud_token")
+AGENT_FILE = os.path.join(os.path.expanduser("~"), ".salud_agente")
+
+
+def agent():
+    a = os.environ.get("SALUD_AGENTE")
+    if not a and os.path.exists(AGENT_FILE):
+        with open(AGENT_FILE, encoding="utf-8") as f:
+            a = f.read().strip()
+    return a or "desconocido"
 
 
 def token():
@@ -37,7 +46,7 @@ def req(method, path, body=None, tok=None):
     data = None if body is None else json.dumps(body).encode()
     r = urllib.request.Request(URL + path, data=data, method=method,
                                headers={"Content-Type": "application/json", "Authorization": "Bearer " + (tok or token()),
-                                        "User-Agent": "salud-remoto/1.0"})  # Cloudflare bloquea el de Python
+                                        "User-Agent": "salud-remoto/1.0", "X-Salud-Agent": agent()})  # Cloudflare bloquea el de Python
     try:
         with urllib.request.urlopen(r, timeout=90) as resp:
             return json.loads(resp.read().decode())
@@ -52,7 +61,10 @@ def main(args):
             args = ["--help"]
         else:
             return
-    if args[0] == "login" and len(args) == 2:
+    if args[0] == "login" and len(args) in (2, 4):
+        if len(args) == 4 and args[2] == "--agente":
+            with open(AGENT_FILE, "w", encoding="utf-8") as f:
+                f.write(args[3].strip().lower())
         me = req("GET", "/api/me", tok=args[1].strip())
         with open(TOKEN_FILE, "w", encoding="utf-8") as f:
             f.write(args[1].strip())
@@ -60,7 +72,7 @@ def main(args):
             os.chmod(TOKEN_FILE, 0o600)
         except OSError:
             pass
-        print("Token guardado. Cuenta: %s (@%s)" % (me.get("nombre"), me.get("usuario")))
+        print("Token guardado. Cuenta: %s (@%s) · agente: %s" % (me.get("nombre"), me.get("usuario"), agent()))
         return
     if args[0] == "yo":
         print(json.dumps(req("GET", "/api/me"), ensure_ascii=False))

@@ -357,6 +357,29 @@ class TestProfileDefaults(unittest.TestCase):
             conn.close()
 
 
+class TestAgentTokens(unittest.TestCase):
+    def test_tokens_per_agent_legacy_and_revoke(self):
+        import json as _j
+        from salud import auth
+        with tempfile.TemporaryDirectory() as base:
+            auth.set_password(base, "ana", "contrasena123", "Ana")
+            legacy = auth.new_api_token(base, "ana")
+            # simula el formato antiguo (un solo token)
+            us = auth.list_users(base); t = us["ana"].pop("tokens")[0]; us["ana"]["api_token"] = t["hash"]
+            auth._write(auth.users_path(base), us)
+            self.assertEqual(auth.token_user(base, legacy, "Claude"), "ana")
+            t2 = auth.new_api_token(base, "ana", "codex")
+            self.assertEqual(auth.token_user(base, t2, "chatgpt"), "ana")
+            ts = auth.list_tokens(base, "ana")
+            self.assertEqual(sorted(x["agent"] for x in ts), ["chatgpt", "claude"])
+            self.assertEqual([x["kind"] for x in ts if x["agent"] == "chatgpt"], ["codex"])
+            auth.revoke_api_token(base, "ana", [x["id"] for x in ts if x["agent"] == "claude"][0])
+            self.assertIsNone(auth.token_user(base, legacy))
+            self.assertEqual(auth.token_user(base, t2), "ana")
+            auth.revoke_api_token(base, "ana")
+            self.assertIsNone(auth.token_user(base, t2))
+
+
 class TestNotes(Base):
     def test_notes_roundtrip(self):
         self.assertEqual(dispatch(self.conn, "GET", "/api/notes/claude", {}, {}, "chat")["body"], "")

@@ -9,7 +9,7 @@ Sistema de seguimiento de nutrición, peso y entrenamiento: web https://salud.eu
    [ -d salud ] && git -C salud pull -q || git clone -q https://github.com/eulogioqt/salud
    cd salud
    ```
-2. **Token**: si no existe `~/.salud_token`, pedírselo al usuario. Lo genera él en la web: **menú de tu nombre → Conectar un agente** (elige su agente y copia un mensaje con el token y estos pasos; en Claude puede dejarlo en sus instrucciones personales para no pegarlo cada vez). Guardarlo con `python3 app/salud_remoto.py login <token>` y no repetirlo en las respuestas. Claude no inicia sesión en la web ni escribe contraseñas.
+2. **Token**: si no existe `~/.salud_token`, pedírselo al usuario. Lo genera él en la web: **menú de tu nombre → Conectar un agente** (elige su agente y copia un mensaje con el token y estos pasos; en Claude puede dejarlo en sus instrucciones personales para no pegarlo cada vez). Guardarlo con `python3 app/salud_remoto.py login <token> --agente <quién eres: claude, claude-code, chatgpt, codex, antigravity…>` y no repetirlo en las respuestas. Claude no inicia sesión en la web ni escribe contraseñas.
 3. **Contexto personal**: `python3 app/salud_remoto.py contexto`. Ahí están sus objetivos, perfil, forma de uso y preferencias; seguirlo. Si está vacío: ver «Primera vez».
 
 Todos los comandos: `python3 app/salud_remoto.py <comando>` (abreviado abajo como `S <comando>`). Se ejecutan en el servidor sobre la cuenta del token; la salida es la confirmación. **Nunca simular un registro.**

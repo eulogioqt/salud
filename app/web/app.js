@@ -1220,24 +1220,27 @@ function hevyBox() {
 const AGENTS = [
   { k: "claude", n: "Claude", sub: "App, móvil o Cowork", logo: "claude.png", c: "#d97757",
     where: "Abre Claude → Ajustes → Perfil → «Instrucciones personales» y pégalo ahí (así vale en todas las conversaciones). Luego, en un chat nuevo: «conecta mi salud»." },
-  { k: "claude-code", n: "Claude Code", sub: "Terminal", logo: "claude-code.svg", c: "#d97757",
+  { k: "claude-code", n: "Claude Code", sub: "Terminal", logo: "claude-code.png", c: "#d97757",
     where: "Abre Claude Code en una carpeta vacía y pega el mensaje." },
   { k: "chatgpt", n: "ChatGPT", sub: "Modo agente", logo: "chatgpt.png", c: "#10a37f",
     where: "Pégalo en ChatGPT con el modo agente activado (el chat normal no puede ejecutar código con internet)." },
-  { k: "codex", n: "Codex", sub: "OpenAI · CLI o web", logo: "codex.svg", c: "#7b6cf6",
+  { k: "codex", n: "Codex", sub: "OpenAI · app, CLI o web", logo: "codex.svg", c: "#7b6cf6",
     where: "Abre Codex con acceso a internet y pega el mensaje." },
-  { k: "gemini", n: "Gemini CLI", sub: "Terminal", logo: "gemini-cli.svg", c: "#4285f4",
-    where: "Abre Gemini CLI en una carpeta vacía y pega el mensaje." },
+  { k: "antigravity", n: "Antigravity CLI", sub: "Google · terminal", logo: "antigravity.svg", c: "#4285f4",
+    where: "Abre Antigravity CLI (agy) en una carpeta vacía y pega el mensaje." },
   { k: "otro", n: "Otro agente", sub: "Que ejecute código", logo: null, c: "#8a8f98",
     where: "Pégalo en tu agente. Necesita poder ejecutar Python con internet." },
 ];
+// Agente declarado por el propio agente al conectarse (puede no coincidir con el elegido en la web).
+const agentOf = (name) => AGENTS.find((a) => name && (a.k === name || name.startsWith(a.k) || a.n.toLowerCase() === name)) || { k: name || "otro", n: name ? name[0].toUpperCase() + name.slice(1) : "Agente", logo: null, c: "#8a8f98" };
 function agentPrompt(ag, tok) {
-  const doc = ["codex", "chatgpt", "otro"].includes(ag.k) ? "AGENTS.md" : ag.k === "gemini" ? "GEMINI.md" : "CLAUDE.md";
+  const doc = ["claude", "claude-code"].includes(ag.k) ? "CLAUDE.md" : "AGENTS.md";
   const env = ag.k === "claude"
     ? "Trabaja en tu entorno en la nube (no hace falta mi ordenador). Si no puedes salir a internet, dime que active en Ajustes → Capacidades el acceso a salud.eulogioqt.com y github.com.\n" : "";
+  const me = ag.k === "otro" ? "<tu nombre: claude, chatgpt, codex…>" : ag.k;
   return `Usa mi sistema de salud (comida, peso y entrenos): ${location.origin}\n${env}` +
     `Cuando te pida algo de salud: clona https://github.com/eulogioqt/salud (o git pull) y sigue ${doc}.\n` +
-    `Mi token: ${tok} — guárdalo con «python3 app/salud_remoto.py login ${tok}» y no lo repitas.\n` +
+    `Mi token: ${tok} — guárdalo con «python3 app/salud_remoto.py login ${tok} --agente ${me}» (si no eres ${ag.k === "otro" ? "ninguno de esos" : ag.n}, pon tu nombre real) y no lo repitas.\n` +
     `Después lee mi contexto con «python3 app/salud_remoto.py contexto» (si está vacío, pregúntame mis objetivos).`;
 }
 const agentConnected = () => !!(S.me && S.me.agente && S.me.agente.connected);
@@ -1249,16 +1252,32 @@ function agentBtn(ag, onclick) {
   return h("button", { class: "agent-btn", style: { "--ac": ag.c }, onclick }, agentLogo(ag),
     h("span", { class: "ag-t" }, h("b", null, ag.n), h("span", null, ag.sub)), h("span", { class: "ag-go" }, icon("right")));
 }
+async function refreshAgents() {
+  const r = await api("GET", "/api/token").catch(() => null);
+  if (r && S.me) { S.me.agente = r; drawAccount(); }
+  return r;
+}
+// Lista de agentes conectados con su logo, último uso y «Desconectar» (borra su token: deja de funcionar al momento).
+function agentList(onChange) {
+  const a = (S.me && S.me.agente) || {};
+  const used = a.agents || [];
+  if (!used.length) return h("div", { class: "warn-t" }, "⚠ Ningún agente conectado");
+  return h("div", { class: "ag-list" }, used.map((t) => { const ag = agentOf(t.agent || t.kind);
+    return h("div", { class: "ag-item" }, agentLogo(ag, 32), h("div", { class: "grow" }, h("b", null, ag.n), h("div", { class: "faint" }, `Último uso ${t.used}` + (t.kind && t.agent && !(t.agent || "").startsWith(t.kind) ? ` · elegido «${agentOf(t.kind).n}» en la web` : ""))),
+      h("button", { class: "btn sm", onclick: async () => { if (!confirm(`¿Desconectar ${ag.n}? Su token dejará de funcionar.`)) return; await api("DELETE", "/api/token/" + t.id); await refreshAgents(); toast(ag.n + " desconectado"); onChange && onChange(); } }, "Desconectar")); }));
+}
 function connectAgent() {
   let timer = null;
   const sh = sheet("Conectar un agente", null, null, { onClose: () => clearInterval(timer) });
   const step1 = () => sh.set("Conectar un agente", [
-    h("p", { class: "muted", style: { marginTop: 0 } }, "Tu agente (Claude u otro) podrá apuntar y consultar tus comidas, peso y entrenos. Solo tendrá acceso a tu cuenta."),
+    h("p", { class: "muted", style: { marginTop: 0 } }, "Tu agente (Claude u otro) podrá apuntar y consultar tus comidas, peso y entrenos. Solo tendrá acceso a tu cuenta. Puedes conectar varios y desconectar cada uno cuando quieras."),
     h("div", { class: "agent-grid" }, AGENTS.map((ag) => agentBtn(ag, () => step2(ag)))),
-    S.me && S.me.agente && S.me.agente.has_token ? h("div", { class: "note" }, agentConnected() ? `Ya tienes un agente conectado (último uso: ${S.me.agente.last_used}). Si conectas otro, el anterior deja de tener acceso.` : "Tienes un token sin usar todavía; al conectar se crea uno nuevo.") : null]);
+    agentConnected() ? h("div", null, h("div", { class: "sec-t" }, "Conectados"), agentList(step1)) : null]);
   const step2 = async (ag) => {
     let tok;
-    try { tok = (await api("POST", "/api/token", {})).token; } catch (e) { toast(e.message, { error: true }); return; }
+    await refreshAgents();
+    const before = new Set(((S.me && S.me.agente && S.me.agente.tokens) || []).map((t) => t.id));
+    try { tok = (await api("POST", "/api/token", { kind: ag.k })).token; } catch (e) { toast(e.message, { error: true }); return; }
     const msg = agentPrompt(ag, tok);
     const copied = h("span", { class: "faint" });
     const status = h("div", { class: "agent-wait" }, h("span", { class: "spin" }), "Esperando a que tu agente se conecte…");
@@ -1273,21 +1292,22 @@ function connectAgent() {
       null, { back: step1 });
     clearInterval(timer);
     timer = setInterval(async () => {
-      const r = await api("GET", "/api/token").catch(() => null);
-      if (r && r.connected) {
-        clearInterval(timer); S.me.agente = r; drawAccount();
-        status.replaceChildren(h("span", { class: "ok-dot" }, "✓"), `Conectado (${r.last_used}). Ya puedes pedirle cosas a ${ag.n}.`); status.classList.add("done");
+      const r = await refreshAgents();
+      const t = r && (r.agents || []).find((x) => !before.has(x.id));
+      if (t) {
+        clearInterval(timer); const real = agentOf(t.agent || t.kind);
+        status.replaceChildren(agentLogo(real, 22), h("span", null, `Conectado: ${real.n}` + (t.agent && !t.agent.startsWith(ag.k) ? ` (lo elegiste como ${ag.n}, pero el agente dice ser ${real.n})` : "") + ". Ya puedes pedirle cosas."));
+        status.classList.add("done");
       }
     }, 3000);
   };
   step1();
 }
 function agentRow() {
-  const a = (S.me && S.me.agente) || {};
-  return h("div", { class: "row" },
-    h("span", { class: "grow" }, a.connected ? h("span", null, h("span", { class: "ok-dot" }, "✓"), ` Agente conectado · último uso ${a.last_used}`) : h("span", { class: "warn-t" }, "⚠ Ningún agente conectado")),
-    a.has_token ? h("button", { class: "btn", onclick: async () => { if (!confirm("¿Desconectar? Tu agente dejará de tener acceso.")) return; await api("DELETE", "/api/token"); S.me.agente = { has_token: false, connected: false }; drawAccount(); toast("Agente desconectado"); } }, "Desconectar") : null,
-    h("button", { class: "btn primary", onclick: connectAgent }, a.connected ? "Conectar otro" : "Conectar"));
+  const box = h("div");
+  const draw = () => box.replaceChildren(agentList(draw), h("div", { class: "row", style: { marginTop: "8px", justifyContent: "flex-end" } }, h("button", { class: "btn primary", onclick: connectAgent }, agentConnected() ? "Conectar otro" : "Conectar un agente")));
+  draw();
+  return box;
 }
 
 async function settingsSheet() {
@@ -1340,7 +1360,7 @@ function accountMenu() {
     h("div", { class: "am-h" }, h("span", { class: "av big" + (S.me ? "" : " local") }, S.me ? name[0].toUpperCase() : icon("lock")),
       h("div", null, h("b", null, name), h("span", null, S.me ? "Sesión iniciada · @" + S.me.usuario : "Versión local (sin cuentas)"))),
     S.me ? h("button", { class: agentConnected() ? "" : "warn", onclick: () => { menu.remove(); connectAgent(); } }, h("span", { class: "ag-mini" }, "✦"),
-      agentConnected() ? "Agente conectado" : "Conectar un agente", agentConnected() ? h("span", { class: "ok-dot sm" }, "✓") : h("span", { class: "alert-dot" }, "!")) : null,
+      agentConnected() ? "Agentes" : "Conectar un agente", agentConnected() ? h("span", { class: "ag-mini-list" }, S.me.agente.agents.slice(0, 3).map((t) => agentLogo(agentOf(t.agent || t.kind), 18))) : h("span", { class: "alert-dot" }, "!")) : null,
     h("button", { onclick: () => { menu.remove(); settingsSheet().catch((e) => toast(e.message, { error: true })); } }, icon("gear"), "Ajustes"),
     S.me ? h("button", { class: "danger", onclick: async () => { await api("POST", "/api/logout", {}); location.href = "/login"; } }, icon("out"), "Cerrar sesión") : null);
   document.body.append(menu);

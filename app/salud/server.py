@@ -112,7 +112,7 @@ class Handler(BaseHTTPRequestHandler):
         user = auth.session_user(MULTI, self._cookie_token())
         bearer = (self.headers.get("Authorization") or "")
         if not user and bearer.startswith("Bearer "):
-            user = auth.token_user(MULTI, bearer[7:].strip())
+            user = auth.token_user(MULTI, bearer[7:].strip(), self.headers.get("X-Salud-Agent"))
         if not user:
             return None
         conn, lock = user_ctx(user)
@@ -137,9 +137,10 @@ class Handler(BaseHTTPRequestHandler):
         return False
 
     @staticmethod
-    def _agent_info(info):
-        return {"has_token": bool(info.get("api_token")), "created_at": info.get("api_token_at"),
-                "last_used": info.get("api_token_used"), "connected": bool(info.get("api_token") and info.get("api_token_used"))}
+    def _agent_info(user):
+        ts = auth.list_tokens(MULTI, user)
+        used = [t for t in ts if t["used"]]
+        return {"tokens": ts, "connected": bool(used), "agents": used}
 
     CLI_BLOCKED = {"usuario-crear", "usuario-password", "usuario-token", "usuarios", "foto", "init", "importar-hevy"}
 
@@ -188,19 +189,20 @@ class Handler(BaseHTTPRequestHandler):
             if not ctx:
                 return self._send(401, {"error": "Sin sesión"})
             info = auth.list_users(MULTI).get(ctx[2], {})
-            return self._send(200, {"usuario": ctx[2], "nombre": info.get("name"), "agente": self._agent_info(info)})
-        if MULTI and u.path == "/api/token":
-            # Token personal para Claude u otra IA: solo con la sesión de la web (no con otro token).
+            return self._send(200, {"usuario": ctx[2], "nombre": info.get("name"), "agente": self._agent_info(ctx[2])})
+        if MULTI and u.path.startswith("/api/token"):
+            # Tokens de agentes (Claude, Codex…): solo con la sesión de la web, nunca con otro token.
             user = auth.session_user(MULTI, self._cookie_token())
             if not user:
-                return self._send(401, {"error": "Inicia sesión en la web para gestionar tu token", "login": True})
-            if method == "GET":
-                info = auth.list_users(MULTI).get(user, {})
-                return self._send(200, self._agent_info(info))
-            if method == "POST":
-                return self._send(200, {"token": auth.new_api_token(MULTI, user), "usuario": user})
+                return self._send(401, {"error": "Inicia sesión en la web para gestionar tus agentes", "login": True})
+            if method == "GET" and u.path == "/api/token":
+                return self._send(200, self._agent_info(user))
+            if method == "POST" and u.path == "/api/token":
+                kind = str(body.get("kind") or "")[:30] or None
+                return self._send(200, {"token": auth.new_api_token(MULTI, user, kind), "usuario": user})
             if method == "DELETE":
-                auth.revoke_api_token(MULTI, user)
+                tid = u.path[len("/api/token/"):] if u.path.startswith("/api/token/") else None
+                auth.revoke_api_token(MULTI, user, tid)
                 return self._send(200, {"ok": True})
         ctx = self._ctx()
         if not ctx:

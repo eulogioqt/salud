@@ -130,53 +130,80 @@ def end_session(base, token):
         _write(sessions_path(base), sess)
 
 
-def new_api_token(base, username):
-    """Token personal para scripts/Claude: cabecera «Authorization: Bearer <token>». Se guarda solo su hash."""
+# ---- Tokens de agentes: uno por conexión (Claude, Codex…), cada uno con su nombre declarado y su último uso.
+AGENT_RX = re.compile(r"[^a-z0-9 ._-]")
+
+
+def _tokens(u):
+    """Lista de tokens de la cuenta (convierte el formato antiguo de un solo token)."""
+    ts = u.setdefault("tokens", [])
+    if u.get("api_token"):
+        ts.append({"id": secrets.token_hex(4), "hash": u.pop("api_token"), "kind": None, "agent": None,
+                   "created": u.pop("api_token_at", None), "created_ts": u.pop("api_token_at_ts", 0),
+                   "used": u.pop("api_token_used", None), "used_ts": u.pop("api_token_used_ts", 0)})
+    for k in ("api_token", "api_token_at", "api_token_at_ts", "api_token_used", "api_token_used_ts"):
+        u.pop(k, None)
+    return ts
+
+
+def list_tokens(base, username):
+    u = list_users(base).get(username) or {}
+    return [{k: t.get(k) for k in ("id", "kind", "agent", "created", "used")} for t in _tokens(dict(u))]
+
+
+def new_api_token(base, username, kind=None):
+    """Token personal para un agente: cabecera «Authorization: Bearer <token>». Se guarda solo su hash."""
     token = "sal_" + secrets.token_urlsafe(32)
     with _LOCK:
         users = list_users(base)
         if username not in users:
             raise AuthError("No existe la cuenta")
-        users[username]["api_token"] = hashlib.sha256(token.encode()).hexdigest()
-        users[username]["api_token_at"] = time.strftime("%Y-%m-%d %H:%M")
-        users[username]["api_token_at_ts"] = time.time()
-        users[username].pop("api_token_used", None)
-        users[username].pop("api_token_used_ts", None)
+        ts = _tokens(users[username])
+        ts[:] = [t for t in ts if t.get("used") or time.time() - t.get("created_ts", 0) < 86400]  # sin usar en 24 h: fuera
+        ts.append({"id": secrets.token_hex(4), "hash": hashlib.sha256(token.encode()).hexdigest(), "kind": kind, "agent": None,
+                   "created": time.strftime("%Y-%m-%d %H:%M"), "created_ts": time.time(), "used": None, "used_ts": 0})
         _write(users_path(base), users)
     return token
 
 
-def revoke_api_token(base, username):
+def revoke_api_token(base, username, token_id=None):
+    """Desconecta un agente (borra su token) o todos si no se indica cuál."""
     with _LOCK:
         users = list_users(base)
         if username in users:
-            for k in ("api_token", "api_token_at", "api_token_at_ts", "api_token_used", "api_token_used_ts"):
-                users[username].pop(k, None)
+            ts = _tokens(users[username])
+            ts[:] = [t for t in ts if token_id and t["id"] != token_id]
             _write(users_path(base), users)
 
 
-def token_user(base, token):
+def token_user(base, token, agent=None):
     if not token or not token.startswith("sal_"):
         return None
     h = hashlib.sha256(token.encode()).hexdigest()
     for k, v in list_users(base).items():
-        if v.get("api_token") and hmac.compare_digest(v["api_token"], h):
-            _touch_token(base, k, v)
-            return k
+        for t in _tokens(dict(v)):
+            if hmac.compare_digest(t["hash"], h):
+                _touch_token(base, k, t, agent)
+                return k
     return None
 
 
-def _touch_token(base, username, info):
-    """Apunta cuándo se usó el token por última vez (como mucho una escritura por minuto): así la web sabe que el agente está conectado."""
+def _touch_token(base, username, tok, agent):
+    """Apunta el último uso y quién dice ser el agente (como mucho una escritura por minuto si no cambia nada)."""
+    agent = AGENT_RX.sub("", (agent or "").strip().lower())[:40] or None
     now = time.time()
-    if now - info.get("api_token_used_ts", 0) < 60:
+    if now - (tok.get("used_ts") or 0) < 60 and (not agent or agent == tok.get("agent")):
         return
     with _LOCK:
         users = list_users(base)
-        if username in users:
-            users[username]["api_token_used_ts"] = now
-            users[username]["api_token_used"] = time.strftime("%Y-%m-%d %H:%M")
-            _write(users_path(base), users)
+        if username not in users:
+            return
+        for t in _tokens(users[username]):
+            if t["hash"] == tok["hash"]:
+                t["used_ts"], t["used"] = now, time.strftime("%Y-%m-%d %H:%M")
+                if agent:
+                    t["agent"] = agent
+        _write(users_path(base), users)
 
 
 class RateLimit:
