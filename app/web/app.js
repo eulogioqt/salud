@@ -395,7 +395,7 @@ function hourBars(hrs, today) {
   const mx = Math.max(1, ...hrs), now = new Date().getHours();
   return h("div", { class: "hbars", title: "Pasos por hora" }, hrs.map((v, i) => h("i", { class: (today && i === now ? "now" : "") + (today && i > now ? " fut" : ""), style: { height: Math.max(v ? 8 : 3, (100 * v) / mx) + "%" }, title: `${i}:00 · ${fmt(v)} pasos` })));
 }
-// Conectar los pasos del móvil: Android (Health Connect) o iPhone (Salud de Apple) con la app «Health Webhook»
+// Conectar los pasos del móvil: Android (Health Connect + «Health Connect Webhook», gratis desde GitHub) o iPhone (Salud + Atajos)
 async function stepsConnectSheet() {
   let info = await api("GET", "/api/pasos").catch(() => ({}));
   let tok = null, os = /iPhone|iPad/.test(navigator.userAgent) ? "ios" : /Android/.test(navigator.userAgent) ? "android" : null;
@@ -405,12 +405,13 @@ async function stepsConnectSheet() {
     const seg = h("div", { class: "seg tg-seg" }, [["android", "Android"], ["ios", "iPhone"]].map(([k, l]) => h("button", { class: os === k ? "on" : "", onclick: () => { os = k; draw(); } }, l)));
     const tokLine = tok ? copyLine("Bearer " + tok) : h("button", { class: "btn sm", onclick: async () => { tok = (await api("POST", "/api/pasos", {})).token; draw(); } }, info.configurado ? "Generar una clave nueva" : "Generar mi clave");
     const steps = os === "android" ? [
-      ["Que tus pasos lleguen a Health Connect", "Tu app de pasos (Samsung Health, Google Fit, Fitbit…) tiene que guardar en Health Connect: Ajustes del móvil → Health Connect → Permisos de apps."],
-      ["Instala «Health Connect Webhook»", "Gratis en Google Play. Ábrela y dale permiso a «Pasos».", { href: "https://play.google.com/store/apps/details?id=com.hcwebhook.app", t: "Abrir en Google Play" }],
+      ["Que tus pasos lleguen a Health Connect", "Tu app de pasos (Google Fit, Samsung Health, Fitbit…) tiene que guardarlos en Health Connect. En Google Fit: Perfil → ⚙ Ajustes → «Sincronizar con Health Connect». Compruébalo en Ajustes del móvil → Health Connect → Permisos de apps."],
+      ["Instala «Health Connect Webhook» (gratis)", "Desde el móvil, descarga el .apk de la última versión en GitHub e instálalo (te pedirá permitir instalar desde el navegador). Es la misma app que en Google Play cuesta 7,99 €, pero gratis y de código abierto. Ábrela y dale permiso a «Pasos».", { href: "https://github.com/mcnaveen/health-connect-webhook/releases/latest", t: "Descargar de GitHub" }],
       ["Pasos: cada 15 o 60 minutos", "En Tipos de datos → Pasos, elige resolución de 15 min (o 60) y deja activado «Contar una vez las apps que se solapan»."],
-    ] : os === "ios" ? [
-      ["Instala «Health Webhook»", "Gratis en el App Store. Ábrela y dale permiso para leer los Pasos de Salud.", { href: "https://apps.apple.com/app/health-webhook/id6763619597", t: "Abrir en el App Store" }],
-      ["Pasos: cada 15 o 60 minutos", "En los tipos de datos, activa Pasos con resolución de 15 min (o 60)."],
+    ] : os === "ios" ? [  // con Atajos (gratis, viene en el iPhone)
+      ["Crea una automatización en Atajos", "App Atajos → Automatización → Nueva automatización → «Hora del día»: 23:50, cada día, y marca «Ejecutar inmediatamente». (Puedes crear otras, p. ej. a las 14:00 y 20:00, para verlos durante el día.)"],
+      ["Acción «Buscar muestras de salud»", "Tipo: Pasos · Fecha de inicio: es hoy. Si llevas Apple Watch, añade el filtro «Fuente es (tu iPhone)» para no contar dos veces."],
+      ["Acción «Calcular estadísticas»", "Suma de «Muestras de salud»."],
     ] : [];
     sh.set("Conectar tus pasos", [
       h("p", { class: "muted wz-p" }, "Así los pasos llegan solos (y por horas). Si no, los apuntas a mano en Hoy o se los dices a tu agente."),
@@ -418,7 +419,10 @@ async function stepsConnectSheet() {
       os ? h("div", { class: "agent-steps simple" },
         steps.map(([t, d, x], i) => h("div", { class: "ast" }, h("span", { class: "n" }, String(i + 1)), h("div", null, h("b", null, t), h("div", { class: "muted" }, d),
           x ? h("a", { class: "btn sm ext", href: x.href, target: "_blank", rel: "noopener" }, x.t, " ↗") : null))),
-        h("div", { class: "ast" }, h("span", { class: "n" }, String(steps.length + 1)), h("div", null, h("b", null, "Añade el webhook"), h("div", { class: "muted" }, "Webhooks → Añadir. Dirección:"), copyLine(info.url || location.origin + "/api/hooks/salud"),
+        os === "ios" ? h("div", { class: "ast" }, h("span", { class: "n" }, String(steps.length + 1)), h("div", null, h("b", null, "Acción «Obtener contenido de URL»"), h("div", { class: "muted" }, "URL:"), copyLine(info.url || location.origin + "/api/hooks/salud"),
+          h("div", { class: "muted", style: { marginTop: "8px" } }, "Método: POST · Encabezados → clave «Authorization» y, como valor, tu clave (solo se ve ahora):"), tokLine,
+          h("div", { class: "muted", style: { marginTop: "8px" } }, "Cuerpo de la solicitud: JSON → añade un campo Número llamado «steps» con el valor «Estadísticas». Pulsa ▶ para probarlo.")))
+        : h("div", { class: "ast" }, h("span", { class: "n" }, String(steps.length + 1)), h("div", null, h("b", null, "Añade el webhook"), h("div", { class: "muted" }, "Webhooks → Añadir. Dirección:"), copyLine(info.url || location.origin + "/api/hooks/salud"),
           h("div", { class: "muted", style: { marginTop: "8px" } }, "Encabezado (header) → nombre «Authorization» y, como valor, tu clave (solo se ve ahora):"), tokLine,
           h("div", { class: "muted", style: { marginTop: "8px" } }, "Sincronización: cada 30 min. Pulsa «Probar» o «Sincronizar ahora»."))),
         h("div", { class: "ast" }, h("span", { class: "n" + (info.conectado ? " ok" : "") }, info.conectado ? "✓" : String(steps.length + 2)), h("div", null, h("b", null, "Listo"),

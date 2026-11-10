@@ -310,6 +310,14 @@ class TestTraining(Base):
         T.set_exercise_settings(self.conn, {"name": "Press Banca Viejo", "same_as": ""})
         self.assertEqual(len(T.exercise_history(self.conn, "press banca (barra)")), 1)
 
+    def test_steps_total(self):
+        r = core.ingest_health(self.conn, {"steps": "8123", "date": D1})
+        self.assertEqual(r["dias"][0]["pasos"], 8123)
+        self.assertEqual(core.get_day_row(self.conn, D1)["steps"], 8123)
+        core.ingest_health(self.conn, {"steps": [{"count": 100, "start_time": D1 + "T10:00:00+01:00", "end_time": D1 + "T10:15:00+01:00"}]})
+        core.ingest_health(self.conn, {"steps": 9000, "date": D1})  # el total sustituye a los tramos
+        self.assertEqual(core.get_day_row(self.conn, D1)["steps"], 9000)
+
     def test_note_variant(self):
         from salud import training as T
         self.assertEqual(T.note_variant("Dominada", "A un brazo sin goma"), "Dominada a una mano")

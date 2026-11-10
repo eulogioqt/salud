@@ -1349,6 +1349,9 @@ def ingest_health(conn, payload, source="health"):
     tramo si llega otra vez) y recalcula los pasos de los días afectados que sigan abiertos."""
     if not isinstance(payload, dict):
         raise ValidationError("JSON no válido")
+    tot = payload.get("steps", payload.get("pasos"))
+    if isinstance(tot, (int, float, str)) and not isinstance(tot, bool):
+        return _ingest_total(conn, payload, tot, source)
     recs = payload.get("steps") or []
     days, n = set(), 0
     with tx(conn, "health_sync", source, payload={"steps": len(recs), "app": payload.get("app_version")}):
@@ -1376,6 +1379,26 @@ def ingest_health(conn, payload, source="health"):
             conn.execute("UPDATE days SET steps=?, steps_auto=1, updated_at=? WHERE date=?", (int(tot), ts(), d))
             out.append({"fecha": d, "pasos": int(tot), "guardado": True})
     return {"ok": True, "tramos": n, "dias": out}
+
+
+def _ingest_total(conn, payload, tot, source):
+    """Formato sencillo (p. ej. un Atajo de iPhone): {"steps": total del día, "date": "AAAA-MM-DD" opcional (hoy)}.
+    Sustituye los pasos del día; los tramos por horas de ese día se quitan para no sumar dos veces."""
+    try:
+        n = int(round(float(str(tot).replace(",", ".").strip())))
+    except ValueError:
+        raise ValidationError("Pasos no válidos: %s" % tot)
+    if n < 0 or n > 200000:
+        raise ValidationError("Pasos fuera de rango: %s" % n)
+    d = _date(str(payload.get("date") or payload.get("fecha") or "")[:10] or None)
+    with tx(conn, "health_sync", source, d, payload={"total": n}):
+        st = conn.execute("SELECT status FROM days WHERE date=?", (d,)).fetchone()
+        if st and st["status"] == "cerrado":
+            return {"ok": True, "dias": [{"fecha": d, "pasos": n, "guardado": False, "motivo": "día cerrado"}]}
+        conn.execute("DELETE FROM step_buckets WHERE substr(start,1,10)=?", (d,))
+        _ensure_day(conn, d)
+        conn.execute("UPDATE days SET steps=?, steps_auto=1, updated_at=? WHERE date=?", (n, ts(), d))
+    return {"ok": True, "dias": [{"fecha": d, "pasos": n, "guardado": True}]}
 
 
 def steps_hours(conn, d):
