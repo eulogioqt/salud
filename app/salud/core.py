@@ -1405,6 +1405,26 @@ def _ingest_total(conn, payload, tot, source):
     return {"ok": True, "dias": [{"fecha": d, "pasos": n, "guardado": True}]}
 
 
+def steps_stats(conn, d=None):
+    """Para la ficha de pasos: por horas del día, la media por horas de los 7 días anteriores con datos,
+    los totales de los últimos 30 días y cuándo llegó el último envío del móvil."""
+    d = _date(d)
+    prev = [r[0] for r in conn.execute("SELECT DISTINCT substr(start,1,10) FROM step_buckets WHERE substr(start,1,10)<? "
+                                       "ORDER BY 1 DESC LIMIT 7", (d,))]
+    avg = None
+    if prev:
+        tot = [0] * 24
+        for p in prev:
+            for i, v in enumerate(steps_hours(conn, p) or [0] * 24):
+                tot[i] += v
+        avg = [round(v / len(prev)) for v in tot]
+    since = shift(d, -29)
+    days = [{"date": r["date"], "steps": r["steps"]} for r in conn.execute(
+        "SELECT date, steps FROM days WHERE date BETWEEN ? AND ? AND steps IS NOT NULL ORDER BY date", (since, d))]
+    last = conn.execute("SELECT MAX(received_at) FROM step_buckets").fetchone()[0]
+    return {"date": d, "hours": steps_hours(conn, d), "avg_hours": avg, "avg_days": len(prev), "days": days, "last_received": last}
+
+
 def steps_hours(conn, d):
     rows_ = conn.execute("SELECT start, end, steps FROM step_buckets WHERE substr(start,1,10)=?", (d,)).fetchall()
     if not rows_:

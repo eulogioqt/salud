@@ -137,6 +137,11 @@ def _entry_restore(c, q, b, s, eid):
     return core.restore_entry(c, int(eid), s)
 
 
+@route("GET", r"/api/pasos/stats")
+def _steps_stats(c, q, b, s):
+    return core.steps_stats(c, q.get("date"))
+
+
 @route("POST", r"/api/pasos/tramos")
 def _steps_buckets(c, q, b, s):
     """Pasos por tramos (mismo formato que el webhook del móvil: {"steps": [{count, start_time, end_time}]})

@@ -222,6 +222,11 @@ class Handler(BaseHTTPRequestHandler):
             if not who:
                 return self._send(401, {"error": "Token de pasos no válido: genéralo en la web (Hoy → Pasos → Conectar)"})
             conn, lock = user_ctx(who)
+            try:  # copia del último envío (para ver qué manda el móvil: báscula, etc.)
+                with open(os.path.join(os.path.dirname(auth.user_db(MULTI, who)), "ultimo_movil.json"), "w", encoding="utf-8") as f:
+                    json.dump(body, f, ensure_ascii=False)
+            except Exception:
+                pass
             try:
                 with lock:
                     return self._send(200, core.ingest_health(conn, body, "movil"))
