@@ -1042,3 +1042,6 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .agent-steps .n.ok { background: var(--surface-2); color: var(--accent); }
 .btn.ext { margin-top: 8px; display: inline-flex; gap: 4px; text-decoration: none; }
 .tok-alt summary { font-size: 12.5px; }
+.agent-wait.soft { color: var(--faint); font-size: 13px; margin-top: 6px; }
+.agent-wait.soft.done { color: var(--accent); font-weight: 600; }
+.agent-steps .n.ok { background: var(--accent); color: #fff; }

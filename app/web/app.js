@@ -1317,7 +1317,7 @@ function connectAgent() {
     h("div", { class: "agent-grid" }, AGENTS.map((ag) => { const on = ag.k !== "otro" && agentsUsed().some((t) => t.kind === ag.k || t.agent === ag.k);
       return on ? agentBtn({ ...ag, sub: "Conectado" }, null, true) : agentBtn(ag, () => step2(ag)); })),
     agentConnected() ? h("div", null, h("div", { class: "sec-t" }, "Conectados"), agentList(step1)) : null]);
-  const watch = async (status, ag) => {
+  const watch = async (status, ag, doneN) => {
     await refreshAgents();
     const before = new Set(((S.me && S.me.agente && S.me.agente.agents) || []).map((t) => t.id));
     clearInterval(timer);
@@ -1327,30 +1327,33 @@ function connectAgent() {
       if (t) {
         clearInterval(timer); const real = agentOf(t.agent || t.kind);
         status.replaceChildren(agentLogo(real, 22), h("span", null, `Conectado: ${real.n}` + (t.agent && ag.k !== "otro" && !t.agent.startsWith(ag.k) ? ` (elegiste ${ag.n})` : "") + ". Ya puedes pedirle cosas."));
-        status.classList.add("done");
+        status.classList.add("done"); if (doneN) { doneN.textContent = "✓"; doneN.classList.add("ok"); }
       }
     }, 3000);
   };
   const step2 = (ag) => {
+    const status = h("div", { class: "agent-wait soft" }, "Cuando pulses «Permitir», aquí pondrá «Conectado».");
+    const doneN = h("span", { class: "n" }, String(ag.steps(MCP_URL()).length + 1));
     const u = MCP_URL();
-    const status = h("div", { class: "agent-wait" }, h("span", { class: "spin" }), "Esperando a que pulses «Permitir»…");
-    const tokBox = h("div");
     const steps = ag.steps(u);
     const extra = (x) => (typeof x === "object" ? h("a", { class: "btn sm ext", href: x.href, target: "_blank", rel: "noopener" }, x.t, " ↗")
       : /^(claude|codex|\{)/.test(x) ? copyLine(x) : h("div", { class: "muted" }, x));
+    const noMcp = async () => {
+      let tok; try { tok = (await api("POST", "/api/token", { kind: ag.k })).token; } catch (e) { toast(e.message, { error: true }); return; }
+      sh.set("Conectar con un token", [h("p", { class: "muted", style: { marginTop: 0 } }, "Para agentes sin conectores. Pégale este mensaje a tu agente; el token solo se muestra ahora."),
+        h("textarea", { class: "input mono-ta", rows: 8, readonly: true, onclick: (e) => e.target.select() }, agentPrompt(ag, tok))],
+        [h("span", { class: "grow" }), h("button", { class: "btn primary", onclick: async (e) => { try { await navigator.clipboard.writeText(agentPrompt(ag, tok)); e.target.textContent = "✓ Copiado"; } catch (x) { toast("Cópialo a mano", { error: true }); } } }, "Copiar mensaje")],
+        { back: () => step2(ag) });
+    };
     sh.set("Conectar " + ag.n, [
       copyLine(u, "big"),
       h("div", { class: "agent-steps simple" },
         steps.map(([t, d, ...rest], i) => h("div", { class: "ast" }, h("span", { class: "n" }, String(i + 1)),
           h("div", null, h("b", null, t), d ? h("div", { class: "muted" }, d) : null, rest.map(extra)))),
-        h("div", { class: "ast" }, h("span", { class: "n ok" }, "✓"), h("div", null, h("b", null, "Listo: escríbele en cualquier chat"), h("div", { class: "muted" }, "«Apunta mi desayuno», «¿cuánto llevo hoy?», «cierra el día»…"), status))),
-      h("details", { class: "tok-alt" }, h("summary", { class: "faint" }, "Usar un token (agentes sin conectores)"),
-        h("button", { class: "btn sm", style: { marginTop: "8px" }, onclick: async () => {
-          let tok; try { tok = (await api("POST", "/api/token", { kind: ag.k })).token; } catch (e) { toast(e.message, { error: true }); return; }
-          tokBox.replaceChildren(h("p", { class: "faint" }, "Pégale este mensaje a tu agente. El token solo se muestra ahora."), h("textarea", { class: "input mono-ta", rows: 7, readonly: true, onclick: (e) => e.target.select() }, agentPrompt(ag, tok)));
-        } }, "Generar token"), tokBox)],
-      null, { back: step1, titleExtra: agentLogo(ag, 26) });
-    watch(status, ag);
+        h("div", { class: "ast" }, doneN, h("div", null, h("b", null, "Escríbele en cualquier chat"), h("div", { class: "muted" }, "«Apunta mi desayuno», «¿cuánto llevo hoy?», «cierra el día»…"), status)))],
+      [h("span", { class: "grow" }), h("button", { class: "btn ghost sm", onclick: noMcp }, "Mi agente no tiene conectores")],
+      { back: step1, titleExtra: agentLogo(ag, 26) });
+    watch(status, ag, doneN);
   };
   step1();
 }
