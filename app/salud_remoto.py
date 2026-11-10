@@ -81,6 +81,10 @@ def main(args):
         with open(args[1], encoding="utf-8") as f:
             print(json.dumps(req("POST", "/api/hevy/import-csv", {"csv": f.read()}), ensure_ascii=False))
         return
+    if args[0] == "api" and len(args) in (3, 4):  # llamada HTTP directa a la API (incluye rutas solo del servidor)
+        body = json.loads(args[3]) if len(args) == 4 else None
+        print(json.dumps(req(args[1].upper(), args[2], body), ensure_ascii=False, indent=1))
+        return
     if "--archivo" in args:  # el servidor no lee ficheros: se manda el contenido
         i = args.index("--archivo")
         with open(args[i + 1], encoding="utf-8") as f:
