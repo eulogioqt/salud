@@ -36,7 +36,8 @@ def token():
 def req(method, path, body=None, tok=None):
     data = None if body is None else json.dumps(body).encode()
     r = urllib.request.Request(URL + path, data=data, method=method,
-                               headers={"Content-Type": "application/json", "Authorization": "Bearer " + (tok or token())})
+                               headers={"Content-Type": "application/json", "Authorization": "Bearer " + (tok or token()),
+                                        "User-Agent": "salud-remoto/1.0"})  # Cloudflare bloquea el de Python
     try:
         with urllib.request.urlopen(r, timeout=90) as resp:
             return json.loads(resp.read().decode())
