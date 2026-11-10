@@ -1312,3 +1312,12 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .upchip.lg { flex: none; height: 26px; font-size: 13px; font-weight: 700; padding: 0 11px 0 8px; gap: 5px; vertical-align: middle; }
 .upchip.lg svg { display: block; width: 15px; height: 15px; }
 .upchip:not(.lg) { font-weight: 650; font-size: 11.5px; }
+/* móvil: el objetivo y «Desglose» van en su propia fila, sin pisar el anillo */
+@media (max-width: 640px) {
+  .card.summary.b { padding-top: 46px; }
+  .sum-goal { top: 8px; left: 8px; max-width: 62%; }
+  .sum-des { top: 8px; right: 8px; }
+}
+/* tarjeta de pasos: la etiqueta «auto» y «Conectar» sin apretarse */
+.stat .lbl .lnk-btn { white-space: nowrap; }
+@media (max-width: 640px) { .stat .lbl { flex-wrap: wrap; row-gap: 2px; } .auto-t { margin-left: 4px; } }
