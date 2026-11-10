@@ -1161,3 +1161,10 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .sk { border-radius: 16px; background: linear-gradient(90deg, var(--surface-2) 25%, color-mix(in srgb, var(--surface-2) 55%, var(--surface)) 50%, var(--surface-2) 75%); background-size: 200% 100%; animation: sk 1.2s ease-in-out infinite; }
 @keyframes sk { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
+/* Rangos: escudo en listas; nombre en negrita y legible */
+.lvsh { display: inline-flex; vertical-align: -4px; }
+.lvl { font-weight: 750; font-size: 11px; }
+.lvl.soft { opacity: 1; }
+.lvname { font-size: 12.5px; font-weight: 750; color: var(--text); }
+.lvname.l0 { color: #8a4a1f; } .lvname.l1 { color: #5d6874; } .lvname.l2 { color: #8a6100; } .lvname.l3 { color: #0b7a46; } .lvname.l4 { color: #3a55d8; } .lvname.l5 { color: #c42d6a; }
+@media (prefers-color-scheme: dark) { .lvname.l0 { color: #e0a070; } .lvname.l1 { color: #d5dbe2; } .lvname.l2 { color: #ffd45c; } .lvname.l3 { color: #6fe3a6; } .lvname.l4 { color: #8fdcff; } .lvname.l5 { color: #ff8fb0; } }
