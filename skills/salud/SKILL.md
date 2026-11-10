@@ -9,7 +9,7 @@ Sistema de seguimiento con web (https://salud.eulogioqt.com) y una cuenta por pe
 
 ## Arranque (cada conversación)
 
-**Red (lo primero):** `python3 app/salud_remoto.py comprobar`. Si el entorno no llega a github.com o a salud.eulogioqt.com, NO lo trates como un error ni lo reintentes por otra vía: explícale al usuario, como un paso de configuración, qué activar (Claude: Ajustes → Capacidades → acceso a la red → añadir salud.eulogioqt.com y github.com, o «Todos los dominios»; otros agentes: su ajuste de acceso a internet) y espera a que te avise.
+**Red (lo primero):** `python3 app/salud_remoto.py comprobar`. Si el entorno no llega a github.com o a salud.eulogioqt.com, NO lo trates como un error ni lo reintentes por otra vía: explícale al usuario, como un paso de configuración, qué activar (Claude: claude.ai en el navegador —en la app del móvil no sale— → Ajustes → Capacidades → «Permitir salida a la red»; si hay lista de dominios, añadir salud.eulogioqt.com y github.com; otros agentes: su ajuste de acceso a internet) y espera a que te avise.
 
 ```bash
 [ -d salud ] && git -C salud pull -q || git clone -q https://github.com/eulogioqt/salud

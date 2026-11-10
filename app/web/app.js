@@ -1244,7 +1244,7 @@ const AGENTS = [
 const agentOf = (name) => AGENTS.find((a) => name && (a.k === name || name.startsWith(a.k) || a.n.toLowerCase() === name)) || { k: name || "otro", n: name ? name[0].toUpperCase() + name.slice(1) : "Agente", logo: null, c: "#8a8f98" };
 // Paso previo: el entorno del agente tiene que poder salir a la web y a GitHub.
 const NET_STEP = {
-  claude: "En Claude: Ajustes → Capacidades → acceso a la red de la ejecución de código. Añade salud.eulogioqt.com y github.com a los dominios permitidos (o elige «Todos los dominios»). En cuentas de empresa lo cambia el administrador.",
+  claude: "Abre claude.ai en el navegador (en la app del móvil no sale esta opción) → Ajustes → Capacidades → activa «Permitir salida a la red» (Allow network egress). Si ves una lista de dominios, añade salud.eulogioqt.com y github.com. Se guarda en tu cuenta y vale también en la app. En cuentas de empresa lo cambia el administrador.",
   "claude-code": "Claude Code en tu ordenador ya tiene internet. En Claude Code en la web, permite salud.eulogioqt.com y github.com en la red del entorno.",
   chatgpt: "En el modo agente de ChatGPT, permite el acceso a internet.",
   codex: "En Codex, activa el acceso a internet del entorno (en Codex web: Ajustes del entorno → Internet access) y permite salud.eulogioqt.com y github.com.",

@@ -4,7 +4,7 @@ Sistema de seguimiento de nutrición, peso y entrenamiento: web https://salud.eu
 
 ## Al empezar cada conversación
 
-**Red (lo primero):** `python3 app/salud_remoto.py comprobar`. Si el entorno no llega a github.com o a salud.eulogioqt.com, NO lo trates como un error ni lo reintentes por otra vía: explícale al usuario, como un paso de configuración, qué activar (Claude: Ajustes → Capacidades → acceso a la red → añadir salud.eulogioqt.com y github.com, o «Todos los dominios»; otros agentes: su ajuste de acceso a internet) y espera a que te avise.
+**Red (lo primero):** `python3 app/salud_remoto.py comprobar`. Si el entorno no llega a github.com o a salud.eulogioqt.com, NO lo trates como un error ni lo reintentes por otra vía: explícale al usuario, como un paso de configuración, qué activar (Claude: claude.ai en el navegador —en la app del móvil no sale— → Ajustes → Capacidades → «Permitir salida a la red»; si hay lista de dominios, añadir salud.eulogioqt.com y github.com; otros agentes: su ajuste de acceso a internet) y espera a que te avise.
 
 1. **Código** (la carpeta del usuario si la tiene conectada; si no, en el entorno de la nube, que funciona con el ordenador apagado):
    ```bash

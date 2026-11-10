@@ -58,9 +58,9 @@ def req(method, path, body=None, tok=None):
 SETUP = """PASO DE CONFIGURACIÓN PENDIENTE (no es un error):
 Tu entorno no tiene permiso para conectarse a {host}.
 Dile al usuario, tal cual, que lo active y te avise:
-  · Claude (app o web): Ajustes → Capacidades → «Acceso a la red» (o «Ejecución de código y archivos»):
-    añade {host} y github.com a los dominios permitidos, o elige «Todos los dominios».
-    Si es una cuenta de empresa/equipo, lo cambia el administrador de la organización.
+  · Claude: abrir claude.ai EN EL NAVEGADOR (en la app del móvil no aparece) → Ajustes → Capacidades →
+    activar «Permitir salida a la red» (Allow network egress); si hay lista de dominios, añadir {host} y github.com.
+    Se guarda en la cuenta y vale también en la app. En cuentas de empresa/equipo lo cambia el administrador.
   · Otros agentes (Codex, Antigravity…): permite el acceso a internet a {host} en su configuración.
 Después, en este mismo chat, vuelve a ejecutar: python3 app/salud_remoto.py comprobar"""
 
