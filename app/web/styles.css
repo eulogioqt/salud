@@ -1308,3 +1308,7 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .upchip, .upchip.l1, .upchip.l2, .upchip.l4, .upchip.l5 { background: #ffe8d4; color: #c4560a; line-height: 1; height: 20px; padding: 0 8px 0 6px; gap: 3px; }
 .upchip.lg { height: auto; padding: 4px 10px; }
 @media (prefers-color-scheme: dark) { .upchip, .upchip.l1, .upchip.l2, .upchip.l4, .upchip.l5 { background: rgba(255,140,50,.18); color: #ffad66; } }
+/* mismo tamaño que los chips de récords */
+.upchip.lg { flex: none; height: 26px; font-size: 13px; font-weight: 700; padding: 0 11px 0 8px; gap: 5px; vertical-align: middle; }
+.upchip.lg svg { display: block; width: 15px; height: 15px; }
+.upchip:not(.lg) { font-weight: 650; font-size: 11.5px; }
