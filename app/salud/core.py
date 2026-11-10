@@ -958,7 +958,7 @@ def build_summary(conn, d, st=None):
     if tgt and diffs.get("kcal") is not None and abs(diffs["kcal"]) >= 300:
         obs.append("%s kcal %s del objetivo." % (_fmt(abs(diffs["kcal"])), "por encima" if diffs["kcal"] > 0 else "por debajo"))
     if diffs.get("fat_g"):
-        obs.append("Grasas %s del rango (%s g)." % ("por debajo" if diffs["fat_g"] < 0 else "por encima", _fmt(abs(diffs["fat_g"]))))
+        obs.append("Grasas: %s g %s del rango." % (_fmt(abs(diffs["fat_g"])), "por debajo" if diffs["fat_g"] < 0 else "por encima"))
     if t["kcal"] and est_kcal / t["kcal"] > 0.25:
         obs.append("%d %% de las kcal vienen de estimaciones puntuales: el total tiene más incertidumbre." % round(100 * est_kcal / t["kcal"]))
     if t["missing"]:
