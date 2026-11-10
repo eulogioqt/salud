@@ -1429,3 +1429,6 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .supp-c.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; } .supp-c.on em { color: var(--accent); opacity: .8; }
 .supp-dot { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--faint); display: inline-block; }
 .supp-c:disabled { cursor: default; opacity: .8; }
+.supp-b .supp { margin: 8px 0 0; } .supp-b .mt { font-size: 12.5px; }
+.tile.add-supp { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; justify-content: center; padding: 18px; border-style: dashed; min-height: 120px; }
+.wchips { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 12px; }

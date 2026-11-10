@@ -63,6 +63,22 @@ def neat_label(kcal):
     return None
 
 
+def supplements(conn):
+    """Suplementos de la persona: productos con categoría «Suplemento» y dosis sin apenas kcal (creatina, vitaminas…)."""
+    out = []
+    for r in conn.execute("SELECT f.id, f.name, p.id AS pid, p.label, p.kcal FROM foods f LEFT JOIN portions p ON p.food_id=f.id AND p.is_default=1 "
+                          "WHERE f.deleted=0 AND f.hidden=0 AND lower(COALESCE(f.category,'')) LIKE '%suplement%' ORDER BY f.name"):
+        if r["kcal"] is not None and r["kcal"] < 20:  # sin kcal conocidas (p. ej. una proteína sin etiqueta) no cuenta
+            out.append({"id": r["id"], "name": r["name"], "portion_id": r["pid"], "dose": r["label"]})
+    return out
+
+
+def supplements_taken(conn, d):
+    ids = {x["id"] for x in supplements(conn)}
+    return {r["food_id"]: r["time"] for r in conn.execute("SELECT food_id, time FROM entries WHERE date=? AND deleted_at IS NULL AND food_id IS NOT NULL", (d,))
+            if r["food_id"] in ids}
+
+
 def accept_all_review(conn, source="web"):
     """Acepta de golpe todo lo que esté «por revisar» (productos, recetas y comidas habituales)."""
     with tx(conn, "accept_all_review", source):
@@ -1018,7 +1034,7 @@ def day_state(conn, d=None):
         "balance": None if totals["kcal"] is None or en["total"] is None else round(totals["kcal"] - en["total"]),
         "activities": acts, "avg7": None if a7 is None else round(a7, 2), "avg7_n": n7,
         "entry_count": len(entries), "closure": closure, "closure_count": n_closures, "rev": rev(conn),
-        "steps_hours": steps_hours(conn, d), "neat_levels": [{"key": k, "label": l, "kcal": v, "kcal_adj": round(v * (en.get("neat_factor") or 1))} for k, l, v in NEAT_LEVELS],
+        "steps_hours": steps_hours(conn, d), "supplements": supplements(conn), "supplements_taken": supplements_taken(conn, d), "neat_levels": [{"key": k, "label": l, "kcal": v, "kcal_adj": round(v * (en.get("neat_factor") or 1))} for k, l, v in NEAT_LEVELS],
     }
 
 
@@ -1051,6 +1067,13 @@ def close_check(conn, d):
         miss = ", ".join({"kcal": "kcal", "protein_g": "P", "carbs_g": "C", "fat_g": "G"}[f] for f in e["missing"])
         w.append({"level": "importante" if "kcal" in e["missing"] else "info", "code": "incompleto",
                   "text": "%s: faltan %s" % (e["name"], miss), "entry_id": e["id"]})
+    sups = supplements(conn)
+    if sups:
+        taken = supplements_taken(conn, d)
+        miss = [x for x in sups if x["id"] not in taken]
+        if miss:
+            w.append({"level": "info", "code": "suplementos", "text": "¿Te has tomado hoy %s? Si es que sí, márcalo" % " y ".join(x["name"] for x in miss),
+                      "supplements": miss})
     # (los productos «sin datos oficiales» o aproximados no son un aviso: muchos nunca tendrán etiqueta)
     auto = st["energy"].get("steps_auto_sessions") or {}
     for a in st["activities"]:

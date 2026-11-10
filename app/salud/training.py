@@ -430,6 +430,12 @@ def get_workout(conn, wid, with_previous=True):
         if with_previous:
             ex["previous"] = _previous(conn, ex["name"], w["date"], wid)
     _summ(w)
+    if w.get("activity_id"):  # gasto estimado de la sesión (el mismo que suma al día)
+        a = conn.execute("SELECT * FROM activities WHERE id=? AND deleted_at IS NULL", (w["activity_id"],)).fetchone()
+        if a:
+            kg = core.weight_for_energy(conn, w["date"], core.settings(conn))[0]
+            if kg is not None or a["kcal_net"] is not None:
+                w["kcal"] = round(core.activity_kcal(dict(a), kg)[0])
     return w
 
 

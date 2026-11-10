@@ -38,7 +38,8 @@ const dateLabel = (iso, opts = { weekday: "long", day: "numeric", month: "short"
 const norm = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const FIELDS = ["kcal", "protein_g", "carbs_g", "fat_g"];
 const MEALS = [["desayuno", "Desayuno"], ["almuerzo", "Almuerzo"], ["merienda", "Merienda"], ["cena", "Cena"], ["otro", "Otro"]];
-const QUAL = { etiqueta: "Etiqueta", historico: "Histórico", provisional: "Aproximado", estimacion: "Estimación", pendiente: "Sin datos oficiales" };
+// Lo que no viene de una etiqueta o del histórico es «Aprox.» (aproximado, estimación de comida fuera o sin datos oficiales)
+const QUAL = { etiqueta: "Etiqueta", historico: "Histórico", provisional: "Aprox.", estimacion: "Aprox.", pendiente: "Aprox." };
 const QORDER = ["etiqueta", "historico", "provisional", "estimacion", "pendiente"];
 const ACT_TYPES = [["fuerza", "Fuerza"], ["calistenia", "Calistenia"], ["hyrox", "HYROX"], ["carrera", "Carrera"], ["bici", "Bici"], ["natacion", "Natación"], ["caminata", "Caminata"], ["otro", "Otro"]];
 const STEP_TYPES = ["carrera", "hyrox", "caminata"];
@@ -240,8 +241,9 @@ function viewHoy() {
     h("span", { class: "spacer" }),
     !isToday ? h("button", { class: "btn ghost sm", onclick: () => goDay(st.today) }, "Ir a hoy") : null,
     closed ? h("span", { class: "pill closed" }, icon("lock"), "Cerrado") : h("span", { class: "pill" }, "Abierto"));
-  const wrap = h("div", { class: closed ? "locked" : "" }, head, summaryCard(st), bodyStrip(st), suppRow(st, closed));
+  const wrap = h("div", { class: closed ? "locked" : "" }, head, summaryCard(st), bodyStrip(st));
   for (const [m] of MEALS) { const mb = mealBlock(st, m, closed); if (mb) wrap.append(mb); }
+  const sb = suppBlock(st, closed); if (sb) wrap.append(sb);
   wrap.append(h("div", { class: "closebar" }, closed
     ? h("button", { class: "btn ghost", onclick: () => reopenSheet(st.date) }, "Reabrir día")  // el resumen del cierre está en «Desglose»
     : h("button", { class: "btn primary", onclick: () => closeSheet(st.date) }, "Cerrar día")));
@@ -674,32 +676,29 @@ async function hevySync(full) {
   } catch (e) { toast(e.message, { error: true }); }
 }
 
-// Suplementos (productos con categoría «Suplemento»): una fila propia en Hoy para marcarlos de un toque.
-// Se apuntan como una comida más («otro»); los que no tienen kcal (creatina…) no salen en la lista de comidas.
-// (solo los de dosis sin apenas kcal: la proteína en polvo sigue apuntándose en su comida con sus gramos)
+// Suplementos (productos con categoría «Suplemento» y dosis sin kcal): un bloque propio al final de Hoy, fuera de las comidas.
+// Se apuntan como una entrada más (franja «otro»); al cerrar el día se pregunta por los que falten.
 const suppPortion = (f) => (f.portions || []).find((p) => p.is_default) || (f.portions || [])[0];
-const isSupp = (f) => f && !f.deleted && !f.hidden && /suplement/i.test(f.category || "") && !((suppPortion(f) || {}).kcal >= 20);
-function suppEntries(st) {
-  const sup = new Set((S.catalog && S.catalog.foods || []).filter(isSupp).map((f) => f.id));
-  return Object.values(st.meals).flatMap((m) => m.entries).filter((e) => sup.has(e.food_id));
-}
-function suppRow(st, closed) {
-  const sups = (S.catalog && S.catalog.foods || []).filter(isSupp);
+const isSupp = (f) => { const p = f && suppPortion(f); return !!(f && !f.deleted && !f.hidden && /suplement/i.test(f.category || "") && p && p.kcal != null && p.kcal < 20); };
+function suppBlock(st, closed) {
+  const sups = st.supplements || [];
   if (!sups.length) return null;
-  const taken = suppEntries(st);
+  const taken = st.supplements_taken || {};
+  const ent = (id) => Object.values(st.meals).flatMap((m) => m.entries).find((e) => e.food_id === id);
   const nowT = () => { const d = new Date(); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
-  return h("div", { class: "supp" }, h("span", { class: "supp-l" }, icon("pill"), "Suplementos"),
-    sups.map((f) => {
-      const e = taken.find((x) => x.food_id === f.id);
-      return h("button", { class: "supp-c" + (e ? " on" : ""), disabled: closed, title: e ? "Tomado · toca para quitarlo" : "Toca para apuntarlo",
+  return h("div", { class: "meal supp-b" }, h("div", { class: "meal-h" }, h("h3", null, "Suplementos"), h("span", { class: "mt faint" }, `${Object.keys(taken).length} de ${sups.length}`)),
+    h("div", { class: "supp" }, sups.map((x) => {
+      const on = x.id in taken, e = on ? ent(x.id) : null;
+      return h("button", { class: "supp-c" + (on ? " on" : ""), disabled: closed, title: on ? "Tomado · toca para quitarlo" : "Toca para marcarlo",
         onclick: async () => {
-          if (e) await act(() => api("DELETE", "/api/entries/" + e.id), f.name + " quitado");
-          else await act(() => api("POST", "/api/entries", { date: S.date, food_id: f.id, unit_key: suppPortion(f) ? "p:" + suppPortion(f).id : "g", quantity: suppPortion(f) ? 1 : 5, meal: "otro", time: st.date === st.today ? nowT() : null }), f.name + " apuntado");
-        } }, e ? icon("check") : h("i", { class: "supp-dot" }), h("span", null, f.name), e && e.time ? h("em", null, e.time) : null);
-    }));
+          if (e) await act(() => api("DELETE", "/api/entries/" + e.id), x.name + " quitado");
+          else await act(() => api("POST", "/api/entries", { date: S.date, food_id: x.id, unit_key: x.portion_id ? "p:" + x.portion_id : "g", quantity: x.portion_id ? 1 : 5, meal: "otro", time: st.date === st.today ? nowT() : null }), x.name + " apuntado");
+        } }, on ? icon("check") : h("i", { class: "supp-dot" }), h("span", null, x.name), on && taken[x.id] ? h("em", null, taken[x.id]) : x.dose ? h("em", null, x.dose) : null);
+    })));
 }
 function mealBlock(st, meal, closed) {
-  const supHide = new Set(suppEntries(st).filter((e) => !(e.kcal > 0.5)).map((e) => e.id));
+  const supIds = new Set((st.supplements || []).map((x) => x.id));
+  const supHide = new Set(Object.values(st.meals).flatMap((m) => m.entries).filter((e) => supIds.has(e.food_id)).map((e) => e.id));
   const m0 = st.meals[meal], m = supHide.size ? { ...m0, entries: m0.entries.filter((e) => !supHide.has(e.id)) } : m0;
   if (meal === "otro" && !m.entries.length && closed) return null;
   const head = h("div", { class: "meal-h" }, h("h3", null, m.label),
@@ -1125,6 +1124,9 @@ async function closeSheet(date) {
         const go = async () => { const n = parseNum(inp.value); if (n == null || n < 0 || (field === "weight_kg" && !(n > 0))) return; await act(() => api("PUT", "/api/days/" + date, { [field]: n })); draw(); };
         inp.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
         li.append(h("span", { class: "fix" }, inp, h("button", { class: "btn sm", onclick: go }, "Guardar")));
+      } else if (w.code === "suplementos") {
+        li.append(h("span", { class: "fix" }, (w.supplements || []).map((x) => h("button", { class: "btn sm", onclick: async () => {
+          await act(() => api("POST", "/api/entries", { date, food_id: x.id, unit_key: x.portion_id ? "p:" + x.portion_id : "g", quantity: x.portion_id ? 1 : 5, meal: "otro" }), x.name + " apuntado"); draw(); } }, "✓ " + x.name))));
       } else if (w.code === "actividad") {
         li.append(h("span", { class: "fix" }, h("button", { class: "btn sm", onclick: async () => { await act(() => api("PUT", "/api/days/" + date, { rest_day: true })); draw(); } }, "Fue descanso"),
           h("button", { class: "btn sm", onclick: () => { activitySheet(S.day); } }, "Añadir")));
@@ -1167,20 +1169,23 @@ function viewLibrary() {
   const c = S.catalog; if (!c) return h("div");
   const nRev = c.foods.filter((f) => !f.deleted && !f.hidden && !f.reviewed).length + c.templates.filter((t) => !t.deleted && !t.hidden && !t.reviewed).length;
   if (S.libFilter == null) S.libFilter = nRev ? "revisar" : "todo";
-  const filters = [...(nRev ? [["revisar", `Por revisar · ${nRev}`]] : []), ["todo", "Todo"], ["producto", "Productos"], ["receta", "Recetas"], ["habitual", "Comidas habituales"], ["pendiente", "Sin datos oficiales"], ["oculto", "Ocultos"]];
+  const filters = [...(nRev ? [["revisar", `Por revisar · ${nRev}`]] : []), ["todo", "Todo"], ["producto", "Productos"], ["receta", "Recetas"], ["habitual", "Comidas habituales"], ["supl", "Suplementos"], ["pendiente", "Aproximados"], ["oculto", "Ocultos"]];
   const search = h("input", { class: "input", placeholder: "Buscar", value: S.libQuery, oninput: (e) => { S.libQuery = e.target.value; drawGrid(); } });
   const grid = h("div");
   const drawGrid = () => {
     const q = norm(S.libQuery), F = S.libFilter;
     const match = (n) => !q || norm(n).includes(q);
     const foods = c.foods.filter((f) => !f.deleted && match(f.name + " " + (f.original_name || "")) && (F === "oculto" ? f.hidden : !f.hidden) &&
-      (F === "todo" || F === "oculto" || (F === "revisar" && !f.reviewed) || (F === "producto" && f.kind === "producto") || (F === "receta" && f.kind === "receta") || (F === "pendiente" && ["pendiente", "provisional"].includes(f.status) || (F === "pendiente" && (f.units || []).every((u) => (u.per.missing || []).length === 4)))));
+      (F === "todo" || F === "oculto" || (F === "supl" && isSupp(f)) || (F === "revisar" && !f.reviewed) || (F === "producto" && f.kind === "producto") || (F === "receta" && f.kind === "receta") || (F === "pendiente" && ["pendiente", "provisional"].includes(f.status) || (F === "pendiente" && (f.units || []).every((u) => (u.per.missing || []).length === 4)))));
     const tpls = c.templates.filter((t) => !t.deleted && match(t.name) && (F === "oculto" ? t.hidden : !t.hidden) && (["todo", "habitual", "oculto"].includes(F) || (F === "revisar" && !t.reviewed)));
     const secs = [];
     if (tpls.length) secs.push(["Comidas habituales", tpls.map((t) => tplTile(t, () => templateEditor(t)))]);
     const recs = foods.filter((f) => f.kind === "receta"), prods = foods.filter((f) => f.kind === "producto");
     if (recs.length) secs.push(["Recetas", recs.map((f) => foodTile(f, () => recipeEditor(f)))]);
-    if (prods.length && F !== "habitual") secs.push(["Productos", prods.map((f) => foodTile(f, () => foodEditor(f)))]);
+    const sups = prods.filter(isSupp), plain = prods.filter((f) => !isSupp(f));
+    if (sups.length && ["todo", "supl", "revisar", "oculto", "pendiente"].includes(F)) secs.push(["Suplementos", sups.map((f) => foodTile(f, () => foodEditor(f)))]);
+    if (plain.length && !["habitual", "supl"].includes(F)) secs.push(["Productos", plain.map((f) => foodTile(f, () => foodEditor(f)))]);
+    if (F === "supl" && !sups.length) secs.push(["Suplementos", [h("button", { class: "tile add-supp", onclick: () => foodEditor(null, { supp: true }) }, h("b", null, "+ Añadir un suplemento"), h("span", { class: "faint" }, "creatina, vitaminas… (la dosis como ración)"))]]);
     grid.replaceChildren(...(secs.length ? secs.map(([t, tiles]) => [h("div", { class: "sec-t" }, `${t} · ${tiles.length}`), h("div", { class: "tiles" }, tiles)]).flat()
       : [h("div", { class: "muted", style: { padding: "20px 0" } }, "Nada por aquí.")]));
   };
@@ -1191,7 +1196,8 @@ function viewLibrary() {
       h("div", { class: "search grow", style: { minWidth: "220px" } }, icon("search"), search),
       h("button", { class: "btn", onclick: () => foodEditor(null) }, "+ Producto"),
       h("button", { class: "btn", onclick: () => recipeEditor(null) }, "+ Receta"),
-      h("button", { class: "btn", onclick: () => templateEditor(null) }, "+ Comida habitual")),
+      h("button", { class: "btn", onclick: () => templateEditor(null) }, "+ Comida habitual"),
+      S.libFilter === "supl" ? h("button", { class: "btn", onclick: () => foodEditor(null, { supp: true }) }, "+ Suplemento") : null),
     chips,
     S.libFilter === "revisar" && nRev ? h("div", { class: "rev-bar" }, h("span", { class: "faint" }, "Lo que ha creado tu agente. Al aceptarlo aparece al añadir comida."), h("span", { class: "grow" }),
       h("button", { class: "btn sm", onclick: async () => { if (!confirm(`¿Aceptar las ${nRev} cosas por revisar?`)) return; await act(() => api("POST", "/api/revisar/aceptar-todo", {}), "Aceptado"); S.libFilter = "todo"; refresh(); } }, "Aceptar todo")) : null,
@@ -1200,9 +1206,10 @@ function viewLibrary() {
 
 const numIn = (val, ph = "?") => h("input", { class: "input num", inputMode: "decimal", value: val == null ? "" : String(val).replace(".", ","), placeholder: ph });
 
-function foodEditor(f) {
+function foodEditor(f, opt = {}) {
   const isNew = !f;
-  f = f || { name: "", status: "etiqueta", category: "", brand: "", source: "", notes: "", portions: [{ label: "100 g", amount: 100, unit: "g", quality: "etiqueta", is_default: 1 }] };
+  f = f || (opt.supp ? { name: "", status: "etiqueta", category: "Suplemento", brand: "", source: "", notes: "", portions: [{ label: "1 dosis", amount: 5, unit: "g", kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, quality: "etiqueta", is_default: 1 }] }
+    : { name: "", status: "etiqueta", category: "", brand: "", source: "", notes: "", portions: [{ label: "100 g", amount: 100, unit: "g", quality: "etiqueta", is_default: 1 }] });
   const name = h("input", { class: "input", value: f.name, placeholder: "Nombre" });
   const cats = [...new Set(S.catalog.foods.map((x) => x.category).filter(Boolean))].sort();
   const cat = h("input", { class: "input", value: f.category || "", list: "cats", placeholder: "Categoría" });

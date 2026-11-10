@@ -1260,9 +1260,16 @@ async function workoutSheet_(id) {
     curI = k; drawI(); await act(() => api("PUT", "/api/workouts/" + w.id, { intensity: k }), "Intensidad guardada");
   } }, k)));
   drawI();
+  const wChips = [
+    wUps.length ? tip(h("span", { class: "upchip lg" }, icon("up"), `${wUps.length} ${wUps.length === 1 ? "rango nuevo" : "rangos nuevos"}`), wUps.map((u) => `${dispName(u.name)}: ${LVL[u.from]} → ${LVL[u.to]}`).join("\n")) : null,
+    nPR ? tip(h("span", { class: "prc lg" }, icon("trophy"), `${nPR} ${nPR === 1 ? "récord" : "récords"}`), w.exercises.filter((ex) => ex.prs && ex.prs.length).map((ex) => `${ex.name}: ${ex.prs.map((t) => PR_SHORT[t]).join(", ")}`).join("\n")) : null,
+    h("span", { class: "datec" }, dateLabel(w.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) + (w.start_time ? " · " + w.start_time : "")),
+    bwAt(w.date) ? tip(h("span", { class: "datec" }, `${fmt(bwAt(w.date), 1)} kg`), bwExact(w.date) ? "Tu peso ese día (pesaje)" : "Tu peso ese día (interpolado entre pesajes)") : null].filter(Boolean);
   sh.set(w.title, [
+    h("div", { class: "wchips" }, wChips),
     h("div", { class: "wstats big" },
       h("div", null, h("span", null, "Duración"), h("b", null, w.duration_min ? fmt(w.duration_min) + " min" : "—")),
+      w.kcal != null ? tip(h("div", null, h("span", null, "Gasto"), h("b", null, "≈ " + fmt(w.kcal) + " kcal")), "Gasto neto estimado de la sesión (lo que suma al día): MET según tipo e intensidad × minutos × tu peso") : null,
       h("div", null, h("span", null, "Volumen"), h("b", null, fmt(w.volume_kg) + " kg")),
       h("div", null, h("span", null, "Series"), h("b", null, String(w.sets_count))),
       h("div", null, h("span", null, "Ejercicios"), h("b", null, String(w.exercises.length)))),
@@ -1271,11 +1278,7 @@ async function workoutSheet_(id) {
     h("div", { class: "note" }, `Origen: ${w.source}` + (w.volume_source === "hevy" ? " · volumen tomado de Hevy" : " · volumen: kg × reps de todas las series, como en Hevy")),
   ], [h("button", { class: "btn ghost danger", onclick: (e) => confirmDel(e, async () => { await act(() => api("DELETE", "/api/workouts/" + w.id), "Entreno eliminado"); sh.close(); }) }, "Eliminar"),
     h("span", { class: "grow" }), w.activity_id ? h("button", { class: "btn", onclick: () => { sh.close(); goDay(w.date); } }, "Ver día") : null],
-  { big: true, desc: w.notes || "", titleExtra: [
-    wUps.length ? tip(h("span", { class: "upchip lg" }, icon("up"), `${wUps.length} ${wUps.length === 1 ? "rango nuevo" : "rangos nuevos"}`), wUps.map((u) => `${dispName(u.name)}: ${LVL[u.from]} → ${LVL[u.to]}`).join("\n")) : null,
-    nPR ? tip(h("span", { class: "prc lg" }, icon("trophy"), `${nPR} ${nPR === 1 ? "récord" : "récords"}`), w.exercises.filter((ex) => ex.prs && ex.prs.length).map((ex) => `${ex.name}: ${ex.prs.map((t) => PR_SHORT[t]).join(", ")}`).join("\n")) : null,
-    h("span", { class: "datec" }, dateLabel(w.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) + (w.start_time ? " · " + w.start_time : "")),
-    bwAt(w.date) ? tip(h("span", { class: "datec" }, `${fmt(bwAt(w.date), 1)} kg`), bwExact(w.date) ? "Tu peso ese día (pesaje)" : "Tu peso ese día (interpolado entre pesajes)") : null] });
+  { big: true, desc: w.notes || "" });
 }
 
 // Ajustes del ejercicio: material, peso de la máquina, polea que pesa la mitad y si es a un brazo.

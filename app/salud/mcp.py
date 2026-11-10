@@ -39,7 +39,7 @@ Reglas:
 - Báscula: `registrar_bascula`; la composición corporal es una estimación con mucho error, solo tendencias de semanas.
 - Objetivos: pueden ser fijos o «según el gasto» (kcal = gasto estimado del día ± diferencia, proteína por kg, grasa en %). Calibra con la media de 7 días y tendencias de 2–4 semanas, nunca con un día suelto.
 - Ilustraciones: cada vez que crees una comida habitual (o un plato) sin foto, en ese MISMO turno lee `guia_ilustraciones`, dibuja su ilustración SVG y súbela con `poner_imagen`; no lo dejes para luego.
-- Suplementos (creatina, multivitamínico…): créalos como producto con categoría «Suplemento» y su dosis como ración (p. ej. «1 cacito» de 5 g). En Hoy salen en una fila propia para marcarlos de un toque; si te dice que lo ha tomado, apúntalo con `anadir_alimento` en «otro».
+- Suplementos (creatina, multivitamínico…): cada persona añade los suyos como producto con categoría «Suplemento» y su dosis como ración (p. ej. «1 cacito» de 5 g); salen en la Biblioteca, en «Suplementos». Cuando diga que se lo ha tomado, apúntalo con `anadir_alimento` (franja «otro», su ración). Al cerrar el día, `revisar_dia` avisa de los que no están marcados: pregúntalo en la misma frase.
 Respuestas breves y en el idioma de la persona."""
 
 U = {"type": "string"}
