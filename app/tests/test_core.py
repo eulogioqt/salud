@@ -166,7 +166,7 @@ class TestClose(Base):
         r = core.close_day(self.conn, D1)
         self.assertFalse(r["closed"]); self.assertTrue(r["has_important"])
         codes = {w["code"] for w in r["warnings"]}
-        self.assertTrue({"peso", "pasos", "actividad"} <= codes)
+        self.assertTrue({"pasos"} <= codes and not ({"peso", "actividad"} & codes))
         r = core.close_day(self.conn, D1, force=True)
         self.assertTrue(r["closed"])
         with self.assertRaises(ClosedDayError):

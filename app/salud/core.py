@@ -68,7 +68,8 @@ def supplements(conn):
     out = []
     for r in conn.execute("SELECT f.id, f.name, p.id AS pid, p.label, p.kcal FROM foods f LEFT JOIN portions p ON p.food_id=f.id AND p.is_default=1 "
                           "WHERE f.deleted=0 AND f.hidden=0 AND lower(COALESCE(f.category,'')) LIKE '%suplement%' ORDER BY f.name"):
-        if r["kcal"] is not None and r["kcal"] < 20:  # sin kcal conocidas (p. ej. una proteína sin etiqueta) no cuenta
+        if r["kcal"] is not None and r["kcal"] < 20 and not re.search(r"prote|whey|case[ií]n|gainer|ganador", r["name"].lower()):
+            # (la proteína en polvo no es suplemento aquí: se apunta en su comida con sus gramos)
             out.append({"id": r["id"], "name": r["name"], "portion_id": r["pid"], "dose": r["label"]})
     return out
 
@@ -1048,14 +1049,12 @@ def close_check(conn, d):
     st = day_state(conn, d)
     w = []
     day = st["day"]
-    if day["weight_kg"] is None:
-        w.append({"level": "importante", "code": "peso", "text": "Falta el peso de la mañana"})
+    # (sin peso del día no es un aviso: a esa hora ya no se puede pesar y se interpola entre pesajes)
     if day["steps"] is None:
         w.append({"level": "importante", "code": "pasos", "text": "Faltan los pasos (si no anduviste, pon 0): sin ellos el gasto queda incompleto"})
     if day.get("neat_kcal") is None:
         w.append({"level": "info", "code": "neat", "text": "¿Cómo fue el día (sin contar los pasos)? Si no lo dices, cuenta como normal"})
-    if not st["activities"] and day["rest_day"] != 1:
-        w.append({"level": "importante", "code": "actividad", "text": "Sin entrenamiento registrado: ¿fue día de descanso?"})
+    # (sin entreno no es un aviso: el día cuenta como descanso)
     if st["entry_count"] == 0:
         w.append({"level": "importante", "code": "comidas", "text": "No hay comidas registradas"})
     else:
@@ -1072,8 +1071,8 @@ def close_check(conn, d):
         taken = supplements_taken(conn, d)
         miss = [x for x in sups if x["id"] not in taken]
         if miss:
-            w.append({"level": "info", "code": "suplementos", "text": "¿Te has tomado hoy %s? Si es que sí, márcalo" % " y ".join(x["name"] for x in miss),
-                      "supplements": miss})
+            for x in miss:  # suplementos diarios: lo normal es que sí, se pregunta uno a uno
+                w.append({"level": "info", "code": "suplementos", "text": "¿Has tomado %s hoy?" % x["name"].lower(), "supplements": [x]})
     # (los productos «sin datos oficiales» o aproximados no son un aviso: muchos nunca tendrán etiqueta)
     auto = st["energy"].get("steps_auto_sessions") or {}
     for a in st["activities"]:

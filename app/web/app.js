@@ -682,19 +682,25 @@ const suppPortion = (f) => (f.portions || []).find((p) => p.is_default) || (f.po
 const isSupp = (f) => { const p = f && suppPortion(f); return !!(f && !f.deleted && !f.hidden && /suplement/i.test(f.category || "") && p && p.kcal != null && p.kcal < 20); };
 function suppBlock(st, closed) {
   const sups = st.supplements || [];
-  if (!sups.length) return null;
   const taken = st.supplements_taken || {};
+  if (!sups.length) return null;
   const ent = (id) => Object.values(st.meals).flatMap((m) => m.entries).find((e) => e.food_id === id);
   const nowT = () => { const d = new Date(); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
-  return h("div", { class: "meal supp-b" }, h("div", { class: "meal-h" }, h("h3", null, "Suplementos"), h("span", { class: "mt faint" }, `${Object.keys(taken).length} de ${sups.length}`)),
-    h("div", { class: "supp" }, sups.map((x) => {
-      const on = x.id in taken, e = on ? ent(x.id) : null;
-      return h("button", { class: "supp-c" + (on ? " on" : ""), disabled: closed, title: on ? "Tomado · toca para quitarlo" : "Toca para marcarlo",
-        onclick: async () => {
-          if (e) await act(() => api("DELETE", "/api/entries/" + e.id), x.name + " quitado");
-          else await act(() => api("POST", "/api/entries", { date: S.date, food_id: x.id, unit_key: x.portion_id ? "p:" + x.portion_id : "g", quantity: x.portion_id ? 1 : 5, meal: "otro", time: st.date === st.today ? nowT() : null }), x.name + " apuntado");
-        } }, on ? icon("check") : h("i", { class: "supp-dot" }), h("span", null, x.name), on && taken[x.id] ? h("em", null, taken[x.id]) : x.dose ? h("em", null, x.dose) : null);
-    })));
+  const foodOf = (id) => (S.catalog && S.catalog.foods || []).find((f) => f.id === id) || {};
+  const toggle = async (x) => {
+    const e = ent(x.id);
+    if (e) await act(() => api("DELETE", "/api/entries/" + e.id), x.name + " quitado");
+    else await act(() => api("POST", "/api/entries", { date: S.date, food_id: x.id, unit_key: x.portion_id ? "p:" + x.portion_id : "g", quantity: x.portion_id ? 1 : 5, meal: "otro", time: st.date === st.today ? nowT() : null }), x.name + " apuntado");
+  };
+  const head = h("div", { class: "meal-h" }, h("h3", null, "Suplementos"), h("span", { class: "mt num" }, h("b", null, String(Object.keys(taken).length)), ` de ${sups.length}`),
+    closed ? null : h("button", { class: "add-btn add", onclick: () => { S.libFilter = "supl"; location.hash = "#/biblioteca"; } }, "+ Añadir"));
+  return h("div", { class: "meal supp-b" }, head, h("div", { class: "list" }, sups.map((x) => {
+    const on = x.id in taken, fo = foodOf(x.id);
+    return h("div", { class: "item b supp-it" + (on ? " on" : ""), onclick: closed ? null : () => toggle(x) },
+      mono(x.name, fo.category, fo.image),
+      h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, x.name)), h("div", { class: "sub" }, [x.dose, on && taken[x.id] ? "tomado a las " + taken[x.id] : on ? "tomado" : "sin tomar"].filter(Boolean).join(" · "))),
+      h("div", { class: "supp-ck" + (on ? " on" : "") }, on ? icon("check") : null));
+  })));
 }
 function mealBlock(st, meal, closed) {
   const supIds = new Set((st.supplements || []).map((x) => x.id));
@@ -1094,7 +1100,7 @@ function summaryView(s, extra) {
       gap(),
       main("Peso", s.weight_kg != null ? fmt(s.weight_kg, 1) + " kg" : "—", s.avg7 != null ? "media 7 d " + fmt(s.avg7, 1) : ""),
       main("Pasos", s.steps != null ? fmt(s.steps) : "—", ""),
-      main("Actividad", s.activities.length ? s.activities.map((a) => `${a.type}${a.minutes ? " " + fmt(a.minutes) + " min" : ""}`).join(", ") : (s.rest_day === 1 ? "descanso" : "—"), "")),
+      main("Actividad", s.activities.length ? s.activities.map((a) => `${a.type}${a.minutes ? " " + fmt(a.minutes) + " min" : ""}`).join(", ") : "descanso", "")),
     (t.missing || []).length ? h("div", { class: "note warn" }, "* Totales mínimos: hay valores desconocidos.") : null,
     s.observations && s.observations.length ? h("ul", { class: "obs" }, s.observations.map((o) => h("li", null, o))) : null,
     extra || null);
@@ -1126,7 +1132,7 @@ async function closeSheet(date) {
         li.append(h("span", { class: "fix" }, inp, h("button", { class: "btn sm", onclick: go }, "Guardar")));
       } else if (w.code === "suplementos") {
         li.append(h("span", { class: "fix" }, (w.supplements || []).map((x) => h("button", { class: "btn sm", onclick: async () => {
-          await act(() => api("POST", "/api/entries", { date, food_id: x.id, unit_key: x.portion_id ? "p:" + x.portion_id : "g", quantity: x.portion_id ? 1 : 5, meal: "otro" }), x.name + " apuntado"); draw(); } }, "✓ " + x.name))));
+          await act(() => api("POST", "/api/entries", { date, food_id: x.id, unit_key: x.portion_id ? "p:" + x.portion_id : "g", quantity: x.portion_id ? 1 : 5, meal: "otro" }), x.name + " apuntado"); draw(); } }, "Sí"))));
       } else if (w.code === "actividad") {
         li.append(h("span", { class: "fix" }, h("button", { class: "btn sm", onclick: async () => { await act(() => api("PUT", "/api/days/" + date, { rest_day: true })); draw(); } }, "Fue descanso"),
           h("button", { class: "btn sm", onclick: () => { activitySheet(S.day); } }, "Añadir")));
