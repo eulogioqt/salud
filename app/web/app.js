@@ -140,7 +140,18 @@ function toast(msg, opts = {}) {
 
 // ------------------------------------------------------------------- sheets
 const OPEN_SHEETS = new Set();
+let LAST_SHEET = null;  // para no abrir dos veces el mismo modal con varios clics seguidos
+// Abre algo asíncrono una sola vez aunque se pulse varias veces mientras carga.
+const OPENING = new Set();
+async function onceOpen(key, fn) {
+  if (OPENING.has(key)) return;
+  OPENING.add(key);
+  try { return await fn(); } finally { setTimeout(() => OPENING.delete(key), 250); }
+}
 function sheet(title, body, footer, opts = {}) {
+  const tkey = typeof title === "string" ? title : null;
+  if (tkey && LAST_SHEET && LAST_SHEET.key === tkey && LAST_SHEET.ctl.el.isConnected && !LAST_SHEET.ctl.el.parentNode.classList.contains("closing")
+      && Date.now() - LAST_SHEET.t < 1200) return LAST_SHEET.ctl;
   S.sheetOpen++;
   document.body.classList.add("modal-open");
   const bd = h("div", { class: "backdrop" });
@@ -182,6 +193,7 @@ function sheet(title, body, footer, opts = {}) {
     },
   };
   ctl.set(title, body, footer, opts);
+  LAST_SHEET = { key: tkey, ctl, t: Date.now() };
   return ctl;
 }
 
@@ -359,7 +371,7 @@ function bodyStrip(st) {
     h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic s" }, "👟"), "Pasos", day.steps_auto ? h("span", { class: "auto-t", title: "Llegan solos desde el móvil" }, "auto") : null),
       closed ? null : S.me && !pz.conectado ? h("button", { class: "lnk-btn", onclick: (e) => { e.stopPropagation(); stepsConnectSheet(); } }, "🔗 Conectar")
         : h("span", { class: "lnk" }, day.steps == null ? "+ Añadir" : "Editar")),
-    day.steps == null ? h("div", { class: "v" }, h("small", null, "Sin registrar"))
+    day.steps == null ? h("div", { class: "v none" }, h("small", null, "Sin registrar"))
       : h("div", { class: "v" }, fmt(day.steps)),
     st.steps_hours ? hourBars(st.steps_hours, st.date === st.today) : null,
     h("div", { class: "s" }, day.steps != null && en.steps_kcal != null ? `${fmt(en.steps_kcal)} kcal` : ""));
@@ -374,7 +386,7 @@ function bodyStrip(st) {
           w.notes ? h("div", { class: "wk-d" }, w.notes) : null,
           h("div", { class: "wk-s" }, [w.duration_min ? fmt(w.duration_min) + " min" : null, w.sets_count + " series", fmt(w.volume_kg) + " kg", w.activity_id ? kc(w.activity_id) + " kcal" : null].filter(Boolean).join(" · ")))),
          ...other.map((a) => h("div", { class: "a" }, h("b", null, (ACT_TYPES.find((x) => x[0] === a.type) || [0, a.type])[1]), ` ${a.minutes ? fmt(a.minutes) + "′" : ""}`, h("span", { class: "faint" }, " · " + kc(a.id) + " kcal")))]
-      : h("div", { class: "v" }, h("small", null, day.rest_day === 1 ? "Descanso" : "Sin registrar"))));
+      : h("div", { class: "v none" }, h("small", null, day.rest_day === 1 ? "Descanso" : "Sin registrar"))));
   return h("div", { class: "strip" }, weight, steps, train);
 }
 

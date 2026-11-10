@@ -187,7 +187,7 @@ function setBadge(st, n) { const t = SET_T[st.type]; return tip(h("span", { clas
 // 1RM estimado EXACTAMENTE como Hevy: peso ÷ porcentaje según reps (tabla de su centro de ayuda; más de 30 reps = 50 %).
 const HEVY_PCT = [1, .97, .94, .92, .89, .86, .83, .81, .78, .75, .73, .71, .70, .68, .67, .65, .64, .63, .61, .60, .59, .58, .57, .56, .55, .54, .53, .52, .51, .50];
 // Ajustes por ejercicio (BD): material, peso de la máquina, polea que pesa la mitad, a un brazo.
-const exSet = (name) => (S.exSet || {})[exKeyName(name)] || {};
+const exSet = (name) => { const all = S.exSet || {}, k = exKeyName(name); return all[k] || Object.values(all).find((x) => baseKey(x.name) === k) || {}; };
 const UNI_RX = /un brazo|una mano|jalon de remo/;
 // A un brazo: apuntas el peso normal y las reps de los dos brazos sumadas → por brazo, la mitad.
 const isUni = (name) => { if (!name) return false; const u = exSet(name).unilateral; return u != null ? !!u : UNI_RX.test(norm(name)); };
@@ -203,7 +203,18 @@ function machineKg(name, notes) {
 const e1rm = (w, r, name) => { if (!w || !r) return null; if (isUni(name)) r = Math.max(1, Math.round(r / 2)); return w / HEVY_PCT[Math.min(Math.round(r), 30) - 1]; };
 const EX_ALIASES = { "elevacion laterales (maquina)": "elevacion lateral (maquina)", "flexiones de brazos (con peso agregado)": "flexiones (con peso anadido)", "dead hang": "colgado en barra",
   "vuelos posteriores": "aperturas invertidas", "vuelo posterior": "aperturas invertidas", "vuelos posteriores (maquina)": "aperturas invertidas", "vuelo posterior (maquina)": "aperturas invertidas", "vuelos posteriores en maquina": "aperturas invertidas", "vuelo posterior en maquina": "aperturas invertidas" };  // vuelos posteriores = aperturas invertidas (mismo ejercicio)
-const exKeyName = (name) => { const n = norm(name).replace(/\s+/g, " ").trim(); return EX_ALIASES[n] || n; };
+const baseKey = (name) => { const n = norm(name).replace(/\s+/g, " ").trim(); return EX_ALIASES[n] || n; };
+// Ejercicios unidos por la persona (mismo ejercicio o misma máquina con otro nombre en Hevy): clave → clave del principal
+let USER_ALIAS = {}, USER_NAMES = {};
+const exKeyName = (name) => { const k = baseKey(name); return USER_ALIAS[k] || k; };
+function setExSet(set) {
+  S.exSet = set || {};
+  USER_ALIAS = {}; USER_NAMES = {};
+  for (const x of Object.values(S.exSet)) if (x.same_as) { USER_ALIAS[baseKey(x.name)] = baseKey(x.same_as); USER_NAMES[baseKey(x.same_as)] = x.same_as; }
+  for (const k of Object.keys(USER_ALIAS)) { const seen = new Set([k]); while (USER_ALIAS[USER_ALIAS[k]] && !seen.has(USER_ALIAS[k])) { seen.add(USER_ALIAS[k]); USER_ALIAS[k] = USER_ALIAS[USER_ALIAS[k]]; } }
+  // el ajuste (peso de la máquina…) del principal vale para sus alias
+  for (const [a, k] of Object.entries(USER_ALIAS)) { const t = Object.values(S.exSet).find((x) => baseKey(x.name) === k); if (t) S.exSet[k] = t; }
+}
 
 // Métrica principal por tipo de ejercicio (para récords y gráficas)
 function exMetric(kind) {
@@ -451,6 +462,9 @@ const MAIN_GROUPS = ["Pecho", "Espalda", "Pierna", "Hombro", "Brazos", "Core"];
 // Récords como en Hevy: varias métricas por ejercicio según su tipo.
 const REC_LABEL = { w: "Peso máximo", e1: "1RM estimado", sv: "Volumen (mejor serie)", vol: "Volumen de sesión", reps: "Máx. repeticiones",
   sreps: "Reps en una sesión", secs: "Máx. tiempo", stime: "Tiempo en una sesión", dist: "Máx. distancia" };
+// Récords que avisan con trofeo (como Hevy): 1RM, peso máximo y mejor serie (volumen); en peso corporal, reps; tiempo; distancia.
+// El volumen de la sesión y las reps de una sesión se ven en la ficha, pero no dan trofeo.
+const TROPHY = ["e1", "w", "sv", "reps", "secs", "dist"];
 const REC_KINDS = { peso: ["e1", "w", "sv"], lastre: ["w", "sv", "vol"], corporal: ["reps", "sreps"], asistido: ["reps", "sreps"],
   tiempo: ["secs", "stime"], cardio: ["dist", "w"] };
 function recsOf(kind, sets, name, date) {
@@ -490,7 +504,7 @@ function trainingStats(ws, bw) {
         if (!old || x.v > old.v + 1e-9) e.rec[t] = { v: x.v, date: w.date, set: x.set, wid: w.id };
       }
       e.sessions.push({ date: w.date, wid: w.id, metric, vol: volOf(ex.kind, ex.sets, ex.name, w.date), sets: ex.sets, notes: ex.notes, rs, prs: ex.prs || [] });
-      e.last = w.date; e.name = ex.name;
+      e.last = w.date; e.name = USER_NAMES[k] || ex.name;
     }
   }
   const list = Object.values(exs);
@@ -556,7 +570,7 @@ function periodStats(st, ws, R) {
   for (const w of L) { const b = buckets[bi[keyOf(w.date)]]; if (b) { b.n++; b.vol += w.volume_kg || 0; b.min += w.duration_min || 0; b.sets += w.sets_count; } }
   const bLabel = (b) => (gran === "day" ? dateLabel(b.k, { weekday: "short", day: "numeric", month: "short" }) : gran === "week" ? "Semana del " + dateLabel(b.k, { day: "numeric", month: "short" }) : dateLabel(b.k, { month: "long", year: "numeric" }));
   const weeks = Math.max(1, R.days / 7);
-  return { L, cur, prev, groups, top, buckets, gran, bLabel, perWeek: cur.n / weeks, prs: st.prs.filter((p) => inR(p.date) && ["e1", "w", "reps", "secs", "dist"].includes(p.type)) };
+  return { L, cur, prev, groups, top, buckets, gran, bLabel, perWeek: cur.n / weeks, prs: st.prs.filter((p) => inR(p.date) && TROPHY.includes(p.type)) };
 }
 
 // --------------------------------------------------------------- gráficas
@@ -824,7 +838,7 @@ function tEjercicios(st) {
 
 function tRecords(st) {
   const kinds = [["peso", "Con peso"], ["lastre", "Con lastre"], ["corporal", "Peso corporal"], ["tiempo", "Isométricos"], ["cardio", "Cardio / cargas"]];
-  const recent = st.prs.filter((p) => ["e1", "w", "reps", "secs", "dist"].includes(p.type) || (p.type === "w" && p.kind === "lastre"));
+  const recent = st.prs.filter((p) => TROPHY.includes(p.type));
   return h("div", null,
     recent.length ? h("div", { class: "card panel" }, h("h3", null, "Récords recientes"), h("div", { class: "exlist" }, recent.slice(0, 8).map(prRow))) : null,
     ...kinds.map(([k, t]) => {
@@ -994,7 +1008,7 @@ async function loadBodyMeta() {
   const last = S.weights[S.weights.length - 1];
   S.bw = last ? last.kg : null; S.bwDate = last ? last.date : null;
   const sx = ((st.settings || st).sexo || "").toUpperCase().slice(0, 1); S.sex = sx === "M" ? "M" : sx === "H" ? "H" : "";
-  S.exSet = set;
+  setExSet(set);
   await loadSLTables();
   setTimeout(autoGuessSL, 500);
 }
@@ -1016,7 +1030,7 @@ async function autoGuessSL() {
       const r = await api("GET", "/api/strength/adivinar?nombre=" + encodeURIComponent(name)).catch(() => null);
       if (r && r.nuevo) found++;
     }
-    if (found) { S.exSet = await api("GET", "/api/exercise-settings"); await loadSLTables(); S.tStats = null; if (S.view === "entreno") render(); }
+    if (found) { setExSet(await api("GET", "/api/exercise-settings")); await loadSLTables(); S.tStats = null; if (S.view === "entreno") render(); }
   } finally { S._slGuessing = false; }
 }
 async function loadSLTables() {
@@ -1116,7 +1130,8 @@ function levelSheet(name, L) {
   ], null, { wide: true });
 }
 
-async function workoutSheet(id) {
+function workoutSheet(id) { return onceOpen("wk:" + id, () => workoutSheet_(id)); }
+async function workoutSheet_(id) {
   const sh = sheet("Entreno", h("div", { class: "muted" }, "Cargando…"), null, { wide: true });
   let w;
   try { [w] = await Promise.all([api("GET", "/api/workouts/" + id), ensureTrainingMeta()]); } catch (e) { toast(e.message, { error: true }); sh.close(); return; }
@@ -1175,14 +1190,14 @@ function exSettingsPanel(name, kind, rec) {
   const isCable = /cable|polea/.test(n) || ["cable", "polea"].includes(cfg.equipment);
   if (!isMach && !isCable) return null;
   const mk = h("input", { class: "input sm num", type: "number", step: "0.5", min: "0", value: cfg.machine_kg ?? "", placeholder: "0" });
-  const rN = h("input", { class: "input sm num ratio-in", type: "number", step: "0.5", min: "1", max: "8", value: fmt(1 / (loadRatio(name) || 1), 1).replace(",", "."), placeholder: "1" });
+  const rN = h("input", { class: "input sm num ratio-in", type: "number", step: "1", min: "1", max: "8", value: String(Math.round(1 / (loadRatio(name) || 1))), placeholder: "1" });
   const mach = cfg.machine_kg || 0, ratio = loadRatio(name);
   const save = async () => {
     const body = { name };
     if (isMach) body.machine_kg = mk.value === "" ? null : +mk.value;
-    if (isCable) { const n_ = parseFloat(rN.value); body.load_ratio = n_ > 1 ? 1 / n_ : null; }
+    if (isCable) { const n_ = Math.round(parseFloat(rN.value)); body.load_ratio = n_ > 1 ? 1 / n_ : null; }
     await act(() => api("PUT", "/api/exercise-settings", body), "Guardado");
-    S.exSet = await api("GET", "/api/exercise-settings"); S.tStats = null;
+    setExSet(await api("GET", "/api/exercise-settings")); S.tStats = null;
     if (S._exSh) S._exSh.close();
     render(); setTimeout(() => exerciseSheet(name), 160);
   };
@@ -1193,7 +1208,45 @@ function exSettingsPanel(name, kind, rec) {
     btn);
 }
 
-async function exerciseSheet(name) {
+// Unir ejercicios: el mismo ejercicio (o la misma máquina) apuntado en Hevy con nombres distintos.
+async function saveMerge(body, reopen) {
+  await act(() => api("PUT", "/api/exercise-settings", body), body.same_as ? "Unidos" : "Separados");
+  setExSet(await api("GET", "/api/exercise-settings")); S.tStats = null;
+  for (const c of [...OPEN_SHEETS]) c();
+  render(); setTimeout(() => exerciseSheet(reopen), 200);
+}
+function mergeRow(name, kind) {
+  const k = exKeyName(name);
+  const als = Object.values(S.exSet || {}).filter((x) => x.same_as && USER_ALIAS[baseKey(x.name)] === k && baseKey(x.name) !== k);
+  return h("div", { class: "exmerge" },
+    als.length ? [h("span", null, "También apuntado como"), als.map((a) => h("span", { class: "chip-x" }, a.name,
+      h("button", { title: "Volver a separarlo", onclick: () => saveMerge({ name: a.name, same_as: "" }, name) }, "Separar")))] : null,
+    h("button", { class: "lnk-btn", onclick: () => mergePicker(name, kind) }, als.length ? "+ Unir otro" : "¿Es el mismo que otro ejercicio? Unir"));
+}
+function mergePicker(name, kind) {
+  const k = exKeyName(name);
+  const same = (x) => x.kind === kind || (["peso", "lastre"].includes(x.kind) && ["peso", "lastre"].includes(kind));
+  const list = ((S.tStats && S.tStats.list) || []).filter((x) => exKeyName(x.name) !== k && same(x)).sort((a, b) => b.sessions.length - a.sessions.length);
+  const q = h("input", { class: "input", placeholder: "Buscar ejercicio…", type: "search" });
+  const box = h("div", { class: "exlist mrg-list" });
+  const me = ((S.tStats && S.tStats.list) || []).find((x) => exKeyName(x.name) === k);
+  const draw = () => {
+    const t = norm(q.value.trim());
+    box.replaceChildren(...list.filter((x) => !t || norm(x.name).includes(t)).slice(0, 60).map((x) =>
+      h("button", { class: "exrow", onclick: () => {
+        // se queda como principal el que usas ahora (el de la sesión más reciente)
+        const mine = me ? me.last : "", other = x.last || "";
+        const [alias, main] = other > mine ? [name, x.name] : [x.name, name];
+        saveMerge({ name: alias, same_as: main }, main);
+      } }, exIcon(x.name, 30), h("div", { class: "grow" }, h("div", null, x.name),
+        h("div", { class: "faint" }, `${x.sessions.length} sesiones · última ${dateLabel(x.last, { day: "numeric", month: "short", year: "2-digit" })}`)))));
+  };
+  q.oninput = draw; draw();
+  sheet("Unir con otro ejercicio", [q, box], null, { desc: `Si «${name}» es el mismo ejercicio (o la misma máquina) que otro con distinto nombre en Hevy, únelos: el historial, los récords, el nivel y el peso de la máquina se cuentan juntos. Se queda como nombre principal el que usas ahora. Se puede separar cuando quieras.` });
+  setTimeout(() => q.focus(), 50);
+}
+function exerciseSheet(name) { return onceOpen("ex:" + exKeyName(name), () => exerciseSheet_(USER_NAMES[exKeyName(name)] || name)); }
+async function exerciseSheet_(name) {
   const hist = await api("GET", "/api/exercises/history?name=" + encodeURIComponent(name));
   if (!hist.length) return;
   const kind = hist[0].kind;
@@ -1254,13 +1307,14 @@ async function exerciseSheet(name) {
       kpi("Reps totales", fmt(totalReps), ""),
       isW ? kpi("Volumen total", fmt(totalVol / 1000, 1) + " t", "", null, fmt(totalVol) + " kg (todas las series)") : kpi("Media reps", allSets.length ? fmt(totalReps / allSets.length, 1) : "—", "por serie")),
     exSettingsPanel(name, kind, rec),
+    mergeRow(name, kind),
     h("div", { class: "card panel flat" }, h("div", { class: "row wrap", style: { marginBottom: "6px" } }, h("h3", { style: { margin: 0 } }, "Progreso"), h("span", { class: "grow" }), chips), chartBox),
     rmRows.length ? h("div", { class: "card panel flat" }, h("h3", null, "Mejor peso por repeticiones"), h("div", { class: "rmgrid" }, rmRows.map(([r, x]) =>
       tip(h("div", { class: "rm" }, h("span", null, r + " rep" + (r > 1 ? "s" : "")), h("b", { class: "num" }, (kind === "lastre" ? "+" : "") + fmt(x.w, 1)), h("em", null, dateLabel(x.date, { day: "numeric", month: "short" }))),
         kind === "peso" ? `${r} × ${fmt(x.w, 1)} kg → 1RM ≈ ${fmt(e1rm(x.w, +r, name))} kg` : null)))) : null,
     h("div", { class: "sec-t" }, "Historial"),
     h("div", { class: "hist" }, hist.map((e2) => { const L2 = exLevel({ name: e2.name, kind: e2.kind, sessions: [{ date: e2.date, sets: e2.sets, notes: e2.notes }] }, bwAt); return h("div", { class: "hrow", onclick: () => workoutSheet(e2.workout_id) },
-      h("div", { class: "hd" }, h("b", null, dateLabel(e2.date, { day: "numeric", month: "short", year: e2.date.slice(0, 4) === todayISO().slice(0, 4) ? undefined : "2-digit" })), h("span", null, e2.title), L2 ? lvlInline(L2, 16, { name: e2.name, kind: e2.kind }) : null),
+      h("div", { class: "hd" }, h("b", null, dateLabel(e2.date, { day: "numeric", month: "short", year: e2.date.slice(0, 4) === todayISO().slice(0, 4) ? undefined : "2-digit" })), h("span", null, e2.title), exKeyName(e2.name) && baseKey(e2.name) !== baseKey(name) ? h("em", { class: "alias" }, "como " + e2.name) : null, L2 ? lvlInline(L2, 16, { name: e2.name, kind: e2.kind }) : null),
       h("div", { class: "hs" }, e2.sets.map((s_) => h("span", { class: "hset " + s_.type }, setShort(e2.kind, s_)))),
       h("div", { class: "hv num" }, (() => { const r = recsOf(e2.kind, e2.sets, e2.name, e2.date)[types[0]]; return r ? recTxt(types[0], r.v, kind) : "—"; })())); })),
     h("div", { class: "note" }, "1RM estimado igual que Hevy: peso ÷ % según las reps (10 reps = 75 %, 16 reps = 65 %, 30 o más = 50 %). Con muchas repeticiones es menos fiable." + (isUni(name) ? " A un brazo: se usan la mitad de las reps." : "")),

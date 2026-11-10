@@ -263,6 +263,10 @@ MIGRATIONS = [
     CREATE TABLE step_buckets(start TEXT PRIMARY KEY, end TEXT, steps INTEGER NOT NULL, received_at TEXT);
     ALTER TABLE days ADD COLUMN steps_auto INTEGER NOT NULL DEFAULT 0;
     """,
+    # v10 — unir ejercicios: un nombre de Hevy que es el mismo ejercicio que otro (misma máquina con otro nombre)
+    """
+    ALTER TABLE exercise_settings ADD COLUMN same_as TEXT;
+    """,
 ]
 
 

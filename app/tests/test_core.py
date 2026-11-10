@@ -291,6 +291,25 @@ class TestTraining(Base):
         self.assertEqual(w["exercises"][0]["previous"]["date"], "2026-11-02")
         self.assertEqual(len(T.exercise_history(self.conn, "press banca (barra)")), 2)
 
+    def test_merge_exercises(self):
+        from salud import training as T
+        import copy
+        old = copy.deepcopy(self.W); old["date"] = "2026-11-02"
+        old["exercises"][0]["name"] = "Press Banca Viejo"
+        T.create_workout(self.conn, old)
+        T.create_workout(self.conn, self.W)
+        self.assertEqual(len(T.exercise_history(self.conn, "press banca (barra)")), 1)
+        T.set_exercise_settings(self.conn, {"name": "Press Banca Viejo", "same_as": "Press Banca (Barra)"})
+        self.assertEqual(len(T.exercise_history(self.conn, "press banca (barra)")), 2)
+        self.assertEqual(len(T.exercise_history(self.conn, "Press Banca Viejo")), 2)
+        n = [e for e in T.exercise_names(self.conn) if e["sessions"] == 2]
+        self.assertEqual(n[0]["name"], self.W["exercises"][0]["name"])
+        self.assertIn("Press Banca Viejo", n[0]["also"])
+        with self.assertRaises(core.ValidationError):  # no se puede unir al revés a la vez
+            T.set_exercise_settings(self.conn, {"name": "Press Banca (Barra)", "same_as": "Press Banca Viejo"})
+        T.set_exercise_settings(self.conn, {"name": "Press Banca Viejo", "same_as": ""})
+        self.assertEqual(len(T.exercise_history(self.conn, "press banca (barra)")), 1)
+
     def test_closed_day_blocks_workout(self):
         from salud import training as T
         core.close_day(self.conn, D1, force=True)

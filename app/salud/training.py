@@ -59,9 +59,15 @@ def set_exercise_settings(conn, data, source="web"):
     key = _norm_ex(name)
     cur = conn.execute("SELECT * FROM exercise_settings WHERE name_key=?", (key,)).fetchone()
     vals = dict(cur) if cur else {"name_key": key, "name": name}
-    for k in ("equipment", "machine_kg", "load_ratio", "unilateral", "notes", "sl_slug"):
+    for k in ("equipment", "machine_kg", "load_ratio", "unilateral", "notes", "sl_slug", "same_as"):
         if k in data:
             vals[k] = data[k]
+    same = (vals.get("same_as") or "").strip()
+    if same and _norm_ex(same) == key:
+        same = ""
+    if same and _canon(conn).get(_norm_ex(same)) == key:
+        raise ValidationError("Ese ejercicio ya está unido a este")
+    vals["same_as"] = same or None
     sl = (vals.get("sl_slug") or "").strip().lower()
     m = re.search(r"strength-standards/([a-z0-9-]+)", sl)  # se acepta la URL de Strength Level
     sl = m.group(1) if m else sl
@@ -83,15 +89,34 @@ def set_exercise_settings(conn, data, source="web"):
     if vals.get("unilateral") is not None:
         vals["unilateral"] = 1 if vals["unilateral"] else 0
     with tx(conn, "exercise_settings", source, payload=data):
-        conn.execute("INSERT OR REPLACE INTO exercise_settings(name_key,name,equipment,machine_kg,load_ratio,unilateral,notes,sl_slug,updated_at) "
-                     "VALUES(?,?,?,?,?,?,?,?,?)", (key, vals.get("name") or name, vals.get("equipment"), vals.get("machine_kg"),
-                                                   vals.get("load_ratio"), vals.get("unilateral"), vals.get("notes"), vals.get("sl_slug"), ts()))
+        conn.execute("INSERT OR REPLACE INTO exercise_settings(name_key,name,equipment,machine_kg,load_ratio,unilateral,notes,sl_slug,same_as,updated_at) "
+                     "VALUES(?,?,?,?,?,?,?,?,?,?)", (key, vals.get("name") or name, vals.get("equipment"), vals.get("machine_kg"),
+                                                     vals.get("load_ratio"), vals.get("unilateral"), vals.get("notes"), vals.get("sl_slug"),
+                                                     vals.get("same_as"), ts()))
     return exercise_settings(conn).get(key)
 
 
 def _norm_ex(name):
     n = core._norm(re.sub(r"\s+", " ", name or ""))
     return EX_ALIASES.get(n, n)
+
+
+def _canon(conn):
+    """{clave: clave del ejercicio al que está unido} (ejercicios unidos por la persona: misma máquina con otro nombre)."""
+    m = {}
+    for r in conn.execute("SELECT name_key, same_as FROM exercise_settings WHERE COALESCE(same_as,'')<>''"):
+        m[r["name_key"]] = _norm_ex(r["same_as"])
+    for k in list(m):  # cadenas A→B→C
+        seen = {k}
+        while m[k] in m and m[k] not in seen:
+            seen.add(m[k]); m[k] = m[m[k]]
+    return m
+
+
+def ex_key(conn, name, canon=None):
+    k = _norm_ex(name)
+    c = _canon(conn) if canon is None else canon
+    return c.get(k, k)
 
 
 def _write_exercises(conn, wid, exercises):
@@ -270,18 +295,21 @@ def _exercises(conn, wid):
 
 def _previous(conn, name, before_date, wid):
     """Última sesión anterior con el mismo ejercicio (como la columna «anterior» de Hevy)."""
-    key = _norm_ex(name)
+    cn = _canon(conn)
+    key = ex_key(conn, name, cn)
     for r in conn.execute("SELECT e.id, e.kind, e.name, w.date, w.id AS wid FROM workout_exercises e JOIN workouts w ON w.id=e.workout_id "
                           "WHERE w.deleted_at IS NULL AND w.id<>? AND w.date<=? ORDER BY w.date DESC, w.id DESC", (wid, before_date)):
-        if _norm_ex(r["name"]) == key:
+        if ex_key(conn, r["name"], cn) == key:
             ex = {"kind": r["kind"], "name": r["name"], "sets": rows(conn.execute("SELECT * FROM workout_sets WHERE exercise_id=? ORDER BY idx", (r["id"],)))}
             return {"date": r["date"], "workout_id": r["wid"], "sets": ex["sets"], "stats": _ex_stats(ex, bw_on(conn, r["date"]))}
     return None
 
 
 # Récords como Hevy, por tipo de ejercicio
-PR_KINDS = {"peso": ("e1", "w", "sv"), "lastre": ("w", "sv"), "corporal": ("reps", "sreps"),
-            "asistido": ("reps", "sreps"), "tiempo": ("secs", "stime"), "cardio": ("dist", "w")}
+# (solo los que avisan con trofeo: 1RM, peso máximo y mejor serie; el volumen de sesión y las reps
+# totales de una sesión se ven como récord en la ficha, pero sin trofeo, como Hevy)
+PR_KINDS = {"peso": ("e1", "w", "sv"), "lastre": ("w", "sv"), "corporal": ("reps",),
+            "asistido": ("reps",), "tiempo": ("secs",), "cardio": ("dist", "w")}
 
 
 def _recs(kind, sets):
@@ -311,8 +339,9 @@ def pr_map(conn):
     sets_by = {}
     for s in rows(conn.execute("SELECT * FROM workout_sets ORDER BY exercise_id, idx, id")):
         sets_by.setdefault(s["exercise_id"], []).append(s)
+    cn = _canon(conn)
     for e in rows(conn.execute(q)):
-        key = _norm_ex(e["name"])
+        key = ex_key(conn, e["name"], cn)
         b = best.setdefault(key, {})
         rs = _recs(e["kind"], sets_by.get(e["id"], []))
         hit = []
@@ -372,11 +401,12 @@ def day_workouts(conn, d):
 
 
 def exercise_history(conn, name):
-    key = _norm_ex(name)
+    cn = _canon(conn)
+    key = ex_key(conn, name, cn)
     out = []
     for r in conn.execute("SELECT e.*, w.date, w.title FROM workout_exercises e JOIN workouts w ON w.id=e.workout_id "
                           "WHERE w.deleted_at IS NULL ORDER BY w.date DESC, w.id DESC"):
-        if _norm_ex(r["name"]) != key:
+        if ex_key(conn, r["name"], cn) != key:
             continue
         ex = dict(r)
         ex["sets"] = rows(conn.execute("SELECT * FROM workout_sets WHERE exercise_id=? ORDER BY idx", (r["id"],)))
@@ -386,12 +416,20 @@ def exercise_history(conn, name):
 
 
 def exercise_names(conn):
-    seen = {}
-    for r in conn.execute("SELECT e.name FROM workout_exercises e JOIN workouts w ON w.id=e.workout_id WHERE w.deleted_at IS NULL"):
-        k = _norm_ex(r["name"])
-        seen.setdefault(k, [r["name"], 0])
-        seen[k][1] += 1
-    return sorted(({"name": n, "sessions": c} for n, c in seen.values()), key=lambda x: -x["sessions"])
+    seen, cn = {}, _canon(conn)
+    for r in conn.execute("SELECT e.name FROM workout_exercises e JOIN workouts w ON w.id=e.workout_id WHERE w.deleted_at IS NULL "
+                          "ORDER BY w.date DESC"):
+        k0 = _norm_ex(r["name"])
+        k = cn.get(k0, k0)
+        e = seen.setdefault(k, {"name": r["name"], "sessions": 0, "also": []})
+        e["sessions"] += 1
+        if k0 == k:
+            e["name"] = e["name"] if _norm_ex(e["name"]) == k else r["name"]  # se muestra el nombre del ejercicio principal
+        elif r["name"] not in e["also"]:
+            e["also"].append(r["name"])
+    for e in seen.values():
+        e["also"] = [a for a in e["also"] if a != e["name"]]
+    return sorted(seen.values(), key=lambda x: -x["sessions"])
 
 
 # ------------------------------------------------------------------- báscula
