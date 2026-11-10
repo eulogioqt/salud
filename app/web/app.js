@@ -404,15 +404,49 @@ function blockBars(hrs, today) {
       h("i", { style: { height: (fut ? 6 : Math.max(b.v ? 10 : 4, (100 * b.v) / mx)) + "%" } }), h("em", null, String(b.a)));
   }));
 }
-// Ficha de pasos (cuando llegan solos del móvil): por horas frente a tu media, los últimos 30 días y el último envío
+// Ficha de pasos: objetivo del día (anillo), por horas frente a tu media, semana, rachas y récords, últimos 30 días
 async function stepsStatsSheet(st) {
-  const sh = sheet("Pasos", h("div", { class: "muted" }, "Cargando…"), null, { wide: true, sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }) });
+  const sub = dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" });
+  const sh = sheet("Pasos", h("div", { class: "muted" }, "Cargando…"), null, { wide: true, sub });
   let d; try { d = await api("GET", "/api/pasos/stats?date=" + st.date); } catch (e) { toast(e.message, { error: true }); sh.close(); return; }
-  const en = st.energy, steps = st.day.steps, today = st.date === st.today, now = new Date().getHours();
+  const en = st.energy, steps = st.day.steps || 0, today = st.date === st.today, now = new Date().getHours(), goal = d.goal || 8000;
+  const byDate = Object.fromEntries(d.days.map((x) => [x.date, x.steps]));
+  const kmOf = (n) => (en.stride_m ? (n * en.stride_m) / 1000 : null);
   const hrs = d.hours || Array(24).fill(0), avg = d.avg_hours;
-  const prevDays = d.days.filter((x) => x.date < st.date), last7 = prevDays.slice(-7);
-  const avg7 = last7.length ? last7.reduce((a, x) => a + x.steps, 0) / last7.length : null;
-  // gráfica por horas
+  // --- rachas (días seguidos llegando al objetivo; hoy cuenta si ya llegaste, si no, no rompe la racha aún)
+  let cur = 0, k = byDate[st.date] >= goal ? st.date : addDays(st.date, -1);
+  while (byDate[k] >= goal) { cur++; k = addDays(k, -1); }
+  let bestStreak = 0, run = 0, prev = null;
+  for (const x of d.days) { run = x.steps >= goal && prev && addDays(prev, 1) === x.date && run ? run + 1 : x.steps >= goal ? 1 : 0; prev = x.date; bestStreak = Math.max(bestStreak, run); }
+  // --- semanas
+  const wk0 = mondayOf(st.date), wkDays = [...Array(7)].map((_, i) => addDays(wk0, i));
+  const wkSum = (m) => [...Array(7)].reduce((a, _, i) => a + (byDate[addDays(m, i)] || 0), 0);
+  const thisWk = wkSum(wk0), lastWkSame = [...Array(Math.min(7, daysBetween(wk0, st.date) + 1))].reduce((a, _, i) => a + (byDate[addDays(addDays(wk0, -7), i)] || 0), 0);
+  const weeks = {}; for (const x of d.days) { const m = mondayOf(x.date); weeks[m] = (weeks[m] || 0) + x.steps; }
+  const bestWk = Object.entries(weeks).sort((a, b) => b[1] - a[1])[0];
+  const best = d.days.reduce((b, x) => (!b || x.steps > b.steps ? x : b), null);
+  const last30 = d.days.filter((x) => x.date > addDays(st.date, -30)), hit30 = last30.filter((x) => x.steps >= goal).length;
+  const prevDays = d.days.filter((x) => x.date < st.date).slice(-7), avg7 = prevDays.length ? prevDays.reduce((a, x) => a + x.steps, 0) / prevDays.length : null;
+  // media por día de la semana (últimas 8 semanas)
+  const dow = [...Array(7)].map(() => []); for (const x of d.days.filter((x) => x.date > addDays(st.date, -56) && x.date < st.date)) dow[(new Date(x.date + "T12:00").getDay() + 6) % 7].push(x.steps);
+  const dowAvg = dow.map((a) => (a.length ? a.reduce((p, q) => p + q, 0) / a.length : null));
+  // --- anillo del objetivo
+  const C = 2 * Math.PI * 62, frac = Math.min(1, steps / goal);
+  const ring = svgE("svg", { width: 150, height: 150, viewBox: "-75 -75 150 150", class: "sring" + (steps >= goal ? " done" : "") });
+  ring.append(svgE("circle", { r: 62, fill: "none", "stroke-width": 12, class: "rg-bg" }));
+  if (frac > 0) ring.append(svgE("circle", { r: 62, fill: "none", "stroke-width": 12, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${C * frac} ${C}`, transform: "rotate(-90)" }));
+  const goalBtn = h("button", { class: "sgoal", title: "Cambiar el objetivo de pasos", onclick: () => goalSheet() }, `de ${fmt(goal)} ✎`);
+  const accNow = hrs.slice(0, today ? now + 1 : 24).reduce((a, x) => a + x, 0), accAvg = avg ? avg.slice(0, today ? now + 1 : 24).reduce((a, x) => a + x, 0) : null;
+  const diff = accAvg != null ? accNow - accAvg : null;
+  const hero = h("div", { class: "sh2" },
+    h("div", { class: "sh2-ring" }, ring, h("div", { class: "sh2-in" }, h("b", { class: "num" }, fmt(steps)), h("span", null, "pasos"), goalBtn)),
+    h("div", { class: "sh2-side" },
+      h("div", { class: "sh2-msg" }, steps >= goal ? "🎯 Objetivo cumplido" : `Te faltan ${fmt(goal - steps)} pasos`),
+      h("div", { class: "sh2-kv" }, h("span", null, "Gasto"), h("b", null, en.steps_kcal != null ? `≈ ${fmt(en.steps_kcal)} kcal` : "—")),
+      h("div", { class: "sh2-kv" }, h("span", null, "Distancia"), h("b", null, kmOf(steps) != null ? `${fmt(kmOf(steps), 1)} km` : "—")),
+      h("div", { class: "sh2-kv" }, h("span", null, "Racha"), h("b", null, cur ? `🔥 ${cur} ${cur === 1 ? "día" : "días"}` : "—")),
+      diff != null ? h("div", { class: "sh-vs " + (diff >= 0 ? "up" : "down") }, `${diff >= 0 ? "+" : "−"}${fmt(Math.abs(diff))} frente a tu media ${today ? "a esta hora" : "de ese día"}`) : null));
+  // --- por horas
   const mx = Math.max(1, ...hrs, ...(avg || [0]));
   const hchart = h("div", { class: "sch" }, hrs.map((v, i) => {
     const fut = today && i > now;
@@ -421,33 +455,53 @@ async function stepsStatsSheet(st) {
       avg ? h("span", { class: "avg", style: { bottom: (100 * avg[i]) / mx + "%" } }) : null),
       `${String(i).padStart(2, "0")}:00–${String(i + 1).padStart(2, "0")}:00\n${fut ? "—" : fmt(v) + " pasos"}${avg ? `\nTu media: ${fmt(avg[i])}` : ""}`);
   }));
-  const axis = h("div", { class: "sch-x" }, [0, 6, 12, 18, 24].map((x) => h("span", null, x + " h")));
-  // acumulado a esta hora frente a la media
-  const upto = today ? now + 1 : 24, accNow = hrs.slice(0, upto).reduce((a, x) => a + x, 0), accAvg = avg ? avg.slice(0, upto).reduce((a, x) => a + x, 0) : null;
   const peak = hrs.reduce((b, v, i) => (v > hrs[b] ? i : b), 0);
-  const best = d.days.reduce((b, x) => (!b || x.steps > b.steps ? x : b), null);
-  const km = en.stride_m && steps != null ? (Math.max(0, steps - (en.steps_in_activities || 0)) * en.stride_m) / 1000 : null;
-  // últimos 30 días
-  const dmx = Math.max(1, ...d.days.map((x) => x.steps));
-  const dchart = d.days.length > 1 ? h("div", { class: "sdays" }, avg7 != null ? h("span", { class: "sd-avg", style: { bottom: (100 * avg7) / dmx + "%" } }) : null,
-    d.days.map((x) => tip(h("i", { class: x.date === st.date ? "cur" : "", style: { height: Math.max(3, (100 * x.steps) / dmx) + "%" } }), `${dateLabel(x.date, { weekday: "short", day: "numeric", month: "short" })}\n${fmt(x.steps)} pasos`))) : null;
+  // --- semana (L–D) con la línea del objetivo
+  const wmx = Math.max(goal * 1.1, ...wkDays.map((x) => byDate[x] || 0));
+  const LD = ["L", "M", "X", "J", "V", "S", "D"];
+  const wchart = [h("div", { class: "swk" }, h("span", { class: "sw-goal", style: { bottom: (100 * goal) / wmx + "%" } }),
+    wkDays.map((x) => { const v = byDate[x], fut = x > st.today; return tip(h("div", { class: "sw" + (x === st.date ? " cur" : "") + (v >= goal ? " ok" : "") },
+      h("i", { style: { height: (v ? Math.max(3, (100 * v) / wmx) : 0) + "%" } })),
+      `${dateLabel(x, { weekday: "long", day: "numeric", month: "short" })}\n${fut ? "—" : v != null ? fmt(v) + " pasos" : "sin datos"}`); })),
+    h("div", { class: "swk-x" }, LD.map((l, i) => h("em", { class: wkDays[i] === st.date ? "cur" : "" }, l)))];
+  const wdiff = thisWk - lastWkSame;
+  // --- últimos 30 días
+  const dmx = Math.max(goal * 1.1, 1, ...last30.map((x) => x.steps));
+  const dchart = last30.length > 1 ? h("div", { class: "sdays" }, h("span", { class: "sd-avg", style: { bottom: (100 * goal) / dmx + "%" } }),
+    last30.map((x) => tip(h("i", { class: (x.date === st.date ? "cur" : "") + (x.steps >= goal ? " ok" : "") , style: { height: Math.max(3, (100 * x.steps) / dmx) + "%" } }),
+      `${dateLabel(x.date, { weekday: "short", day: "numeric", month: "short" })}\n${fmt(x.steps)} pasos`))) : h("div", { class: "muted sm" }, "En unos días verás aquí tu mes.");
   const ago = (ts) => { if (!ts) return "—"; const m = Math.round((Date.now() - new Date(ts.replace(" ", "T"))) / 60000); return m < 1 ? "ahora" : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : dateLabel(ts.slice(0, 10), { day: "numeric", month: "short" }); };
-  const diff = accAvg != null ? accNow - accAvg : null;
+  const rec = (ic, l, v, sub_) => h("div", { class: "srec" }, h("span", { class: "srec-i" }, ic), h("div", null, h("div", { class: "srec-l" }, l), h("b", null, v), h("div", { class: "srec-s" }, sub_ || "")));
+  const goalSheet = () => {
+    const inp = h("input", { class: "qty-in big num", inputMode: "numeric", value: String(goal) });
+    const g = sheet("Objetivo de pasos", [h("div", { class: "steps-box" }, inp, h("div", { class: "faint" }, "pasos al día")),
+      h("div", { class: "note" }, "Se usa para las rachas y los días cumplidos. 7.000–10.000 es lo habitual; ponte uno que puedas cumplir la mayoría de los días.")],
+      [h("span", { class: "grow" }), h("button", { class: "btn primary lg", onclick: async () => { const n = parseNum(inp.value); if (!(n >= 1000)) return toast("Pon al menos 1.000", { error: true });
+        await act(() => api("PUT", "/api/settings", { objetivo_pasos: String(Math.round(n)) }), "Objetivo guardado"); g.close(); sh.close(); stepsStatsSheet(st); } }, "Guardar")]);
+    setTimeout(() => { inp.focus(); inp.select(); }, 60);
+  };
   sh.set("Pasos", [
-    h("div", { class: "sh-hero" },
-      h("div", null, h("b", { class: "num" }, steps == null ? "—" : fmt(steps)), h("span", null, " pasos")),
-      h("div", { class: "faint" }, [en.steps_kcal != null ? `≈ ${fmt(en.steps_kcal)} kcal` : null, km != null ? `${fmt(km, 1)} km` : null].filter(Boolean).join(" · ")),
-      diff != null ? h("div", { class: "sh-vs " + (diff >= 0 ? "up" : "down") }, `${diff >= 0 ? "+" : "−"}${fmt(Math.abs(diff))} ${today ? "frente a tu media a esta hora" : "frente a tu media"}`) : null),
+    hero,
     h("div", { class: "card panel flat" }, h("div", { class: "row" }, h("h3", { style: { margin: 0 } }, "Por horas"), h("span", { class: "grow" }),
-      avg ? h("span", { class: "faint sm" }, h("span", { class: "lg-avg" }), ` media de ${d.avg_days} ${d.avg_days === 1 ? "día" : "días"}`) : null), hchart, axis),
-    h("div", { class: "kpis tight" },
-      kpi("Hora más activa", hrs[peak] ? `${peak}:00` : "—", hrs[peak] ? fmt(hrs[peak]) + " pasos" : ""),
-      kpi("Media 7 días", avg7 != null ? fmt(avg7) : "—", "pasos al día"),
-      kpi("Mejor día (30 d)", best ? fmt(best.steps) : "—", best ? dateLabel(best.date, { day: "numeric", month: "short" }) : ""),
-      kpi("Último envío", ago(d.last_received), "desde el móvil")),
-    dchart ? h("div", { class: "card panel flat" }, h("div", { class: "row" }, h("h3", { style: { margin: 0 } }, "Últimos 30 días"), h("span", { class: "grow" }), avg7 != null ? h("span", { class: "faint sm" }, "— media 7 días") : null), dchart) : null,
+      avg ? h("span", { class: "faint sm" }, h("span", { class: "lg-avg" }), ` tu media (${d.avg_days} ${d.avg_days === 1 ? "día" : "días"})`) : null), hchart,
+      h("div", { class: "sch-x" }, [0, 6, 12, 18, 24].map((x) => h("span", null, x + " h"))),
+      hrs[peak] ? h("div", { class: "faint sm", style: { marginTop: "6px" } }, `Hora más activa: ${peak}:00 · ${fmt(hrs[peak])} pasos`) : null),
+    h("div", { class: "sgrid" },
+      h("div", { class: "card panel flat" }, h("div", { class: "row" }, h("h3", { style: { margin: 0 } }, "Esta semana"), h("span", { class: "grow" }), h("span", { class: "faint sm" }, "--- objetivo")),
+        h("div", { class: "sw-tot" }, h("b", { class: "num" }, fmt(thisWk)), " pasos", kmOf(thisWk) != null ? h("span", { class: "faint" }, ` · ${fmt(kmOf(thisWk), 1)} km`) : null,
+          lastWkSame ? h("span", { class: "sw-d " + (wdiff >= 0 ? "up" : "down") }, `${wdiff >= 0 ? "▲" : "▼"} ${fmt(Math.abs(wdiff))} vs semana pasada`) : null), wchart),
+      h("div", { class: "card panel flat" }, h("h3", null, "Rachas y récords"), h("div", { class: "srecs" },
+        rec("🔥", "Racha actual", cur ? `${cur} ${cur === 1 ? "día" : "días"}` : "0", `días seguidos ≥ ${fmt(goal)}`),
+        rec("🏅", "Mejor racha", bestStreak ? `${bestStreak} ${bestStreak === 1 ? "día" : "días"}` : "—"),
+        rec("🏆", "Mejor día", best ? fmt(best.steps) : "—", best ? dateLabel(best.date, { day: "numeric", month: "short", year: "2-digit" }) : ""),
+        rec("📅", "Mejor semana", bestWk ? fmt(bestWk[1]) : "—", bestWk ? "desde el " + dateLabel(bestWk[0], { day: "numeric", month: "short" }) : ""),
+        rec("⚡", "Mejor hora", d.best_hour ? fmt(d.best_hour.steps) : "—", d.best_hour ? `${d.best_hour.hour}:00 · ${dateLabel(d.best_hour.date, { day: "numeric", month: "short" })}` : ""),
+        rec("🎯", "Objetivo (30 d)", `${hit30} de ${last30.length || 0}`, "días cumplidos")))),
+    h("div", { class: "card panel flat" }, h("div", { class: "row" }, h("h3", { style: { margin: 0 } }, "Últimos 30 días"), h("span", { class: "grow" }),
+      avg7 != null ? h("span", { class: "faint sm" }, `media 7 días ${fmt(avg7)}`) : null), dchart,
+      dowAvg.some((x) => x != null) ? h("div", { class: "sdow" }, dowAvg.map((v, i) => h("div", null, h("em", null, LD[i]), h("b", { class: "num" }, v != null ? fmt(v / 1000, 1) + "k" : "—")))) : null),
   ], [h("button", { class: "btn ghost sm", onclick: () => { sh.close(); stepsConnectSheet(); } }, "Conexión del móvil"), h("span", { class: "grow" }),
-    h("span", { class: "faint sm" }, "Llegan solos del móvil cada 30–60 min")], { wide: true, sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }) });
+    h("span", { class: "faint sm" }, `Último envío del móvil: ${ago(d.last_received)}`)], { wide: true, sub });
 }
 function hourBars(hrs, today) {
   const mx = Math.max(1, ...hrs), now = new Date().getHours();

@@ -48,6 +48,7 @@ DEFAULT_SETTINGS = {
     "kcal_por_kg_km": ("0.5", "Coste NETO de caminar sobre reposo"),
     "factor_zancada": ("0.415", "Zancada = altura × factor"),
     "tef_pct": ("0.10", "Efecto térmico ≈ 10 % de la ingesta registrada"),
+    "objetivo_pasos": ("8000", "Pasos al día que cuentan como objetivo cumplido (rachas)"),
     "revisar_agente": ("0", "1 = lo que crea el agente (productos, recetas, comidas habituales) queda «por revisar» en la Biblioteca"),
 }
 # Movimiento del día sin contar los pasos (estar de pie, tareas de casa…): se elige al cerrar el día
@@ -1418,11 +1419,18 @@ def steps_stats(conn, d=None):
             for i, v in enumerate(steps_hours(conn, p) or [0] * 24):
                 tot[i] += v
         avg = [round(v / len(prev)) for v in tot]
-    since = shift(d, -29)
+    since = shift(d, -400)
     days = [{"date": r["date"], "steps": r["steps"]} for r in conn.execute(
         "SELECT date, steps FROM days WHERE date BETWEEN ? AND ? AND steps IS NOT NULL ORDER BY date", (since, d))]
     last = conn.execute("SELECT MAX(received_at) FROM step_buckets").fetchone()[0]
-    return {"date": d, "hours": steps_hours(conn, d), "avg_hours": avg, "avg_days": len(prev), "days": days, "last_received": last}
+    bh = conn.execute("SELECT substr(start,1,13) AS h, SUM(steps) AS n FROM step_buckets WHERE (julianday(end)-julianday(start))*24 <= 1.01 "
+                      "GROUP BY 1 ORDER BY n DESC LIMIT 1").fetchone()
+    try:
+        goal = int(float(settings(conn).get("objetivo_pasos") or 8000))
+    except ValueError:
+        goal = 8000
+    return {"date": d, "hours": steps_hours(conn, d), "avg_hours": avg, "avg_days": len(prev), "days": days, "last_received": last,
+            "goal": goal, "best_hour": {"date": bh["h"][:10], "hour": int(bh["h"][11:13]), "steps": bh["n"]} if bh and bh["n"] else None}
 
 
 def steps_hours(conn, d):

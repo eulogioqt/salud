@@ -1349,3 +1349,38 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .sd-avg { position: absolute; left: 0; right: 0; border-top: 1.5px dashed var(--muted); opacity: .6; pointer-events: none; }
 .faint.sm { font-size: 12px; }
 .sdays { justify-content: flex-end; } .sdays i { max-width: 22px; }
+/* Pasos: ficha 2 */
+.sh2 { display: flex; align-items: center; justify-content: center; gap: 28px; padding: 4px 0 16px; flex-wrap: wrap; }
+.sh2-ring { position: relative; width: 150px; height: 150px; }
+.sring .rg-bg { stroke: var(--surface-2); } .sring .rg-fg { stroke: #d6a23f; } .sring.done .rg-fg { stroke: var(--accent); }
+.sh2-in { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.sh2-in b { font-size: 30px; font-weight: 750; letter-spacing: -.02em; line-height: 1.05; } .sh2-in span { font-size: 12px; color: var(--muted); }
+.sgoal { border: 0; background: none; color: var(--faint); font-size: 11.5px; cursor: pointer; padding: 2px 6px; border-radius: 6px; margin-top: 2px; }
+.sgoal:hover { background: var(--surface-2); color: var(--muted); }
+.sh2-side { display: flex; flex-direction: column; gap: 6px; min-width: 210px; }
+.sh2-msg { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
+.sh2-kv { display: flex; justify-content: space-between; gap: 20px; font-size: 13.5px; } .sh2-kv span { color: var(--muted); }
+.sh2 .sh-vs { align-self: flex-start; margin-top: 4px; }
+.sgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; } .sgrid .card { margin: 0; }
+@media (max-width: 720px) { .sgrid { grid-template-columns: 1fr; } }
+.sw-tot { margin: 6px 0 2px; font-size: 13px; color: var(--muted); } .sw-tot b { font-size: 20px; color: var(--text); }
+.sw-d { display: block; font-size: 12px; font-weight: 600; margin-top: 2px; } .sw-d.up { color: var(--accent); } .sw-d.down { color: #b4412d; }
+.swk { position: relative; display: flex; gap: 6px; height: 110px; margin-top: 8px; padding-bottom: 16px; }
+.sw { flex: 1; display: flex; flex-direction: column; align-items: stretch; }
+.sw-bar { flex: 1; display: flex; align-items: flex-end; } .sw-bar i { display: block; width: 100%; background: color-mix(in srgb, #d6a23f 55%, transparent); border-radius: 4px 4px 1px 1px; }
+.sw.ok .sw-bar i { background: color-mix(in srgb, var(--accent) 70%, transparent); } .sw.cur .sw-bar i { outline: 2px solid var(--text); outline-offset: 1px; }
+.sw em { font-style: normal; font-size: 11px; color: var(--faint); text-align: center; margin-top: 3px; }
+.sw-goal { position: absolute; left: 0; right: 0; border-top: 1.5px dashed var(--muted); opacity: .55; margin-bottom: 16px; pointer-events: none; }
+.srecs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 8px; }
+.srec { display: flex; gap: 8px; align-items: flex-start; } .srec-i { font-size: 18px; line-height: 1.2; }
+.srec-l { font-size: 11.5px; color: var(--muted); } .srec b { font-size: 16px; } .srec-s { font-size: 11px; color: var(--faint); }
+.sdays i.ok { background: color-mix(in srgb, var(--accent) 65%, transparent); } .sdays i.ok.cur { background: var(--accent); }
+.sdow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 10px; text-align: center; }
+.sdow em { display: block; font-style: normal; font-size: 11px; color: var(--faint); } .sdow b { font-size: 12.5px; }
+.muted.sm { font-size: 13px; }
+.swk { position: relative; display: flex; gap: 6px; height: 96px; margin-top: 10px; padding: 0; }
+.sw { flex: 1; display: flex; align-items: flex-end; } .sw i { display: block; width: 100%; background: color-mix(in srgb, #d6a23f 55%, transparent); border-radius: 4px 4px 1px 1px; }
+.sw.ok i { background: color-mix(in srgb, var(--accent) 65%, transparent); } .sw.cur i { background: #d6a23f; } .sw.cur.ok i { background: var(--accent); }
+.sw-goal { margin-bottom: 0; }
+.swk-x { display: flex; gap: 6px; margin-top: 4px; } .swk-x em { flex: 1; text-align: center; font-style: normal; font-size: 11px; color: var(--faint); } .swk-x em.cur { color: var(--text); font-weight: 700; }
+.swk .sw { flex-direction: row; align-items: flex-end; }
