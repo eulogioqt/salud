@@ -692,8 +692,8 @@ function suppBlock(st, closed) {
     if (e) await act(() => api("DELETE", "/api/entries/" + e.id), x.name + " quitado");
     else await act(() => api("POST", "/api/entries", { date: S.date, food_id: x.id, unit_key: x.portion_id ? "p:" + x.portion_id : "g", quantity: x.portion_id ? 1 : 5, meal: "otro", time: st.date === st.today ? nowT() : null }), x.name + " apuntado");
   };
-  const head = h("div", { class: "meal-h" }, h("h3", null, "Suplementos"), h("span", { class: "mt num" }, h("b", null, String(Object.keys(taken).length)), ` de ${sups.length}`),
-    closed ? null : h("button", { class: "add-btn add", onclick: () => { S.libFilter = "supl"; location.hash = "#/biblioteca"; } }, "+ Añadir"));
+  const head = h("div", { class: "meal-h" }, h("h3", null, "Suplementos"), h("span", { class: "mt num" }, `${Object.keys(taken).length} de ${sups.length}`),
+    closed ? null : h("button", { class: "add-btn add", title: "Añadir un suplemento nuevo a la lista", onclick: () => foodEditor(null, { supp: true }) }, "+ Nuevo"));
   return h("div", { class: "meal supp-b" }, head, h("div", { class: "list" }, sups.map((x) => {
     const on = x.id in taken, fo = foodOf(x.id);
     return h("div", { class: "item b supp-it" + (on ? " on" : ""), onclick: closed ? null : () => toggle(x) },
