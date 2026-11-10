@@ -1133,3 +1133,7 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .wz-ol { margin: 0 0 12px; padding-left: 20px; font-size: 14px; line-height: 1.55; } .wz-ol li { margin: 4px 0; }
 .wz-res { font-size: 13.5px; color: var(--accent); font-weight: 600; margin: 8px 0 12px; min-height: 1em; }
 @media (max-width: 640px) { .wz-g { grid-template-columns: 1fr 1fr; } .wz-g > div:first-child { grid-column: 1 / -1; } }
+.wz-opt { display: flex; flex-direction: column; gap: 3px; background: var(--surface-2); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; font-size: 13.5px; }
+.wz-opt b { font-size: 13.5px; } .wz-opt span { color: var(--muted); line-height: 1.45; }
+.wz-opt .btn { align-self: flex-start; margin-top: 6px; }
+.wz-opt.soon { opacity: .7; } .wz-opt.soon span { font-style: italic; }

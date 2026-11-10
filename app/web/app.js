@@ -1342,7 +1342,7 @@ function agentBtn(ag, onclick, connected) {
 }
 async function refreshAgents() {
   const r = await api("GET", "/api/token").catch(() => null);
-  if (r && S.me) { S.me.agente = r; drawAccount(); }
+  if (r && S.me) { S.me.agente = r; drawAccount(); if (S.onAgents) S.onAgents(); }
   return r;
 }
 // Lista de agentes conectados con su logo, último uso y «Desconectar» (borra su token: deja de funcionar al momento).
@@ -1484,39 +1484,44 @@ async function welcomeSheet() {
   const alt = numIn(st.altura_cm || null, "cm"), kg = numIn(st.peso_estimado_kg || null, "kg");
   const hevyOut = h("div", { class: "wz-res" });
   const finish = async () => { await api("PUT", "/api/notes/bienvenida", { body: "hecho " + todayISO() }).catch(() => {}); sh.close(); await refresh(); };
-  const dots = () => h("div", { class: "wz-dots" }, [0, 1, 2, 3].map((i) => h("i", { class: i === step ? "on" : i < step ? "done" : "" })));
+  const dots = () => h("div", { class: "wz-dots" }, pages.map((_, i) => h("i", { class: i === step ? "on" : i < step ? "done" : "" })));
+  const agentPage = () => ["Conecta tu agente", [
+    h("p", { class: "muted wz-p" }, "Es lo primero: con tu Claude (u otro agente) apuntas comidas hablando, le mandas capturas de Hevy o de la báscula y te guía en todo lo demás."),
+    agentConnected() ? h("div", { class: "agent-wait soft done" }, "✓ Agente conectado.") : h("button", { class: "btn primary", onclick: () => connectAgent() }, "Conectar un agente"),
+    h("div", { class: "faint wz-p", style: { marginTop: "10px" } }, "Si prefieres hacerlo luego: menú de tu nombre → Conectar un agente.")], null];
   const pages = [
+    agentPage,
     () => ["Tus datos", [
-      h("p", { class: "muted wz-p" }, "Con esto se calcula cuánto gastas al día. Solo lo ves tú."),
-      h("label", { class: "f" }, "Sexo"), h("div", { class: "seg wz-seg" }, [["H", "Hombre"], ["M", "Mujer"]].map(([k, l]) => h("button", { class: sexo.v === k ? "on" : "", onclick: (e) => { sexo.v = k; e.target.parentNode.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === e.target)); } }, l))),
-      h("div", { class: "grid3 wz-g" }, h("div", null, h("label", { class: "f" }, "Fecha de nacimiento"), born), h("div", null, h("label", { class: "f" }, "Altura (cm)"), alt), h("div", null, h("label", { class: "f" }, "Peso aproximado (kg)"), kg)),
-      h("div", { class: "faint wz-p" }, "El peso exacto lo irás apuntando en Hoy (mejor en ayunas); este se usa hasta entonces.")],
+      h("p", { class: "muted wz-p" }, "Para calcular cuánto gastas al día. Solo lo ves tú."),
+      h("div", { class: "seg wz-seg" }, [["H", "Hombre"], ["M", "Mujer"]].map(([k, l]) => h("button", { class: sexo.v === k ? "on" : "", onclick: (e) => { sexo.v = k; e.target.parentNode.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === e.target)); } }, l))),
+      h("div", { class: "grid3 wz-g" }, h("div", null, h("label", { class: "f" }, "Fecha de nacimiento"), born), h("div", null, h("label", { class: "f" }, "Altura (cm)"), alt), h("div", null, h("label", { class: "f" }, "Peso aproximado (kg)"), kg))],
       async () => { await api("PUT", "/api/settings", { sexo: sexo.v, fecha_nacimiento: born.value, altura_cm: parseNum(alt.value) == null ? "" : String(parseNum(alt.value)), peso_estimado_kg: parseNum(kg.value) == null ? "" : String(parseNum(kg.value)) }); }],
     () => ["Tus entrenos de Hevy", [
-      h("p", { class: "muted wz-p" }, "Si usas Hevy, trae todo tu historial de una vez: récords, niveles y progreso salen de ahí."),
-      h("ol", { class: "wz-ol" }, h("li", null, "En Hevy: ", h("b", null, "Perfil → ⚙ Ajustes → Exportar e importar datos → Exportar entrenos"), ". Te descarga un archivo .csv."), h("li", null, "Súbelo aquí:")),
-      h("button", { class: "btn", onclick: () => { const fi = h("input", { type: "file", accept: ".csv,.json,text/csv,application/json" });
-        fi.addEventListener("change", async () => { const f = fi.files[0]; if (!f) return; hevyOut.textContent = "Importando…";
-          try { const r = await api("POST", "/api/hevy/import-csv", { csv: await f.text() }); hevyOut.textContent = `✓ ${r.created} entrenos importados` + (r.updated ? ` · ${r.updated} actualizados` : ""); } catch (e) { hevyOut.textContent = e.message; } });
-        fi.click(); } }, "Subir el archivo de Hevy"), hevyOut,
-      h("div", { class: "faint wz-p" }, "Los entrenos nuevos, después, se los mandas a tu agente con capturas de Hevy (o lo repites con el archivo). ¿No usas Hevy? Sáltalo.")], null],
-    () => ["Conecta tu agente", [
-      h("p", { class: "muted wz-p" }, "Tu Claude (u otro agente) podrá apuntar comidas por chat, leer capturas de Hevy o de la báscula, cerrar el día…"),
-      agentConnected() ? h("div", { class: "agent-wait soft done" }, "✓ Ya tienes un agente conectado.") : h("button", { class: "btn primary", onclick: () => connectAgent() }, "Conectar un agente"),
-      h("div", { class: "faint wz-p" }, "Puedes hacerlo más tarde desde el menú de tu nombre.")], null],
+      h("p", { class: "muted wz-p" }, "Opcional. Si usas Hevy, trae tu historial: récords, niveles y progreso salen de ahí."),
+      h("div", { class: "wz-opt" }, h("b", null, "Con tu agente"), h("span", null, "Dile «quiero volcar mi Hevy»: te explica cómo exportarlo y se lo pasas por el chat.")),
+      h("div", { class: "wz-opt" }, h("b", null, "O aquí"), h("span", null, "En Hevy: Perfil → ⚙ Ajustes → Exportar e importar datos → Exportar entrenos, y sube el .csv:"),
+        h("button", { class: "btn sm", onclick: () => { const fi = h("input", { type: "file", accept: ".csv,.json,text/csv,application/json" });
+          fi.addEventListener("change", async () => { const f = fi.files[0]; if (!f) return; hevyOut.textContent = "Importando…";
+            try { const r = await api("POST", "/api/hevy/import-csv", { csv: await f.text() }); hevyOut.textContent = `✓ ${r.created} entrenos importados` + (r.updated ? ` · ${r.updated} actualizados` : ""); } catch (e) { hevyOut.textContent = e.message; } });
+          fi.click(); } }, "Subir archivo de Hevy"), hevyOut)], null],
+    () => ["Tus pasos", [
+      h("p", { class: "muted wz-p" }, "Los pasos cuentan en lo que gastas. Opcional: conectarlos para que lleguen solos."),
+      h("div", { class: "wz-opt soon" }, h("b", null, "Android · Health Connect"), h("span", null, "Próximamente.")),
+      h("div", { class: "wz-opt soon" }, h("b", null, "iPhone · Salud de Apple"), h("span", null, "Próximamente.")),
+      h("div", { class: "wz-opt" }, h("b", null, "Mientras tanto"), h("span", null, "Apúntalos al final del día en Hoy → Pasos, o díselos a tu agente («hoy 8.000 pasos»)."))], null],
     () => ["Tu objetivo", [
-      h("p", { class: "muted wz-p" }, "Lo más fácil: abre un chat con tu agente y dile ", h("b", null, "«ayúdame a fijar mi objetivo»"), ". Te preguntará lo necesario (qué quieres conseguir, cómo entrenas…) y lo deja configurado."),
-      h("p", { class: "muted wz-p" }, "O ponlo tú aquí: según tu gasto (recomendado) o fijo."),
-      h("button", { class: "btn", onclick: () => targetSheet(data.current_target, null) }, "Elegir objetivo"),
-      h("div", { class: "faint wz-p" }, "Siempre lo puedes cambiar en Ajustes → Objetivo diario.")], null],
+      h("p", { class: "muted wz-p" }, "Dile a tu agente ", h("b", null, "«ayúdame a fijar mi objetivo»"), ": te pregunta qué quieres conseguir y lo deja configurado en un minuto."),
+      h("p", { class: "muted wz-p" }, "O elígelo tú:"), h("button", { class: "btn sm", onclick: () => targetSheet(data.current_target, null) }, "Elegir objetivo")], null],
   ];
-  const sh = sheet("Primeros pasos", null, null, { onClose: () => api("PUT", "/api/notes/bienvenida", { body: "visto " + todayISO() }).catch(() => {}) });
+  const sh = sheet("Primeros pasos", null, null, { onClose: () => { S.onAgents = null; api("PUT", "/api/notes/bienvenida", { body: "visto " + todayISO() }).catch(() => {}); } });
+  let wasOn = agentConnected();
+  S.onAgents = () => { if (step === 0 && agentConnected() !== wasOn) { wasOn = agentConnected(); draw(); } };  // al conectar el agente, el paso 1 se marca solo
   const draw = () => {
     const [title, body, save] = pages[step]();
     const last = step === pages.length - 1;
     sh.set(title, [dots(), ...body], [
       step ? h("button", { class: "btn ghost", onclick: () => { step--; draw(); } }, "Atrás") : h("button", { class: "btn ghost", onclick: finish }, "Ahora no"), h("span", { class: "grow" }),
-      h("button", { class: "btn primary", onclick: async () => { try { if (save) await save(); } catch (e) { toast(e.message, { error: true }); return; } if (last) { toast("¡Listo! Ya puedes empezar"); finish(); } else { step++; draw(); } } }, last ? "Terminar" : step === 1 || step === 2 ? "Siguiente" : "Guardar y seguir")],
+      h("button", { class: "btn primary", onclick: async () => { try { if (save) await save(); } catch (e) { toast(e.message, { error: true }); return; } if (last) { toast("¡Listo! Ya puedes empezar"); finish(); } else { step++; draw(); } } }, last ? "Terminar" : save ? "Guardar y seguir" : "Siguiente")],
       { sub: `Paso ${step + 1} de ${pages.length}` });
   };
   draw();
