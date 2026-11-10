@@ -128,3 +128,83 @@ def cached(datadir):
             except (OSError, ValueError, KeyError):
                 pass
     return out
+
+
+# ---- Adivinar la página de Strength Level a partir del nombre del ejercicio (nombres de Hevy en español o inglés)
+import unicodedata
+
+BASES = [  # (expresión en el nombre normalizado, página base en inglés)
+    (r"press de banca inclinado", "incline-bench-press"), (r"press de banca declinado", "decline-bench-press"),
+    (r"press de banca", "bench-press"), (r"press militar|press de hombros|press por encima", "shoulder-press"),
+    (r"press de pecho", "chest-press"), (r"peso muerto rumano", "romanian-deadlift"), (r"peso muerto sumo", "sumo-deadlift"),
+    (r"peso muerto", "deadlift"), (r"sentadilla frontal", "front-squat"), (r"sentadilla bulgara|sentadilla dividida", "bulgarian-split-squat"),
+    (r"sentadilla hack", "hack-squat"), (r"sentadilla goblet|sentadilla copa", "goblet-squat"), (r"sentadilla", "squat"),
+    (r"hip thrust|empuje de cadera", "hip-thrust"), (r"zancada", "lunge"), (r"prensa|press de piernas", "leg-press"),
+    (r"extension de (pierna|cuadriceps)", "leg-extension"), (r"curl de pierna tumbado|curl femoral tumbado", "lying-leg-curl"),
+    (r"curl de pierna|curl femoral", "seated-leg-curl"), (r"gemelos? sentado", "seated-calf-raise"), (r"gemelos?|pantorrilla", "calf-raise"),
+    (r"curl martillo", "hammer-curl"), (r"curl predicador", "preacher-curl"), (r"curl concentrado", "concentration-curl"),
+    (r"curl invertido", "reverse-curl"), (r"curl de muneca|curl de extension de muneca", "wrist-curl"), (r"curl de biceps|curl", "bicep-curl"),
+    (r"extension de triceps por encima|press frances|extension de triceps tumbado", "lying-tricep-extension"),
+    (r"extension de triceps|jalon de triceps|triceps con polea|triceps en polea", "tricep-pushdown"),
+    (r"jalon al pecho|jalon", "lat-pulldown"), (r"remo con barra", "bent-over-row"), (r"remo en t", "t-bar-row"),
+    (r"remo sentado", "seated-cable-row"), (r"remo", "row"), (r"elevacion(es)? lateral(es)?", "lateral-raise"),
+    (r"elevacion(es)? frontal(es)?", "front-raise"), (r"pajaros|aperturas invertidas|vuelos posteriores", "reverse-fly"),
+    (r"aperturas|mariposa|cruce de poleas", "chest-fly"), (r"encogimiento", "shrug"), (r"face pull", "face-pull"),
+    (r"dominadas? supinas?|chin up", "chin-ups"), (r"dominada", "pull-ups"), (r"muscle up", "muscle-ups"),
+    (r"fondos? en banco|fondo de triceps", "bench-dips"), (r"fondos?", "dips"), (r"flexion(es)? diamante", "diamond-push-ups"),
+    (r"flexion(es)? declinada", "decline-push-up"), (r"flexion(es)? en pica", "pike-push-up"), (r"flexion(es)? a una mano", "one-arm-push-ups"),
+    (r"flexion(es)?", "push-ups"), (r"abdominal corto|crunch", "crunches"), (r"sit ?up", "sit-ups"),
+    (r"levantamiento de piernas en barra|elevacion de piernas colgado", "hanging-leg-raise"),
+    (r"levantamiento de rodillas en barra|elevacion de rodillas colgado", "hanging-knee-raise"), (r"russian twist|giro ruso", "russian-twist"),
+]
+EQUIP = [(r"\(mancuernas?\)", "dumbbell"), (r"\((maquina|discos)\)", "machine"), (r"\((cable|polea)\)", "cable"),
+         (r"\(maquina smith\)", "smith-machine"), (r"\(barra\)", ""), (r"\(kettlebell\)", "kettlebell")]
+
+
+def _norm(t):
+    t = unicodedata.normalize("NFKD", t or "").encode("ascii", "ignore").decode().lower()
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def candidates(name):
+    """Páginas posibles, de más a menos probable (máx. 4)."""
+    n = _norm(name)
+    # variantes que NO son el ejercicio de la tabla: mejor sin nivel que con uno equivocado
+    if re.search(r"escapular|negativ|isometric|sostenid|austral|asistid|iso.?lateral|\balto\b|excentric|pausa|deficit", n):
+        return []
+    eq = next((e for rx, e in EQUIP if re.search(rx, n)), "")
+    out = []
+    for rx, base in BASES:
+        if re.search(rx, n):
+            if re.search(r"a un brazo|una mano|unilateral|a una pierna", n) and "one-arm" not in base:
+                return []
+            for c in ([eq + "-" + base] if eq else []) + [base]:
+                if c not in out:
+                    out.append(c)
+            break
+    if not out and re.search(r"\b(press|curl|row|raise|squat|deadlift|pull|push|fly|extension|pulldown|thrust|lunge|crunch|dip|shrug)\b", n):  # nombre en inglés: «Bench Press (Barbell)» → bench-press
+        base = re.sub(r"[^a-z0-9]+", "-", re.sub(r"\(.*?\)", "", n)).strip("-")
+        if base:
+            out += [base] + ([] if base.endswith("s") else [base + "s"])
+    return out[:4]
+
+
+def guess(datadir, name, fetch=None):
+    """Busca la página del ejercicio probando candidatos; recuerda las que no existen (30 días)."""
+    miss_path = os.path.join(cache_dir(datadir), "_no_existen.json")
+    try:
+        with open(miss_path, encoding="utf-8") as f:
+            miss = json.load(f)
+    except (OSError, ValueError):
+        miss = {}
+    now = time.time()
+    for slug in candidates(name):
+        if now - miss.get(slug, 0) < 30 * 86400:
+            continue
+        try:
+            return get(datadir, slug, fetch)
+        except SLError:
+            miss[slug] = now
+            with open(miss_path, "w", encoding="utf-8") as f:
+                json.dump(miss, f)
+    return None

@@ -213,6 +213,18 @@ class Handler(BaseHTTPRequestHandler):
             from . import strengthlevel as SL
             datadir = MULTI or os.path.dirname(os.path.abspath(conn.execute("PRAGMA database_list").fetchone()[2] or DEFAULT_DB))
             slug = u.path[len("/api/strength/"):]
+            if slug == "adivinar":  # ?nombre=… → busca su página y, si la encuentra, la guarda en los ajustes del ejercicio
+                from . import training as T
+                name = q.get("nombre", "")
+                with lock:
+                    cur = T.exercise_settings(conn).get(T._norm_ex(name)) or {}
+                if cur.get("sl_slug"):
+                    return self._send(200, {"slug": cur["sl_slug"], "nuevo": False})
+                d = SL.guess(datadir, name)
+                if d:
+                    with lock:
+                        T.set_exercise_settings(conn, {"name": name, "sl_slug": d["slug"]}, "auto")
+                return self._send(200, {"slug": d["slug"] if d else None, "nuevo": bool(d)})
             try:
                 return self._send(200, SL.cached(datadir) if slug == "" else SL.get(datadir, slug))
             except SL.SLError as e:

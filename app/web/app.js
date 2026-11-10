@@ -196,7 +196,8 @@ function mono(name, cat, img, lg) {
   const src = img ? (/^(\/|data:|https?:)/.test(img) ? img : "/" + img) : null;
   return h("div", { class: "mono" + (lg ? " lg" : "") + (src ? " has-img" : ""), style: { "--h": hue } }, src ? h("img", { src, alt: "", loading: "lazy", onerror: (e) => { const m = e.target.parentNode; if (m) { m.classList.remove("has-img"); m.textContent = ini; } } }) : ini);
 }
-function qBadge(q) { return q && q !== "historico" ? h("span", { class: "q " + q, title: QUAL[q] }, QUAL[q]) : null; }
+// Solo se marca lo que es menos fiable que la etiqueta (estimación, provisional, pendiente): lo bueno no necesita etiqueta.
+function qBadge(q) { return q && !["historico", "etiqueta"].includes(q) ? h("span", { class: "q " + q, title: QUAL[q] }, QUAL[q]) : null; }
 function macroTxt(n, cls = "mc") {
   return h("span", { class: cls }, h("span", { class: "p" }, "P ", v(n, "protein_g")), " · ", h("span", { class: "c" }, "C ", v(n, "carbs_g")), " · ", h("span", { class: "g" }, "G ", v(n, "fat_g")));
 }
@@ -1277,6 +1278,8 @@ function connectAgent() {
     let tok;
     await refreshAgents();
     const before = new Set(((S.me && S.me.agente && S.me.agente.tokens) || []).map((t) => t.id));
+    const prev = ((S.me && S.me.agente && S.me.agente.tokens) || []).find((t) => t.kind === ag.k || t.agent === ag.k);
+    if (prev && ag.k !== "otro" && !confirm(`Ya tienes ${ag.n} conectado. Si sigues, el nuevo lo sustituye y el anterior deja de funcionar. ¿Seguir?`)) return;
     try { tok = (await api("POST", "/api/token", { kind: ag.k })).token; } catch (e) { toast(e.message, { error: true }); return; }
     const msg = agentPrompt(ag, tok);
     const copied = h("span", { class: "faint" });

@@ -882,9 +882,29 @@ async function loadBodyMeta() {
   const sx = ((st.settings || st).sexo || "").toUpperCase().slice(0, 1); S.sex = sx === "M" ? "M" : sx === "H" ? "H" : "";
   S.exSet = set;
   await loadSLTables();
+  setTimeout(autoGuessSL, 500);
 }
 // Tablas de Strength Level de los ejercicios a los que se les ha elegido una (ficha del ejercicio → «Material y nivel»).
 const SL_FAIL = {};
+// Ejercicios sin nivel: el servidor busca su página de Strength Level por el nombre (una vez; recuerda las que no existen).
+async function autoGuessSL() {
+  if (!S.training) { if ((S._slWait = (S._slWait || 0) + 1) < 20) setTimeout(autoGuessSL, 1500); return; }
+  if (S._slGuessing) return; S._slGuessing = true;
+  try {
+    const seen = new Set(), todo = [];
+    for (const w of (S.training.workouts || S.training)) for (const ex of w.exercises || []) {
+      const k = exKeyName(ex.name); if (seen.has(k) || !["peso", "lastre", "corporal"].includes(ex.kind)) continue; seen.add(k);
+      if (!exSet(ex.name).sl_slug && !exLevel({ name: ex.name, kind: ex.kind, sessions: [{ date: w.date, sets: ex.sets, notes: ex.notes }] }, () => S.bw || 75)) todo.push(ex.name);
+    }
+    let found = 0;
+    for (const name of todo.filter((n) => !(S._slTried || (S._slTried = new Set())).has(n))) {
+      S._slTried.add(name);
+      const r = await api("GET", "/api/strength/adivinar?nombre=" + encodeURIComponent(name)).catch(() => null);
+      if (r && r.nuevo) found++;
+    }
+    if (found) { S.exSet = await api("GET", "/api/exercise-settings"); await loadSLTables(); S.tStats = null; if (S.view === "entreno") render(); }
+  } finally { S._slGuessing = false; }
+}
 async function loadSLTables() {
   const slugs = [...new Set(Object.values(S.exSet || {}).map((x) => x.sl_slug).filter(Boolean))]
     .filter((sl) => !SL_TABLES[sl] && !SL_TABLES[sl + ".reps"] && !SL_FAIL[sl]);

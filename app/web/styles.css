@@ -930,3 +930,18 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .agent-wait .ag-logo { border-radius: 6px; }
 .ag-mini-list { margin-left: auto; display: flex; gap: 3px; }
 .ag-mini-list .ag-logo { border-radius: 5px; }
+
+/* ---- Hoy en móvil: más limpio (mismos datos) */
+@media (max-width: 640px) {
+  .item { padding: 9px 12px; gap: 1px 10px; }
+  .item .nm { font-size: 14.5px; font-weight: 500; }
+  .item .kc { font-size: 14.5px; }
+  .item .sub { font-size: 12px; }
+  .item .mc, .item .mc .p, .item .mc .c, .item .mc .g { color: var(--faint); font-size: 11.5px; }
+  .meal { margin-bottom: 14px; }
+  .meal-h { padding: 0 2px 5px; gap: 8px; }
+  .meal-h h3 { font-size: 14.5px; }
+  .meal-h .mtm { font-weight: 500; font-size: 11.5px; gap: 6px; opacity: .85; }
+  .q { font-size: 9.5px; padding: 0 5px; }
+  .empty-meal { padding: 8px 12px; font-size: 13px; }
+}
