@@ -53,9 +53,15 @@ def set_exercise_settings(conn, data, source="web"):
     key = _norm_ex(name)
     cur = conn.execute("SELECT * FROM exercise_settings WHERE name_key=?", (key,)).fetchone()
     vals = dict(cur) if cur else {"name_key": key, "name": name}
-    for k in ("equipment", "machine_kg", "load_ratio", "unilateral", "notes"):
+    for k in ("equipment", "machine_kg", "load_ratio", "unilateral", "notes", "sl_slug"):
         if k in data:
             vals[k] = data[k]
+    sl = (vals.get("sl_slug") or "").strip().lower()
+    m = re.search(r"strength-standards/([a-z0-9-]+)", sl)  # se acepta la URL de Strength Level
+    sl = m.group(1) if m else sl
+    if sl and not re.match(r"^[a-z0-9]+(-[a-z0-9]+)*$", sl):
+        raise ValidationError("Tabla de Strength Level no válida (usa el final de su URL, p. ej. «weighted-pull-ups»)")
+    vals["sl_slug"] = sl or None
     if vals.get("equipment") not in (None, "") + EQUIPMENT:
         raise ValidationError("Material no válido")
     for k, lo, hi in (("machine_kg", 0, 500), ("load_ratio", 0.05, 4)):
@@ -71,9 +77,9 @@ def set_exercise_settings(conn, data, source="web"):
     if vals.get("unilateral") is not None:
         vals["unilateral"] = 1 if vals["unilateral"] else 0
     with tx(conn, "exercise_settings", source, payload=data):
-        conn.execute("INSERT OR REPLACE INTO exercise_settings(name_key,name,equipment,machine_kg,load_ratio,unilateral,notes,updated_at) "
-                     "VALUES(?,?,?,?,?,?,?,?)", (key, vals.get("name") or name, vals.get("equipment"), vals.get("machine_kg"),
-                                                 vals.get("load_ratio"), vals.get("unilateral"), vals.get("notes"), ts()))
+        conn.execute("INSERT OR REPLACE INTO exercise_settings(name_key,name,equipment,machine_kg,load_ratio,unilateral,notes,sl_slug,updated_at) "
+                     "VALUES(?,?,?,?,?,?,?,?,?)", (key, vals.get("name") or name, vals.get("equipment"), vals.get("machine_kg"),
+                                                   vals.get("load_ratio"), vals.get("unilateral"), vals.get("notes"), vals.get("sl_slug"), ts()))
     return exercise_settings(conn).get(key)
 
 

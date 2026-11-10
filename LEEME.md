@@ -12,6 +12,13 @@ Seguimiento de nutrición, peso y entrenamiento (estilo Hevy) para uso personal,
 2. Pégalo en Claude (Cowork, Claude Code…) o, mejor, en tus instrucciones personales de Claude para que valga en todas las conversaciones. Claude clona este repo, guarda el token, lee tu contexto y, la primera vez, te pregunta tus objetivos.
 3. Funciona con cualquier agente que pueda ejecutar Python con acceso a internet (`AGENTS.md`). El token solo da acceso a tu cuenta; si lo pierdes, genera otro en la web (el anterior deja de valer).
 
+## Niveles de fuerza: datos de Strength Level
+
+Los niveles (principiante → élite) usan los estándares públicos de **[Strength Level](https://strengthlevel.com)**, creados con los levantamientos que envía su comunidad. Todo el mérito de esos datos es suyo.
+
+- `app/web/niveles.js` trae las tablas de los ejercicios más comunes.
+- Para cualquier otro ejercicio, en su ficha («Material, peso real y nivel») se elige su página de Strength Level; el servidor la consulta **una vez** cuando hace falta y la guarda en caché (90 días). No se publica ninguna copia masiva de su web.
+
 ## Añadir una persona (administrador)
 
 En el servidor (`ssh hetzner`), con la persona delante para que escriba su contraseña:

@@ -14,7 +14,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from . import auth, core
 from .api import ApiError, dispatch
-from .db import APP_DIR, connect, now_local
+from .db import APP_DIR, DEFAULT_DB, connect, now_local
 from .importer import init_db
 from .training import photo_dir
 
@@ -208,6 +208,15 @@ class Handler(BaseHTTPRequestHandler):
         if not ctx:
             return self._send(401, {"error": "Inicia sesión", "login": True})
         conn, lock, _user = ctx
+        if u.path.startswith("/api/strength/") and method == "GET":
+            # Tablas de Strength Level bajo demanda (caché compartida en el directorio de datos)
+            from . import strengthlevel as SL
+            datadir = MULTI or os.path.dirname(os.path.abspath(conn.execute("PRAGMA database_list").fetchone()[2] or DEFAULT_DB))
+            slug = u.path[len("/api/strength/"):]
+            try:
+                return self._send(200, SL.cached(datadir) if slug == "" else SL.get(datadir, slug))
+            except SL.SLError as e:
+                return self._send(404, {"error": str(e)})
         if u.path == "/api/cli" and method == "POST":
             return self._cli(body, lock, _user)
         if u.path == "/api/export.zip":

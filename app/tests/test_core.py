@@ -380,6 +380,29 @@ class TestAgentTokens(unittest.TestCase):
             self.assertIsNone(auth.token_user(base, t2))
 
 
+class TestStrengthLevel(Base):
+    PAGE = ("<h2 class='t'>Male Pull Ups Standards</h2>" + ("<table class=\"table is-striped is-fullwidth is-narrow has-text-right\"><tr><th>BW</th></tr>"
+            "<tr><td>50</td><td>&lt; 1</td><td>6</td><td>14</td><td>24</td><td>34</td></tr></table>") * 2 +
+            ("<table class=\"table is-striped is-fullwidth is-narrow has-text-right\"><tr><th>BW</th></tr>"
+             "<tr><td>50</td><td>-5 kg</td><td>+7 kg</td><td>+22 kg</td><td>+39 kg</td><td>+56 kg</td></tr></table>") * 2)
+
+    def test_parse_cache_and_setting(self):
+        from salud import strengthlevel as SL
+        page = self.PAGE + self.PAGE.replace("Male", "Female")
+        with tempfile.TemporaryDirectory() as d:
+            calls = []
+            data = SL.get(d, "pull-ups", fetch=lambda u: calls.append(u) or page)
+            self.assertEqual(data["name"], "Pull Ups")
+            self.assertEqual(data["H"]["reps"][0], [50, 0.5, 6, 14, 24, 34])
+            self.assertEqual(data["M"]["add"][0], [50, -5, 7, 22, 39, 56])
+            SL.get(d, "pull-ups", fetch=lambda u: calls.append(u) or page)
+            self.assertEqual(len(calls), 1)  # la segunda vez sale de la caché
+            with self.assertRaises(SL.SLError):
+                SL.get(d, "../etc", fetch=lambda u: page)
+        r = dispatch(self.conn, "PUT", "/api/exercise-settings", {}, {"name": "Dominadas Escapulares", "sl_slug": "https://strengthlevel.com/strength-standards/scapular-pull-ups/kg"}, "web")
+        self.assertEqual(r["sl_slug"], "scapular-pull-ups")
+
+
 class TestNotes(Base):
     def test_notes_roundtrip(self):
         self.assertEqual(dispatch(self.conn, "GET", "/api/notes/claude", {}, {}, "chat")["body"], "")

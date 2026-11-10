@@ -246,6 +246,10 @@ MIGRATIONS = [
         updated_at TEXT
     );
     """,
+    # v7 — tabla de Strength Level elegida para cada ejercicio (su «slug», p. ej. «weighted-pull-ups»)
+    """
+    ALTER TABLE exercise_settings ADD COLUMN sl_slug TEXT;
+    """,
 ]
 
 

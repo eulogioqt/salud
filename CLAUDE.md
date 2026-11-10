@@ -65,6 +65,8 @@ Transcribir fielmente lo que se ve (no inventar series ni pesos ilegibles; si al
 - Nombre del ejercicio: exactamente el de Hevy (enlaza el histórico y los récords).
 - El entreno crea su actividad para el gasto: no añadir además `act` de esa sesión. Día cerrado: preguntar antes de reabrir.
 
+Niveles de un ejercicio sin tabla: busca su página en strengthlevel.com (p. ej. `https://strengthlevel.com/strength-standards/hip-thrust/kg`) y guárdala: `S api PUT /api/exercise-settings '{"name":"<nombre exacto de Hevy>","sl_slug":"hip-thrust"}'`. El servidor la descarga una vez y la usa para el nivel (para ejercicios de peso corporal usa la misma página: reps y lastre salen de ahí).
+
 Pesos (para niveles y 1RM): mancuernas = el peso de las dos; a un brazo = peso normal y reps de los dos brazos sumadas; máquinas = con el peso de la máquina incluido. Ajustes por ejercicio (peso de la máquina, polea que pesa la mitad, a un brazo): web → ficha del ejercicio → «Material y peso real», o `S api PUT /api/exercise-settings '{"name":"…","equipment":"maquina","machine_kg":45}'`.
 
 ## Báscula (Xiaomi u otra)
