@@ -1303,7 +1303,7 @@ function hevyBox() {
 const MCP_URL = () => location.origin + "/mcp";
 const AGENTS = [
   { k: "claude", n: "Claude", sub: "Web, escritorio, móvil y Cowork", logo: "claude.png", c: "#d97757",
-    steps: () => [["Añádelo en Claude", "«+ Añadir» → «Añadir conector personalizado» → pega la dirección.", { href: "https://claude.ai/customize/connectors", t: "Abrir conectores de Claude" }],
+    steps: () => [["Añádelo en Claude", "«+ Añadir» → «Añadir conector personalizado» → nombre «Salud» y pega la dirección. Lo demás, como viene (Iniciar sesión ahora · Usar la identidad publicada de Claude · sin encabezados) → Añadir.", { href: "https://claude.ai/customize/connectors", t: "Abrir conectores de Claude" }],
       ["Pulsa «Conectar» y luego «Permitir»", ""]] },
   { k: "claude-code", n: "Claude Code", sub: "Terminal", logo: "claude-code.png", c: "#d97757",
     steps: (u) => [["Ejecuta en una terminal", "", `claude mcp add --transport http --scope user salud ${u}`],
