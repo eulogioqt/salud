@@ -620,8 +620,14 @@ function viewTraining() {
   return h("div", { class: "training" }, head, tabs, body);
 }
 
+// Diseño B: cada cifra con su icono de color (mismo estilo que Peso/Pasos/Entreno en Hoy)
+const KPI_ICON = { "Entrenos": ["🏋️", "e"], "Tiempo": ["⏱️", "s"], "Volumen": ["📦", "w"], "Series": ["🔁", "e"], "Racha": ["🔥", "c"],
+  "Sesiones": ["📅", "e"], "Última": ["🕒", "s"], "Reps totales": ["🔢", "w"], "Volumen total": ["📦", "w"], "Media reps": ["🔢", "w"],
+  "Último peso": ["⚖️", "w"], "Media 7 días": ["📉", "w"], "Ingesta media 7 d": ["🍽️", "c"], "Mantenimiento observado": ["🔥", "e"],
+  "Récords": ["🏆", "c"], "Más trabajado": ["💪", "e"], "Menos trabajado": ["🪫", "s"], "Tu punto fuerte": ["⭐", "c"] };
+const kpiLbl = (l) => { const ic = KPI_ICON[l]; return ic ? [h("span", { class: "sic " + ic[1] }, ic[0]), l] : l; };
 function kpi(l, v, s, delta, tipTxt) {
-  return tip(h("div", { class: "kpi" }, h("div", { class: "l" }, l), h("div", { class: "v num" }, v),
+  return tip(h("div", { class: "kpi" }, h("div", { class: "l" }, kpiLbl(l)), h("div", { class: "v num" }, v),
     h("div", { class: "s" }, delta ? h("span", { class: "dl " + (delta.v > 0 ? "up" : delta.v < 0 ? "down" : "") }, delta.t) : null, delta && s ? " " : null, s || "")), tipTxt);
 }
 function deltaOf(cur, prev, f = (x) => fmt(x)) {
@@ -657,7 +663,7 @@ function tResumen(st, ws) {
       kpi("Volumen", fmt(c.vol / 1000, 1) + " t", "", deltaOf(c.vol / 1000, pv && pv.vol / 1000, (x) => fmt(x, 1) + " t"), `${fmt(c.vol)} kg levantados (como en Hevy: todas las series)${pv ? `\n${fmt(pv.vol)} kg ${vs}` : ""}`),
       kpi("Series", fmt(c.sets), c.n ? fmt(c.sets / c.n, 1) + "/entreno" : "", deltaOf(c.sets, pv && pv.sets), pv ? `${fmt(pv.sets)} series ${vs}` : null),
       kpi("Racha", st.streak + " sem.", "seguidas", null, "Semanas seguidas con al menos un entreno")),
-    h("div", { class: "hl" }, hl.map(([l, v, s_, fn]) => h(fn ? "button" : "div", { class: "hli" + (fn ? " click" : ""), onclick: fn || undefined }, h("span", { class: "l" }, l), h("b", null, v), h("span", { class: "s" }, s_)))),
+    h("div", { class: "hl" }, hl.map(([l, v, s_, fn]) => h(fn ? "button" : "div", { class: "hli" + (fn ? " click" : ""), onclick: fn || undefined }, h("span", { class: "l" }, kpiLbl(l)), h("b", null, v), h("span", { class: "s" }, s_)))),
     h("div", { class: "card panel" }, h("h3", null, "Actividad", h("span", { class: "faint", style: { fontWeight: 400 } }, (window.innerWidth - 66 < 520 ? " · últimos 4 meses" : " · últimos 7 meses") + " · más oscuro = más volumen")), h("div", { class: "heat-wrap" }, heatmap(st.byDate))),
     showBars ? h("div", { class: "grid2 gap-big" },
       h("div", { class: "card panel" }, h("h3", null, P.gran === "day" ? "Minutos por día" : P.gran === "week" ? "Entrenos por semana" : "Entrenos por mes"),

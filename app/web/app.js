@@ -218,7 +218,7 @@ function viewHoy() {
   const wrap = h("div", { class: closed ? "locked" : "" }, head, summaryCard(st), bodyStrip(st));
   for (const [m] of MEALS) { const mb = mealBlock(st, m, closed); if (mb) wrap.append(mb); }
   wrap.append(h("div", { class: "closebar" }, closed
-    ? [h("button", { class: "btn", onclick: () => showClosure(st) }, "Ver resumen del cierre"), h("button", { class: "btn ghost", onclick: () => reopenSheet(st.date) }, "Reabrir día")]
+    ? h("button", { class: "btn ghost", onclick: () => reopenSheet(st.date) }, "Reabrir día")  // el resumen del cierre está en «Desglose»
     : h("button", { class: "btn primary", onclick: () => closeSheet(st.date) }, "Cerrar día")));
   return wrap;
 }
@@ -258,14 +258,19 @@ function summaryCard(st) {
 }
 // Desglose único: lo consumido (con macros) y el gasto con sus partes, hasta el balance.
 function energySheet(st) {
-  const t = st.totals, tg = st.target || {};
-  sheet("Cómo se calcula", [
+  const t = st.totals, tg = st.target || {}, c = st.closure;
+  // Día cerrado: el mismo desglose más lo que se guardó al cerrar (observaciones, versión)
+  const closedNote = st.status === "cerrado" && c ? h("div", { class: "note", style: { marginBottom: "10px" } },
+    icon("lock"), ` Cerrado ${c.closed_at.slice(0, 16).replace("T", " ")}` + (c.version > 1 ? ` · versión ${c.version}` : "") + (c.forced ? " · con datos incompletos" : "")) : null;
+  const closedObs = st.status === "cerrado" && c && c.summary && (c.summary.observations || []).length
+    ? h("div", null, h("div", { class: "sec-t" }, "Observaciones del cierre"), h("ul", { class: "warns" }, c.summary.observations.map((o) => h("li", null, h("span", { class: "wt" }, o))))) : null;
+  sheet(st.status === "cerrado" ? "Resumen del día" : "Cómo se calcula", [closedNote,
     h("table", { class: "t sumtbl v2" },
       h("tr", { class: "main" }, h("td", null, "Consumido"), h("td", { class: "r num" }, v(t, "kcal") + " kcal"), h("td", { class: "r faint" }, tg.kcal ? "objetivo " + fmt(tg.kcal) : "")),
       h("tr", { class: "sub" }, h("td", null, "Proteína"), h("td", { class: "r num" }, v(t, "protein_g") + " g"), h("td", { class: "r faint num" }, tg.protein_g != null ? fmt(tg.protein_g) + " g" : "")),
       h("tr", { class: "sub" }, h("td", null, "Carbohidratos"), h("td", { class: "r num" }, v(t, "carbs_g") + " g"), h("td", { class: "r faint num" }, tg.carbs_g != null ? fmt(tg.carbs_g) + " g" : "")),
       h("tr", { class: "sub" }, h("td", null, "Grasas"), h("td", { class: "r num" }, v(t, "fat_g") + " g"), h("td", { class: "r faint num" }, tg.fat_min_g != null ? `${fmt(tg.fat_min_g)}–${fmt(tg.fat_max_g)} g` : ""))),
-    energyTable(st.energy, st.balance)]);
+    energyTable(st.energy, st.balance), closedObs]);
 }
 function energyTable(en, balance) {
   const r = (a, b, c) => h("tr", null, h("td", null, a, c ? h("span", { class: "faint" }, " · " + c) : null), h("td", { class: "num" }, b));
@@ -449,8 +454,8 @@ function macroBadges(n, lbl) {
   const pk = n.kcal ? (n.protein_g || 0) * 4 / n.kcal : 0;
   const pq = pk >= 0.3 ? "hi" : pk >= 0.15 ? "mid" : "lo";
   return h("div", { class: "mb" }, h("div", { class: "mb1" }, h("b", { class: "k" }, v(n, "kcal")), h("small", null, " kcal"), lbl ? h("span", { class: "per" }, " · " + lbl) : null),
-    h("div", { class: "mb2" }, h("span", { class: "p " + pq, title: n.kcal ? `${fmt(pk * 100)} % de las kcal vienen de proteína` : "" }, "P ", v(n, "protein_g", n.protein_g < 10 ? 1 : 0)),
-      h("span", { class: "c" }, "C ", v(n, "carbs_g", n.carbs_g < 10 ? 1 : 0)), h("span", { class: "g" }, "G ", v(n, "fat_g", n.fat_g < 10 ? 1 : 0))));
+    h("div", { class: "mchips num" }, h("i", { class: "p " + pq, title: n.kcal ? `${fmt(pk * 100)} % de las kcal vienen de proteína` : "" }, v(n, "protein_g", n.protein_g < 10 ? 1 : 0)),
+      h("i", { class: "c" }, v(n, "carbs_g", n.carbs_g < 10 ? 1 : 0)), h("i", { class: "g" }, v(n, "fat_g", n.fat_g < 10 ? 1 : 0))));
 }
 function photoFrame(name, cat, img) {
   const src = img ? (/^(\/|data:|https?:)/.test(img) ? img : "/" + img) : null;
@@ -1149,7 +1154,7 @@ function viewProgress() {
   const avgK = logged7.length ? logged7.reduce((a, d) => a + (d.kcal || 0), 0) / logged7.length : null;
   const avgP = logged7.length ? logged7.reduce((a, d) => a + (d.protein_g || 0), 0) / logged7.length : null;
   const cal = P.calibration;
-  const kpi = (l, val, s) => h("div", { class: "kpi" }, h("div", { class: "l" }, l), h("div", { class: "v num" }, val), h("div", { class: "s" }, s || ""));
+  const kpi = (l, val, s) => h("div", { class: "kpi" }, h("div", { class: "l" }, kpiLbl(l)), h("div", { class: "v num" }, val), h("div", { class: "s" }, s || ""));
   const range = h("div", { class: "seg" }, [[30, "30 d"], [90, "90 d"], [365, "1 año"]].map(([d, l]) => h("button", { class: S.progDays === d ? "on" : "", onclick: async () => { S.progDays = d; await refresh(); } }, l)));
   return h("div", null,
     h("div", { class: "row", style: { marginBottom: "12px" } }, h("h2", { class: "vt" }, "Progreso"), h("span", { class: "grow" }), range),
@@ -1165,6 +1170,8 @@ function viewProgress() {
 }
 
 function weightChart(ws) {
+  const first = ws.findIndex((w) => w.weight_kg != null || w.avg7 != null);
+  if (first > 3) ws = ws.slice(Math.max(0, Math.min(first - 3, ws.length - 14)));  // sin semanas vacías delante: empieza cerca del primer pesaje
   const pts = ws.filter((w) => w.weight_kg != null || w.avg7 != null);
   if (!pts.length) return h("div", { class: "muted", style: { padding: "30px 0", textAlign: "center" } }, "Aún no hay pesajes. Registra el peso cada mañana en Hoy.");
   const W = Math.max(300, Math.min(900, ($("#view") ? $("#view").clientWidth : 900) - 34)), H = 220, L = 40, R = 10, T = 10, B = 24;

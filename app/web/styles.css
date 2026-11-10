@@ -1011,3 +1011,29 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .copy-line.big code { font-size: 15px; font-weight: 600; }
 .tok-alt { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 10px; }
 .tok-alt summary { cursor: pointer; }
+
+/* Cabecera de cada comida más visible que sus alimentos */
+.meal-h { align-items: center; padding: 2px 4px 8px; }
+.meal-h h3 { font-size: 17px; font-weight: 720; }
+.meal-h .mt { font-size: 14px; } .meal-h .mt b { font-size: 16.5px; font-weight: 720; }
+.meal-h .mchips { font-size: 13.5px; font-weight: 700; gap: 8px; }
+.meal-h .mchips i::before { width: 18px; height: 18px; font-size: 10.5px; border-radius: 5px; }
+.item.b .mchips { font-size: 11px; gap: 5px; font-weight: 550; }
+.item.b .mchips i::before { width: 13px; height: 13px; font-size: 8.5px; border-radius: 3.5px; }
+@media (max-width: 640px) { .meal-h h3 { font-size: 16.5px; } .meal-h .mchips { font-size: 12.5px; gap: 6px; } }
+
+/* ---- Diseño B en el resto de la web: tarjetas más redondas y suaves, cifras con icono de color */
+.card { border-radius: 18px; }
+.kpi, .hli, .stat { border-radius: 16px; box-shadow: 0 1px 2px rgba(20,20,10,.03); }
+.kpi { padding: 12px 14px; }
+.kpi .l, .hli .l { display: flex; align-items: center; gap: 6px; }
+.kpi .l .sic, .hli .l .sic { flex: none; }
+.kpi .v { font-size: 21px; font-weight: 700; margin-top: 4px; letter-spacing: -.01em; }
+.hli { padding: 12px 14px; } .hli b { font-size: 16px; font-weight: 700; margin-top: 4px; }
+.panel { padding: 16px 18px; }
+.panel h3 { font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+.tile { border-radius: 16px; }
+.tile .mchips { margin-top: 6px; }
+.kpis.tight .kpi .v { font-size: 17px; }
+@media (prefers-color-scheme: dark) { .kpi, .hli, .stat { box-shadow: none; } }
+@media (max-width: 640px) { .panel { padding: 14px 14px; } .kpi .v { font-size: 19px; } }
