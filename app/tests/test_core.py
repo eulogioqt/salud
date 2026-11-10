@@ -125,6 +125,7 @@ class TestRecipes(Base):
     def test_recipe_edit_does_not_touch_closed_days(self):
         r = self.make_recipe()
         e1 = self.add(r["id"], 1, "rac", d=D1)
+        core.update_day(self.conn, D1, {"neat_kcal": 150})
         core.close_day(self.conn, D1, force=True)
         e2 = self.add(r["id"], 1, "rac", d=D2)
         items = r["items"]
@@ -139,6 +140,7 @@ class TestRecipes(Base):
         hsn = self.food("alimento_01")
         pid = self.portion("alimento_01", "30 g (1 scoop)")["id"]
         e1 = self.add(hsn["id"], 1, "p:%d" % pid, d=D1)
+        core.update_day(self.conn, D1, {"neat_kcal": 150})
         core.close_day(self.conn, D1, force=True)
         e2 = self.add(hsn["id"], 1, "p:%d" % pid, d=D2)
         core.update_food(self.conn, hsn["id"], {"status": "etiqueta", "portions": [
@@ -163,10 +165,12 @@ class TestRecipes(Base):
 class TestClose(Base):
     def test_close_requires_confirmation_then_protects(self):
         self.add("avena", 60, "g")
+        core.update_day(self.conn, D1, {"neat_kcal": 150})
         r = core.close_day(self.conn, D1)
         self.assertFalse(r["closed"]); self.assertTrue(r["has_important"])
         codes = {w["code"] for w in r["warnings"]}
         self.assertTrue({"pasos"} <= codes and not ({"peso", "actividad"} & codes))
+        core.update_day(self.conn, D1, {"neat_kcal": 150})
         r = core.close_day(self.conn, D1, force=True)
         self.assertTrue(r["closed"])
         with self.assertRaises(ClosedDayError):
@@ -178,6 +182,7 @@ class TestClose(Base):
         self.assertEqual(ctx.exception.status, 409)
         core.reopen_day(self.conn, D1, "corregir peso")
         core.update_day(self.conn, D1, {"weight_kg": 81.2, "steps": 9000, "rest_day": True})
+        core.update_day(self.conn, D1, {"neat_kcal": 150})
         r = core.close_day(self.conn, D1)
         self.assertTrue(r["closed"]); self.assertEqual(r["version"], 2)
         snap = core.day_state(self.conn, D1)["closure"]["summary"]
@@ -189,6 +194,7 @@ class TestClose(Base):
         self.add("avena", 60, "g", meal="desayuno"); self.add("avena", 60, "g", meal="almuerzo"); self.add("avena", 60, "g", meal="cena")
         core.update_day(self.conn, D1, {"weight_kg": 81.5, "steps": 8000})
         core.add_activity(self.conn, {"date": D1, "type": "fuerza", "minutes": 70, "intensity": "normal"})
+        core.update_day(self.conn, D1, {"neat_kcal": 150})
         self.assertTrue(core.close_day(self.conn, D1)["closed"])
 
 
@@ -346,6 +352,7 @@ class TestTraining(Base):
 
     def test_closed_day_blocks_workout(self):
         from salud import training as T
+        core.update_day(self.conn, D1, {"neat_kcal": 150})
         core.close_day(self.conn, D1, force=True)
         with self.assertRaises(ClosedDayError):
             T.create_workout(self.conn, self.W)

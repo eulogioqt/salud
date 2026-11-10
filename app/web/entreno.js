@@ -1260,13 +1260,16 @@ async function workoutSheet_(id) {
     curI = k; drawI(); await act(() => api("PUT", "/api/workouts/" + w.id, { intensity: k }), "Intensidad guardada");
   } }, k)));
   drawI();
-  const mkChips = () => [
-    wUps.length ? tip(h("span", { class: "upchip lg" }, icon("up"), `${wUps.length} ${wUps.length === 1 ? "rango nuevo" : "rangos nuevos"}`), wUps.map((u) => `${dispName(u.name)}: ${LVL[u.from]} → ${LVL[u.to]}`).join("\n")) : null,
-    nPR ? tip(h("span", { class: "prc lg" }, icon("trophy"), `${nPR} ${nPR === 1 ? "récord" : "récords"}`), w.exercises.filter((ex) => ex.prs && ex.prs.length).map((ex) => `${ex.name}: ${ex.prs.map((t) => PR_SHORT[t]).join(", ")}`).join("\n")) : null,
-    h("span", { class: "datec" }, dateLabel(w.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) + (w.start_time ? " · " + w.start_time : "")),
-    bwAt(w.date) ? tip(h("span", { class: "datec" }, `${fmt(bwAt(w.date), 1)} kg`), bwExact(w.date) ? "Tu peso ese día (pesaje)" : "Tu peso ese día (interpolado entre pesajes)") : null].filter(Boolean);
+  const upTip = wUps.map((u) => `${dispName(u.name)}: ${LVL[u.from]} → ${LVL[u.to]}`).join("\n");
+  const prTip = w.exercises.filter((ex) => ex.prs && ex.prs.length).map((ex) => `${ex.name}: ${ex.prs.map((t) => PR_SHORT[t]).join(", ")}`).join("\n");
+  // sm = versión reducida para el móvil: icono + número, fecha corta; la fecha siempre al final
+  const mkChips = (sm) => [
+    wUps.length ? tip(h("span", { class: "upchip lg" }, icon("up"), sm ? String(wUps.length) : `${wUps.length} ${wUps.length === 1 ? "rango nuevo" : "rangos nuevos"}`), upTip) : null,
+    nPR ? tip(h("span", { class: "prc lg" }, icon("trophy"), sm ? String(nPR) : `${nPR} ${nPR === 1 ? "récord" : "récords"}`), prTip) : null,
+    bwAt(w.date) ? tip(h("span", { class: "datec" }, `${fmt(bwAt(w.date), 1)} kg`), bwExact(w.date) ? "Tu peso ese día (pesaje)" : "Tu peso ese día (interpolado entre pesajes)") : null,
+    h("span", { class: "datec" }, dateLabel(w.date, sm ? { day: "numeric", month: "short" } : { weekday: "short", day: "numeric", month: "short", year: "numeric" }) + (w.start_time ? " · " + w.start_time : ""))].filter(Boolean);
   sh.set(w.title, [
-    h("div", { class: "wchips" }, mkChips()),
+    h("div", { class: "wchips" }, mkChips(true)),
     h("div", { class: "wstats big" },
       h("div", null, h("span", null, "Duración"), h("b", null, w.duration_min ? fmt(w.duration_min) + " min" : "—")),
       h("div", null, h("span", null, "Volumen"), h("b", null, fmt(w.volume_kg) + " kg")),

@@ -33,7 +33,7 @@ Reglas:
 - Aceite: una línea más en la comida (chorrito ≈ 8 g, cucharada ≈ 10 g; plancha/salteado cuenta 100 %, fritura ~10–15 % del peso del alimento).
 - Lo que se toma por unidad (lata, yogur…) va por unidad; lo demás por peso. Recetas con ingredientes en crudo.
 - Fechas en hora de Madrid; si es de otro día, pasa `fecha`.
-- «Cierra el día»: `revisar_dia`, di solo lo que falta de verdad (los pasos deben estar siempre, aunque sean 0; si no ha dicho cómo fue el día, pregúntalo en la misma frase y guárdalo con `como_fue_el_dia`), pregunta si cierra igualmente y, tras `cerrar_dia`, da un resumen compacto. Los días cerrados no se tocan salvo que pida `reabrir_dia`.
+- «Cierra el día»: `revisar_dia`, di solo lo que falta de verdad (los pasos deben estar siempre, aunque sean 0; cómo fue el día es obligatorio para cerrar: si no lo ha dicho, pregúntalo en la misma frase y guárdalo con `como_fue_el_dia`), pregunta si cierra igualmente y, tras `cerrar_dia`, da un resumen compacto. Los días cerrados no se tocan salvo que pida `reabrir_dia`.
 - Historial de Hevy: que exporte el CSV (Hevy → Perfil → Ajustes → Exportar e importar datos → Exportar entrenos) y lo suba en la web (menú → Primeros pasos, o Entreno → Importar) o te lo adjunte para `importar_hevy`.
 - Entrenos desde capturas de Hevy: transcribe fielmente (no inventes series; si algo no se lee, pregunta) y usa `registrar_entreno`. El entreno ya cuenta en el gasto: no añadas además `registrar_actividad`. Las kcal de entrenos, pasos y actividades las calcula siempre el servidor con la misma fórmula: no las estimes tú ni copies las de Hevy, el reloj o ChatGPT.
 - Báscula: `registrar_bascula`; la composición corporal es una estimación con mucho error, solo tendencias de semanas.
@@ -153,7 +153,7 @@ TOOLS = [
     ("registrar_peso", "Peso en ayunas (kg).", _o({"kg": N, "fecha": FECHA, "hora": HORA}, ["kg"]), lambda a: _fh(a, ["peso", str(a["kg"])]), False),
     ("registrar_pasos", "Pasos totales del día (0 si no anduvo).", _o({"pasos": I, "fecha": FECHA}, ["pasos"]),
      lambda a: ["pasos", str(a["pasos"])] + (["--fecha", a["fecha"]] if a.get("fecha") else []), False),
-    ("como_fue_el_dia", "Movimiento del día sin contar los pasos (gasto «día a día»): cama (en cama o enfermo), casa (casi todo sentado), ligero (algo de movimiento: recados, cocinar), normal, activo (mucho de pie o tareas) o muy (trabajo físico); son 0/50/100/150/250/350 kcal para 75 kg y se ajustan solos al peso de la persona. Pregúntalo al cerrar el día si no está.",
+    ("como_fue_el_dia", "Movimiento del día sin contar los pasos (gasto «día a día»): cama (en cama o enfermo), casa (casi todo sentado), ligero (algo de movimiento: recados, cocinar), normal, activo (mucho de pie o tareas) o muy (trabajo físico); son 0/50/100/150/250/350 kcal para 75 kg y se ajustan solos al peso de la persona. Es obligatorio para cerrar el día: pregúntalo si no está.",
      _o({"nivel": {"type": "string", "enum": ["cama", "casa", "ligero", "normal", "activo", "muy"]}, "fecha": FECHA}, ["nivel"]),
      lambda a: ["api", "PUT", "/api/days/%s" % (a.get("fecha") or _hoy()), json.dumps({"neat_kcal": {"cama": 0, "casa": 50, "ligero": 100, "normal": 150, "activo": 250, "muy": 350}[a["nivel"]]})], False),
     ("dia_descanso", "Marca (o quita con quitar=true) el día como descanso de entreno.", _o({"fecha": FECHA, "quitar": {"type": "boolean"}}),
@@ -178,7 +178,7 @@ TOOLS = [
      _o({"medidas": {"type": "object", "additionalProperties": {"type": "number"}}, "fecha": FECHA, "hora": HORA, "nota": U, "sobrescribir_dia": {"type": "boolean"}}, ["medidas"]),
      _bascula, False),
     ("revisar_dia", "Comprueba qué falta antes de cerrar el día.", _o({"fecha": FECHA}), lambda a: ["check"] + ([a["fecha"]] if a.get("fecha") else []), True),
-    ("cerrar_dia", "Cierra el día (forzar=true si la persona quiere cerrarlo aunque falte algo importante).", _o({"fecha": FECHA, "forzar": {"type": "boolean"}}),
+    ("cerrar_dia", "Cierra el día (antes tiene que estar `como_fue_el_dia`; forzar=true si la persona quiere cerrarlo aunque falte algo importante).", _o({"fecha": FECHA, "forzar": {"type": "boolean"}}),
      lambda a: ["cerrar"] + ([a["fecha"]] if a.get("fecha") else []) + (["--forzar"] if a.get("forzar") else []), False),
     ("reabrir_dia", "Reabre un día cerrado (solo si la persona lo pide).", _o({"fecha": FECHA, "motivo": U}, ["motivo"]),
      lambda a: ["reabrir"] + ([a["fecha"]] if a.get("fecha") else []) + ["--motivo", a["motivo"]], False),

@@ -1052,13 +1052,12 @@ def close_check(conn, d):
     # (sin peso del día no es un aviso: a esa hora ya no se puede pesar y se interpola entre pesajes)
     if day["steps"] is None:
         w.append({"level": "importante", "code": "pasos", "text": "Faltan los pasos (si no anduviste, pon 0): sin ellos el gasto queda incompleto"})
-    if day.get("neat_kcal") is None:
-        w.append({"level": "info", "code": "neat", "text": "¿Cómo fue el día (sin contar los pasos)? Si no lo dices, cuenta como normal"})
+    # «cómo fue el día» no es un aviso: es obligatorio elegirlo para cerrar (needs_neat)
     # (sin entreno no es un aviso: el día cuenta como descanso)
     if st["entry_count"] == 0:
         w.append({"level": "importante", "code": "comidas", "text": "No hay comidas registradas"})
     else:
-        empty = [MEAL_LABEL[m] for m in ("desayuno", "almuerzo", "cena") if not st["meals"][m]["entries"]]
+        empty = [MEAL_LABEL[m] for m in ("almuerzo", "cena") if not st["meals"][m]["entries"]]
         if empty:
             w.append({"level": "info", "code": "franjas", "text": "Sin registros en: %s" % ", ".join(empty)})
     incompletes = [e for m in MEALS for e in st["meals"][m]["entries"] if e["missing"]]
@@ -1079,7 +1078,7 @@ def close_check(conn, d):
         if a["type"] in STEP_TYPES and a["steps_in_activity"] is None and day["steps"] and a["id"] not in auto:
             w.append({"level": "info", "code": "doble_conteo",
                       "text": "%s: si el contador de pasos incluye la sesión, indica sus pasos para no contarlos dos veces" % a["type"].capitalize()})
-    return {"date": d, "warnings": w, "has_important": any(x["level"] == "importante" for x in w),
+    return {"date": d, "warnings": w, "has_important": any(x["level"] == "importante" for x in w), "needs_neat": day.get("neat_kcal") is None,
             "summary": build_summary(conn, d, st)}
 
 
@@ -1135,6 +1134,8 @@ def close_day(conn, d, force=False, source="web"):
     chk = close_check(conn, d)
     if get_day_row(conn, d)["status"] == "cerrado":
         raise ClosedDayError("El día %s ya está cerrado" % d)
+    if chk["needs_neat"]:
+        raise ValidationError("Antes de cerrar hay que elegir cómo fue el día (sin contar los pasos): cama, casa, ligero, normal, activo o muy activo")
     if chk["has_important"] and not force:
         return {"closed": False, "needs_confirmation": True, **chk}
     with tx(conn, "close_day", source, d, payload={"force": force}):

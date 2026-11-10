@@ -1112,7 +1112,7 @@ function neatPicker(date, onDone) {
   const levels = (st && st.neat_levels) || [{ key: "cama", label: "En cama o enfermo", kcal: 0 }, { key: "casa", label: "Casi todo el día sentado", kcal: 50 }, { key: "ligero", label: "Algo de movimiento: recados, cocinar", kcal: 100 }, { key: "normal", label: "Normal", kcal: 150 }, { key: "activo", label: "Activo: mucho de pie o tareas", kcal: 250 }, { key: "muy", label: "Muy activo: trabajo físico", kcal: 350 }];
   const cur = st ? st.day.neat_kcal : null;
   const short = { cama: "En cama / enfermo", casa: "Sentado casi todo", ligero: "Algo de movimiento", normal: "Normal", activo: "Activo", muy: "Muy activo" };
-  return h("div", { class: "neat-pk" }, h("div", { class: "sec-t", style: { marginTop: 0 } }, "¿Cómo fue el día? ", h("span", { class: "faint", style: { textTransform: "none", letterSpacing: 0, fontWeight: 400 } }, "(sin contar los pasos)")),
+  return h("div", { class: "neat-pk" }, h("div", { class: "sec-t", style: { marginTop: 0 } }, "¿Cómo fue el día? ", h("span", { class: "faint", style: { textTransform: "none", letterSpacing: 0, fontWeight: 400 } }, "(sin contar los pasos)"), cur == null ? h("span", { style: { color: "var(--warn, #c2410c)", textTransform: "none", letterSpacing: 0, fontWeight: 500 } }, " · obligatorio") : null),
     h("div", { class: "neat-row" }, levels.map((l) => h("button", { class: "neat-b" + (cur != null && Math.abs(cur - l.kcal) < 1 ? " on" : ""), title: l.label,
       onclick: async () => { await act(() => api("PUT", "/api/days/" + date, { neat_kcal: l.kcal })); onDone && onDone(); } }, h("b", null, short[l.key] || l.label), h("span", null, "+" + fmt(l.kcal_adj ?? l.kcal) + " kcal")))));
 }
@@ -1151,7 +1151,8 @@ async function closeSheet(date) {
       chk.warnings.length ? [h("div", { class: "sec-t" }, chk.has_important ? "Falta por registrar" : "Avisos"), warns] : h("div", { class: "ok-box" }, "Todo registrado."),
       h("div", { class: "sec-t" }, "Resumen"), summaryView(chk.summary)],
       [h("button", { class: "btn", onclick: sh.close }, "Seguir editando"), h("span", { class: "grow" }),
-        chk.has_important ? h("button", { class: "btn primary lg", onclick: () => doClose(true) }, "Cerrar igualmente") : h("button", { class: "btn primary lg", onclick: () => doClose(false) }, "Cerrar día")]);
+        chk.needs_neat ? h("button", { class: "btn primary lg", disabled: true, title: "Antes elige cómo fue el día" }, "Cerrar día")
+          : chk.has_important ? h("button", { class: "btn primary lg", onclick: () => doClose(true) }, "Cerrar igualmente") : h("button", { class: "btn primary lg", onclick: () => doClose(false) }, "Cerrar día")]);
   };
   draw();
 }
