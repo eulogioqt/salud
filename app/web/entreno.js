@@ -226,7 +226,13 @@ function sessionMetric(kind, sets, name) {
   return best;
 }
 // Volumen como en Hevy: todas las series (calentamientos incluidos).
-const volOf = (kind, sets) => (["peso", "lastre"].includes(kind) ? sets.reduce((a, s_) => a + (s_.weight_kg || 0) * (s_.reps || 0), 0) : 0);
+// Volumen como Hevy: fondos y dominadas con lastre cuentan (peso corporal + lastre) × reps; el resto, solo el peso apuntado
+const fullBW = (name) => /fondo|dips?\b|dominada|pull.?up|chin.?up/.test(norm(name || "")) && !/banco|bench|asistid|assist|escapular/.test(norm(name || ""));
+const volOf = (kind, sets, name, date) => {
+  if (!["peso", "lastre"].includes(kind)) return 0;
+  const bw = kind === "lastre" && fullBW(name) && date && typeof bwAt === "function" ? bwAt(date) || S.bw : null;
+  return sets.reduce((a, s_) => a + ((bw || 0) + (s_.weight_kg || 0)) * (s_.reps || 0) * (bw || (s_.weight_kg || 0) > 0 ? 1 : 0), 0);
+};
 function metricTxt(kind, v) {
   if (v == null) return "—";
   const [m, , u] = exMetric(kind);
@@ -445,16 +451,16 @@ const MAIN_GROUPS = ["Pecho", "Espalda", "Pierna", "Hombro", "Brazos", "Core"];
 // Récords como en Hevy: varias métricas por ejercicio según su tipo.
 const REC_LABEL = { w: "Peso máximo", e1: "1RM estimado", sv: "Volumen (mejor serie)", vol: "Volumen de sesión", reps: "Máx. repeticiones",
   sreps: "Reps en una sesión", secs: "Máx. tiempo", stime: "Tiempo en una sesión", dist: "Máx. distancia" };
-const REC_KINDS = { peso: ["e1", "w", "sv"], lastre: ["w", "sv", "reps"], corporal: ["reps", "sreps"], asistido: ["reps", "sreps"],
+const REC_KINDS = { peso: ["e1", "w", "sv"], lastre: ["w", "sv", "vol"], corporal: ["reps", "sreps"], asistido: ["reps", "sreps"],
   tiempo: ["secs", "stime"], cardio: ["dist", "w"] };
-function recsOf(kind, sets, name) {
+function recsOf(kind, sets, name, date) {
   const ws_ = workSets(sets), r = {};
   const up = (k, v, st) => { if (v != null && v > 0 && (r[k] == null || v > r[k].v)) r[k] = { v, set: st }; };
   for (const st of ws_) {
     up("w", st.weight_kg, st); up("e1", kind === "peso" ? e1rm(st.weight_kg, st.reps, name) : null, st);
-    up("sv", (st.weight_kg || 0) * (st.reps || 0), st); up("reps", st.reps, st); up("secs", st.seconds, st); up("dist", st.distance_m, st);
+    up("sv", kind === "lastre" ? volOf(kind, [st], name, date) : (st.weight_kg || 0) * (st.reps || 0), st); up("reps", st.reps, st); up("secs", st.seconds, st); up("dist", st.distance_m, st);
   }
-  const vol = volOf(kind, sets); if (vol) r.vol = { v: vol };
+  const vol = volOf(kind, sets, name, date); if (vol) r.vol = { v: vol };
   const sr = ws_.reduce((a, st) => a + (st.reps || 0), 0); if (sr) r.sreps = { v: sr };
   const stt = ws_.reduce((a, st) => a + (st.seconds || 0), 0); if (stt) r.stime = { v: stt };
   return r;
@@ -476,14 +482,14 @@ function trainingStats(ws, bw) {
       const e = exs[k] || (exs[k] = { name: ex.name, kind: ex.kind, sessions: [], best: null, last: null, rec: {} });
       const metric = sessionMetric(ex.kind, ex.sets, ex.name);
       if (metric != null && (e.best == null || metric > e.best)) { e.best = metric; e.bestDate = w.date; }
-      const rs = recsOf(ex.kind, ex.sets, ex.name);
+      const rs = recsOf(ex.kind, ex.sets, ex.name, w.date);
       for (const t of REC_KINDS[ex.kind] || []) {
         const x = rs[t]; if (!x) continue;
         const old = e.rec[t];
         if (old && x.v > old.v + 1e-9) prs.push({ date: w.date, name: ex.name, kind: ex.kind, type: t, value: x.v, prev: old.v, set: x.set, wid: w.id });
         if (!old || x.v > old.v + 1e-9) e.rec[t] = { v: x.v, date: w.date, set: x.set, wid: w.id };
       }
-      e.sessions.push({ date: w.date, wid: w.id, metric, vol: volOf(ex.kind, ex.sets), sets: ex.sets, notes: ex.notes, rs, prs: ex.prs || [] });
+      e.sessions.push({ date: w.date, wid: w.id, metric, vol: volOf(ex.kind, ex.sets, ex.name, w.date), sets: ex.sets, notes: ex.notes, rs, prs: ex.prs || [] });
       e.last = w.date; e.name = ex.name;
     }
   }
@@ -1169,24 +1175,22 @@ function exSettingsPanel(name, kind, rec) {
   const isCable = /cable|polea/.test(n) || ["cable", "polea"].includes(cfg.equipment);
   if (!isMach && !isCable) return null;
   const mk = h("input", { class: "input sm num", type: "number", step: "0.5", min: "0", value: cfg.machine_kg ?? "", placeholder: "0" });
-  const half = h("input", { type: "checkbox", checked: loadRatio(name) === 0.5 });
+  const rN = h("input", { class: "input sm num ratio-in", type: "number", step: "0.5", min: "1", max: "8", value: fmt(1 / (loadRatio(name) || 1), 1).replace(",", "."), placeholder: "1" });
   const mach = cfg.machine_kg || 0, ratio = loadRatio(name);
   const save = async () => {
     const body = { name };
     if (isMach) body.machine_kg = mk.value === "" ? null : +mk.value;
-    if (isCable) body.load_ratio = half.checked ? 0.5 : null;
+    if (isCable) { const n_ = parseFloat(rN.value); body.load_ratio = n_ > 1 ? 1 / n_ : null; }
     await act(() => api("PUT", "/api/exercise-settings", body), "Guardado");
     S.exSet = await api("GET", "/api/exercise-settings"); S.tStats = null;
     if (S._exSh) S._exSh.close();
     render(); setTimeout(() => exerciseSheet(name), 160);
   };
-  return h("details", { class: "card panel flat exset" + (mach || ratio !== 1 ? " has" : "") },
-    h("summary", null, h("b", null, isMach ? "Peso de la máquina" : "Polea"), h("span", { class: "faint" }, isMach ? (mach ? fmt(mach, 1) + " kg" : "sin indicar") : ratio !== 1 ? "pesa la mitad (× 0,5)" : "normal")),
-    h("div", { class: "exset-b" },
-      isMach ? h("div", null, h("label", { class: "f" }, "¿Cuánto pesa la máquina vacía? (kg, si lo incluyes en lo que apuntas)"), h("div", { style: { maxWidth: "200px" } }, mk),
-        h("div", { class: "note" }, "Para el nivel se cuenta solo lo que cargas. Si un día usas otra máquina, pon en la nota de Hevy «la máquina pesa X kg».")) : null,
-      isCable ? h("label", { class: "chk" }, half, " Esta polea pesa la mitad de lo que marca (× 0,5)") : null,
-      h("div", { class: "row", style: { justifyContent: "flex-end", marginTop: "8px" } }, h("button", { class: "btn sm primary", onclick: save }, "Guardar"))));
+  const btn = h("button", { class: "btn sm", onclick: save }, "Guardar");
+  return h("div", { class: "exset2" },
+    isMach ? [h("span", null, "Peso de la máquina"), h("div", { class: "exset2-in" }, mk, h("span", { class: "faint" }, "kg")), h("span", { class: "faint grow" }, "si lo incluyes al apuntar; para el nivel se cuenta solo lo cargado")]
+      : [h("span", null, "Relación de la polea"), h("div", { class: "exset2-in" }, h("b", null, "1 :"), rN), h("span", { class: "faint grow" }, "1 : 2 = la polea pesa la mitad de lo que marca")],
+    btn);
 }
 
 async function exerciseSheet(name) {
@@ -1195,7 +1199,7 @@ async function exerciseSheet(name) {
   const kind = hist[0].kind;
   const asc = [...hist].reverse();
   const dl = (d) => dateLabel(d, { day: "numeric", month: "short", year: "2-digit" });
-  const rsAsc = asc.map((e) => recsOf(e.kind, e.sets, e.name));
+  const rsAsc = asc.map((e) => recsOf(e.kind, e.sets, e.name, e.date));
   const types = REC_KINDS[kind] || ["reps"];
   // récords con fecha (como Hevy)
   const rec = {};
@@ -1203,7 +1207,7 @@ async function exerciseSheet(name) {
   const e = (S.tStats && S.tStats.list.find((x) => exKeyName(x.name) === exKeyName(name))) || null;
   const L = e && e.level;
   const allSets = hist.flatMap((x) => workSets(x.sets).map((s_) => ({ ...s_, date: x.date })));
-  const totalVol = hist.reduce((a, x) => a + volOf(x.kind, x.sets), 0);
+  const totalVol = hist.reduce((a, x) => a + volOf(x.kind, x.sets, x.name, x.date), 0);
   const totalReps = allSets.reduce((a, s_) => a + (s_.reps || 0), 0);
   // mejores pesos por nº de repeticiones (como Hevy)
   const repMax = {};
@@ -1258,7 +1262,7 @@ async function exerciseSheet(name) {
     h("div", { class: "hist" }, hist.map((e2) => { const L2 = exLevel({ name: e2.name, kind: e2.kind, sessions: [{ date: e2.date, sets: e2.sets, notes: e2.notes }] }, bwAt); return h("div", { class: "hrow", onclick: () => workoutSheet(e2.workout_id) },
       h("div", { class: "hd" }, h("b", null, dateLabel(e2.date, { day: "numeric", month: "short", year: e2.date.slice(0, 4) === todayISO().slice(0, 4) ? undefined : "2-digit" })), h("span", null, e2.title), L2 ? lvlInline(L2, 16, { name: e2.name, kind: e2.kind }) : null),
       h("div", { class: "hs" }, e2.sets.map((s_) => h("span", { class: "hset " + s_.type }, setShort(e2.kind, s_)))),
-      h("div", { class: "hv num" }, (() => { const r = recsOf(e2.kind, e2.sets, e2.name)[types[0]]; return r ? recTxt(types[0], r.v, kind) : "—"; })())); })),
+      h("div", { class: "hv num" }, (() => { const r = recsOf(e2.kind, e2.sets, e2.name, e2.date)[types[0]]; return r ? recTxt(types[0], r.v, kind) : "—"; })())); })),
     h("div", { class: "note" }, "1RM estimado igual que Hevy: peso ÷ % según las reps (10 reps = 75 %, 16 reps = 65 %, 30 o más = 50 %). Con muchas repeticiones es menos fiable." + (isUni(name) ? " A un brazo: se usan la mitad de las reps." : "")),
   ], null, { wide: true, sub: "Estadísticas del ejercicio", titleExtra: L ? h("span", { class: "exh-rank click", onclick: () => levelSheet(name, L) }, lvlBadge(L.idx, 22), h("b", { class: "lvname l" + L.idx }, LVL[L.idx])) : null });
 }

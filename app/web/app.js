@@ -301,8 +301,6 @@ function energySheet(st) {
       h("span", { class: "num bd-tot" }, h("b", null, v(t, "kcal")), tg.kcal ? h("span", { class: "faint" }, " / " + fmt(tg.kcal) + " kcal") : " kcal")),
     meals.length > 1 ? h("div", { class: "bd-meals" }, h("div", { class: "bd-stack" }, meals.map(([l, k], i) => h("i", { class: "m" + i, style: { flex: k }, title: `${l}: ${fmt(k)} kcal` }))),
       h("div", { class: "bd-leg" }, meals.map(([l, k], i) => h("span", null, h("i", { class: "m" + i }), l + " ", h("b", { class: "num" }, fmt(k)))))) : null,
-    tg.kcal ? h("div", { class: "bd-cap" }, kc <= tg.kcal ? `Te quedan ${fmt(tg.kcal - kc)} kcal` : `${fmt(kc - tg.kcal)} kcal por encima`,
-      tg.dynamic ? ` · objetivo según tu gasto (${goalName(tg.kcal_offset)})` : tg.provisional ? " · objetivo provisional" : "") : null,
     h("div", { class: "bd-macros" },
       macroRow("p", "Proteína", "protein_g", tg.protein_g), macroRow("c", "Carbohidratos", "carbs_g", tg.carbs_g), macroRow("g", "Grasas", "fat_g", tg.fat_mid_g)),
     (t.missing || []).length ? h("div", { class: "note warn" }, "Hay valores desconocidos: los totales son un mínimo.") : null);

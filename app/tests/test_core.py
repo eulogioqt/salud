@@ -275,7 +275,7 @@ class TestTraining(Base):
         w = T.create_workout(self.conn, self.W)
         self.assertEqual(w["sets_count"], 4)  # como Hevy: cuenta el calentamiento
         self.assertEqual(w["work_sets_count"], 3)
-        self.assertEqual(w["volume_kg"], 40 * 10 + 70 * 22 + 60 * 13)  # como Hevy: incluye el calentamiento
+        self.assertEqual(w["volume_kg"], round(40 * 10 + 70 * 22 + (81.5 + 60) * 13))  # como Hevy: incluye el calentamiento y, en fondos con lastre, el peso corporal
         acts = core.day_activities(self.conn, D1)
         self.assertEqual(len(acts), 1); self.assertEqual(acts[0]["minutes"], 60)
         self.assertGreater(core.energy(self.conn, D1, 0)["exercise_kcal"], 0)

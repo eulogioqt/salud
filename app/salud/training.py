@@ -210,11 +210,38 @@ def _get(conn, wid):
     return w
 
 
-def _ex_stats(ex):
+# Como Hevy: en los ejercicios que mueven el 100 % del cuerpo (fondos, dominadas) con lastre, el volumen es (peso corporal + lastre) × reps;
+# en el resto (flexiones…) solo cuenta el lastre. https://help.hevyapp.com/hc/en-us/articles/38387131819799
+FULL_BW_RX = re.compile(r"fondo|dips?\b|dominada|pull.?up|chin.?up")
+
+
+def full_bw(name):
+    n = _norm_ex(name or "")
+    return bool(FULL_BW_RX.search(n)) and not re.search(r"banco|bench|asistid|assist|escapular", n)
+
+
+def bw_on(conn, d):
+    """Peso corporal de un día: el pesaje más cercano (antes o después) o el peso estimado del perfil."""
+    if not d:
+        return None
+    r = conn.execute("SELECT weight_kg FROM days WHERE weight_kg IS NOT NULL ORDER BY ABS(julianday(date)-julianday(?)) LIMIT 1", (d,)).fetchone()
+    if r:
+        return r[0]
+    r = conn.execute("SELECT value FROM settings WHERE key='peso_estimado_kg'").fetchone()
+    try:
+        return float(r[0]) if r and r[0] else None
+    except ValueError:
+        return None
+
+
+def _ex_stats(ex, bw=None):
     """Como Hevy: el volumen y el nº de series incluyen los calentamientos; el 1RM (tabla de Hevy) sale de las series efectivas."""
     sets = ex["sets"]
     work = [s for s in sets if s["type"] != "calentamiento"]
-    vol = sum((s["weight_kg"] or 0) * (s["reps"] or 0) for s in sets if ex["kind"] in ("peso", "lastre") and (s["weight_kg"] or 0) > 0)
+    if ex["kind"] == "lastre" and bw and full_bw(ex.get("name")):
+        vol = sum((bw + (s["weight_kg"] or 0)) * (s["reps"] or 0) for s in sets)
+    else:
+        vol = sum((s["weight_kg"] or 0) * (s["reps"] or 0) for s in sets if ex["kind"] in ("peso", "lastre") and (s["weight_kg"] or 0) > 0)
     best, e1 = None, None
     for s in work:
         if s["reps"] is None:
@@ -232,9 +259,11 @@ def _ex_stats(ex):
 
 def _exercises(conn, wid):
     out = []
+    d = conn.execute("SELECT date FROM workouts WHERE id=?", (wid,)).fetchone()
+    bw = bw_on(conn, d[0]) if d else None
     for ex in rows(conn.execute("SELECT * FROM workout_exercises WHERE workout_id=? ORDER BY sort, id", (wid,))):
         ex["sets"] = rows(conn.execute("SELECT * FROM workout_sets WHERE exercise_id=? ORDER BY idx, id", (ex["id"],)))
-        ex["stats"] = _ex_stats(ex)
+        ex["stats"] = _ex_stats(ex, bw)
         out.append(ex)
     return out
 
@@ -245,13 +274,13 @@ def _previous(conn, name, before_date, wid):
     for r in conn.execute("SELECT e.id, e.kind, e.name, w.date, w.id AS wid FROM workout_exercises e JOIN workouts w ON w.id=e.workout_id "
                           "WHERE w.deleted_at IS NULL AND w.id<>? AND w.date<=? ORDER BY w.date DESC, w.id DESC", (wid, before_date)):
         if _norm_ex(r["name"]) == key:
-            ex = {"kind": r["kind"], "sets": rows(conn.execute("SELECT * FROM workout_sets WHERE exercise_id=? ORDER BY idx", (r["id"],)))}
-            return {"date": r["date"], "workout_id": r["wid"], "sets": ex["sets"], "stats": _ex_stats(ex)}
+            ex = {"kind": r["kind"], "name": r["name"], "sets": rows(conn.execute("SELECT * FROM workout_sets WHERE exercise_id=? ORDER BY idx", (r["id"],)))}
+            return {"date": r["date"], "workout_id": r["wid"], "sets": ex["sets"], "stats": _ex_stats(ex, bw_on(conn, r["date"]))}
     return None
 
 
 # Récords como Hevy, por tipo de ejercicio
-PR_KINDS = {"peso": ("e1", "w", "sv"), "lastre": ("w", "sv", "reps"), "corporal": ("reps", "sreps"),
+PR_KINDS = {"peso": ("e1", "w", "sv"), "lastre": ("w", "sv"), "corporal": ("reps", "sreps"),
             "asistido": ("reps", "sreps"), "tiempo": ("secs", "stime"), "cardio": ("dist", "w")}
 
 
@@ -351,7 +380,7 @@ def exercise_history(conn, name):
             continue
         ex = dict(r)
         ex["sets"] = rows(conn.execute("SELECT * FROM workout_sets WHERE exercise_id=? ORDER BY idx", (r["id"],)))
-        ex["stats"] = _ex_stats(ex)
+        ex["stats"] = _ex_stats(ex, bw_on(conn, r["date"]))
         out.append(ex)
     return out
 
