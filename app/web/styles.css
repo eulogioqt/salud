@@ -1442,3 +1442,4 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .supp-it { cursor: pointer; } .supp-ck { width: 26px; height: 26px; border-radius: 50%; border: 1.8px solid var(--line-2, #ccc); display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .supp-ck.on { background: var(--accent); border-color: var(--accent); color: #fff; } .supp-ck svg { width: 15px; height: 15px; stroke-width: 3; }
 .supp-it:not(.on) .sub { color: var(--faint); }
+.exb-r1 { row-gap: 3px; }
