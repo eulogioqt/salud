@@ -750,15 +750,16 @@ function eqTag(name) {
 function exRow(e, extra, sub) {
   const [, lbl] = exMetric(e.kind);
   return h("button", { class: "exrow", onclick: () => exerciseSheet(e.name) }, exIcon(e.name, 34),
-    h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, h("span", null, e.name), lvlShield(e.level, 18), eqTag(e.name)),
+    h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, h("span", null, e.name), lvlShield(e.level, 18)),
       h("div", { class: "exr-s" }, sub || `${e.sessions.length} sesiones · última ${dateLabel(e.last, { day: "numeric", month: "short" })}`)),
     h("div", { class: "exr-v" }, h("b", { class: "num" }, metricTxt(e.kind, e.best)), h("span", null, extra || lbl)));
 }
 function prRow(p) {
   const setTxt = p.set && ["w", "e1", "sv"].includes(p.type) ? " · " + setShort(p.kind, p.set) : "";
   return h("button", { class: "exrow", onclick: () => exerciseSheet(p.name) }, exIcon(p.name, 34),
-    h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, h("span", null, p.name)), h("div", { class: "exr-s" }, dateLabel(p.date, { weekday: "short", day: "numeric", month: "short" }) + ` · antes ${recTxt(p.type, p.prev, p.kind)}` + setTxt)),
-    h("div", { class: "exr-v pr" }, h("b", { class: "num" }, recTxt(p.type, p.value, p.kind)), h("span", null, REC_LABEL[p.type])));
+    h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, h("span", null, p.name), (() => { const e = (S.tStats && S.tStats.list || []).find((x) => exKeyName(x.name) === exKeyName(p.name)); return e && e.level ? lvlShield(e.level, 18) : null; })()),
+      h("div", { class: "exr-s" }, dateLabel(p.date, { weekday: "short", day: "numeric", month: "short" }) + ` · antes ${recTxt(p.type, p.prev, p.kind)}` + setTxt)),
+    h("div", { class: "exr-v pr" }, h("b", { class: "num" }, h("span", { class: "trophy" }, icon("trophy")), recTxt(p.type, p.value, p.kind)), h("span", null, REC_LABEL[p.type])));
 }
 
 function tHistorial(st, ws) {
@@ -1237,12 +1238,17 @@ async function exerciseSheet(name) {
   const isW = ["peso", "lastre"].includes(kind);
   const main = rec[types[0]];
   S._exSh = sheet(name, [
-    h("div", { class: "exhero" }, exIcon(name, 64), h("div", { class: "grow" }, h("div", { class: "faint" }, exGroup(name) + " · " + ({ peso: "con peso", lastre: "con lastre", corporal: "peso corporal", asistido: "asistido", tiempo: "isométrico", cardio: "cardio / carga" }[kind] || kind) + (isUni(name) ? " · a un brazo (reps de los dos lados)" : "") + (/mancuerna/.test(norm(name)) ? " · peso de las dos mancuernas" : "")),
+    h("div", { class: "exhero" + (L ? " tinted" : ""), style: L ? { "--tc": TIER[L.idx][2][1] } : null }, exIcon(name, 64), h("div", { class: "grow" }, h("div", { class: "faint" }, exGroup(name) + " · " + ({ peso: "con peso", lastre: "con lastre", corporal: "peso corporal", asistido: "asistido", tiempo: "isométrico", cardio: "cardio / carga" }[kind] || kind) + (isUni(name) ? " · a un brazo (reps de los dos lados)" : "") + (/mancuerna/.test(norm(name)) ? " · peso de las dos mancuernas" : "")),
       h("div", { class: "exhero-v" }, h("b", { class: "num" }, main ? recTxt(types[0], main.v, kind) : "—"), h("span", null, REC_LABEL[types[0]] + " · tu récord")),
-      L ? h("div", { class: "exhero-next click", onclick: () => levelSheet(name, L) },
-        h("div", { class: "exn-t" }, L.idx === 5 ? h("b", null, "Rango máximo") : [h("span", null, "Siguiente: "), h("b", { class: "lvname l" + (L.idx + 1) }, LVL[L.idx + 1]), h("span", { class: "faint" }, L.need ? " · " + L.need.replace(/ para .*/, "") : "")],
-          h("span", { class: "grow" }), h("span", { class: "faint" }, `top ${fmt(Math.max(0.5, 100 - L.pct))} %`)),
-        lvlBar(L)) : null)),
+      L ? (() => {
+        const u = (x) => (L.metric === "reps" ? fmt(Math.round(x)) + " reps" : (L.metric === "add" && x > 0 ? "+" : "") + fmt(x) + " kg");
+        const lo = L.idx ? L.cuts[L.idx - 1] : 0, hi = L.cuts[L.idx];
+        return h("div", { class: "exhero-next" },
+          h("div", { class: "exn-t" }, L.idx === 5 ? h("b", null, "Rango máximo") : [h("span", null, "Siguiente: "), h("b", { class: "lvname l" + (L.idx + 1) }, LVL[L.idx + 1]), h("span", { class: "faint" }, L.need ? " · " + L.need.replace(/ para .*/, "") : "")],
+            h("span", { class: "grow" }), h("span", { class: "faint" }, `top ${fmt(Math.max(0.5, 100 - L.pct))} %`)),
+          tip(h("div", { class: "click", onclick: () => levelSheet(name, L) }, lvlBar(L)), "Pulsa para ver la curva de niveles"),
+          L.idx < 5 ? h("div", { class: "exn-ends" }, h("span", null, `${LVL[L.idx]} · ${u(lo)}`), h("span", null, `${LVL[L.idx + 1]} · ${u(hi)}`)) : null);
+      })() : null)),
     h("div", { class: "kpis three tight recs" }, types.map((t) => { const r = rec[t];
       return h("div", { class: "kpi" }, h("div", { class: "l" }, h("span", { class: "sic c" }, "🏆"), REC_LABEL[t]), h("div", { class: "v num" }, r ? recTxt(t, r.v, kind) : "—"),
         h("div", { class: "s" }, r ? (r.set && ["w", "e1", "sv"].includes(t) ? setShort(kind, r.set) + " · " : "") + dateLabel(r.date, { day: "numeric", month: "short", year: "2-digit" }) : "")); })),
