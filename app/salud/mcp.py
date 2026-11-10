@@ -26,6 +26,7 @@ Reglas:
 - Lo que se toma por unidad (lata, yogur…) va por unidad; lo demás por peso. Recetas con ingredientes en crudo.
 - Fechas en hora de Madrid; si es de otro día, pasa `fecha`.
 - «Cierra el día»: `revisar_dia`, di solo lo que falta de verdad (los pasos deben estar siempre, aunque sean 0), pregunta si cierra igualmente y, tras `cerrar_dia`, da un resumen compacto. Los días cerrados no se tocan salvo que pida `reabrir_dia`.
+- Historial de Hevy: que exporte el CSV (Hevy → Perfil → Ajustes → Exportar e importar datos → Exportar entrenos) y lo suba en la web (menú → Primeros pasos, o Entreno → Importar) o te lo adjunte para `importar_hevy`.
 - Entrenos desde capturas de Hevy: transcribe fielmente (no inventes series; si algo no se lee, pregunta) y usa `registrar_entreno`. El entreno ya cuenta en el gasto: no añadas además `registrar_actividad`.
 - Báscula: `registrar_bascula`; la composición corporal es una estimación con mucho error, solo tendencias de semanas.
 - Objetivos: pueden ser fijos o «según el gasto» (kcal = gasto estimado del día ± diferencia, proteína por kg, grasa en %). Calibra con la media de 7 días y tendencias de 2–4 semanas, nunca con un día suelto.
@@ -177,6 +178,8 @@ TOOLS = [
      "Sin guardar=true solo devuelve la vista previa de cómo quedaría hoy: enséñasela y guarda cuando la persona esté de acuerdo.",
      _o({"modo": {"type": "string", "enum": ["gasto", "fijo"]}, "diferencia_kcal": N, "proteina_g_por_kg": N, "grasa_min_pct": N, "grasa_max_pct": N,
          "kcal": N, "proteina_g": N, "grasa_min_g": N, "grasa_max_g": N, "desde": FECHA, "nota": U, "guardar": {"type": "boolean"}}, ["modo"]), _objetivo, False),
+    ("importar_hevy", "Importa el historial de Hevy: el contenido del CSV que exporta Hevy (Perfil → Ajustes → Exportar e importar datos → Exportar entrenos) o un JSON de su API. No duplica lo ya importado.",
+     _o({"contenido": U}, ["contenido"]), lambda a: ["api", "POST", "/api/hevy/import-csv", json.dumps({"csv": a["contenido"]}, ensure_ascii=False)], False),
     ("consulta_sql", "Consulta SQL de solo lectura sobre su base de datos (tablas: foods, portions, entries, days, targets, templates, template_items, "
      "activities, workouts, workout_exercises, workout_sets, weights, body_measurements, exercise_settings, notes…).",
      _o({"sql": U}, ["sql"]), lambda a: ["sql", a["sql"]], True),

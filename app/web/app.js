@@ -1475,6 +1475,52 @@ function targetSheet(tg, onSaved) {
       toast("Objetivo guardado"); sh.close(); await refresh(); onSaved && onSaved(); } }, "Guardar")]);
   draw();
 }
+// ---- Primeros pasos (la primera vez que entra alguien): perfil, Hevy, agente y objetivo
+async function welcomeSheet() {
+  const data = await api("GET", "/api/settings"); const st = data.settings;
+  let step = 0;
+  const sexo = { v: st.sexo || "" };
+  const born = h("input", { class: "input", type: "date", value: st.fecha_nacimiento || "" });
+  const alt = numIn(st.altura_cm || null, "cm"), kg = numIn(st.peso_estimado_kg || null, "kg");
+  const hevyOut = h("div", { class: "wz-res" });
+  const finish = async () => { await api("PUT", "/api/notes/bienvenida", { body: "hecho " + todayISO() }).catch(() => {}); sh.close(); await refresh(); };
+  const dots = () => h("div", { class: "wz-dots" }, [0, 1, 2, 3].map((i) => h("i", { class: i === step ? "on" : i < step ? "done" : "" })));
+  const pages = [
+    () => ["Tus datos", [
+      h("p", { class: "muted wz-p" }, "Con esto se calcula cuánto gastas al día. Solo lo ves tú."),
+      h("label", { class: "f" }, "Sexo"), h("div", { class: "seg wz-seg" }, [["H", "Hombre"], ["M", "Mujer"]].map(([k, l]) => h("button", { class: sexo.v === k ? "on" : "", onclick: (e) => { sexo.v = k; e.target.parentNode.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === e.target)); } }, l))),
+      h("div", { class: "grid3 wz-g" }, h("div", null, h("label", { class: "f" }, "Fecha de nacimiento"), born), h("div", null, h("label", { class: "f" }, "Altura (cm)"), alt), h("div", null, h("label", { class: "f" }, "Peso aproximado (kg)"), kg)),
+      h("div", { class: "faint wz-p" }, "El peso exacto lo irás apuntando en Hoy (mejor en ayunas); este se usa hasta entonces.")],
+      async () => { await api("PUT", "/api/settings", { sexo: sexo.v, fecha_nacimiento: born.value, altura_cm: parseNum(alt.value) == null ? "" : String(parseNum(alt.value)), peso_estimado_kg: parseNum(kg.value) == null ? "" : String(parseNum(kg.value)) }); }],
+    () => ["Tus entrenos de Hevy", [
+      h("p", { class: "muted wz-p" }, "Si usas Hevy, trae todo tu historial de una vez: récords, niveles y progreso salen de ahí."),
+      h("ol", { class: "wz-ol" }, h("li", null, "En Hevy: ", h("b", null, "Perfil → ⚙ Ajustes → Exportar e importar datos → Exportar entrenos"), ". Te descarga un archivo .csv."), h("li", null, "Súbelo aquí:")),
+      h("button", { class: "btn", onclick: () => { const fi = h("input", { type: "file", accept: ".csv,.json,text/csv,application/json" });
+        fi.addEventListener("change", async () => { const f = fi.files[0]; if (!f) return; hevyOut.textContent = "Importando…";
+          try { const r = await api("POST", "/api/hevy/import-csv", { csv: await f.text() }); hevyOut.textContent = `✓ ${r.created} entrenos importados` + (r.updated ? ` · ${r.updated} actualizados` : ""); } catch (e) { hevyOut.textContent = e.message; } });
+        fi.click(); } }, "Subir el archivo de Hevy"), hevyOut,
+      h("div", { class: "faint wz-p" }, "Los entrenos nuevos, después, se los mandas a tu agente con capturas de Hevy (o lo repites con el archivo). ¿No usas Hevy? Sáltalo.")], null],
+    () => ["Conecta tu agente", [
+      h("p", { class: "muted wz-p" }, "Tu Claude (u otro agente) podrá apuntar comidas por chat, leer capturas de Hevy o de la báscula, cerrar el día…"),
+      agentConnected() ? h("div", { class: "agent-wait soft done" }, "✓ Ya tienes un agente conectado.") : h("button", { class: "btn primary", onclick: () => connectAgent() }, "Conectar un agente"),
+      h("div", { class: "faint wz-p" }, "Puedes hacerlo más tarde desde el menú de tu nombre.")], null],
+    () => ["Tu objetivo", [
+      h("p", { class: "muted wz-p" }, "Lo más fácil: abre un chat con tu agente y dile ", h("b", null, "«ayúdame a fijar mi objetivo»"), ". Te preguntará lo necesario (qué quieres conseguir, cómo entrenas…) y lo deja configurado."),
+      h("p", { class: "muted wz-p" }, "O ponlo tú aquí: según tu gasto (recomendado) o fijo."),
+      h("button", { class: "btn", onclick: () => targetSheet(data.current_target, null) }, "Elegir objetivo"),
+      h("div", { class: "faint wz-p" }, "Siempre lo puedes cambiar en Ajustes → Objetivo diario.")], null],
+  ];
+  const sh = sheet("Primeros pasos", null, null, { onClose: () => api("PUT", "/api/notes/bienvenida", { body: "visto " + todayISO() }).catch(() => {}) });
+  const draw = () => {
+    const [title, body, save] = pages[step]();
+    const last = step === pages.length - 1;
+    sh.set(title, [dots(), ...body], [
+      step ? h("button", { class: "btn ghost", onclick: () => { step--; draw(); } }, "Atrás") : h("button", { class: "btn ghost", onclick: finish }, "Ahora no"), h("span", { class: "grow" }),
+      h("button", { class: "btn primary", onclick: async () => { try { if (save) await save(); } catch (e) { toast(e.message, { error: true }); return; } if (last) { toast("¡Listo! Ya puedes empezar"); finish(); } else { step++; draw(); } } }, last ? "Terminar" : step === 1 || step === 2 ? "Siguiente" : "Guardar y seguir")],
+      { sub: `Paso ${step + 1} de ${pages.length}` });
+  };
+  draw();
+}
 async function settingsSheet() {
   const data = await api("GET", "/api/settings");
   const tg = data.current_target || {}, st = data.settings;
@@ -1520,6 +1566,7 @@ function accountMenu() {
     S.me ? h("button", { class: agentConnected() ? "" : "warn", onclick: () => { menu.remove(); connectAgent(); } }, h("span", { class: "ag-mini" }, "✦"),
       agentConnected() ? "Agentes" : "Conectar un agente", agentConnected() ? h("span", { class: "ag-mini-list" }, S.me.agente.agents.slice(0, 3).map((t) => agentLogo(agentOf(t.agent || t.kind), 18))) : h("span", { class: "alert-dot" }, "!")) : null,
     h("button", { onclick: () => { menu.remove(); settingsSheet().catch((e) => toast(e.message, { error: true })); } }, icon("gear"), "Ajustes"),
+    S.me ? h("button", { onclick: () => { menu.remove(); welcomeSheet().catch((e) => toast(e.message, { error: true })); } }, h("span", { class: "ag-mini" }, "★"), "Primeros pasos") : null,
     S.me ? h("button", { class: "danger", onclick: async () => { await api("POST", "/api/logout", {}); location.href = "/login"; } }, icon("out"), "Cerrar sesión") : null);
   document.body.append(menu);
   const r = $("#btn-acct").getBoundingClientRect();
@@ -1536,5 +1583,10 @@ document.addEventListener("keydown", (e) => {
 });
 
 // En modo servidor, saber quién ha iniciado sesión (en local /api/me no existe y no pasa nada)
-fetch("/api/me").then((r) => (r.ok ? r.json() : null)).then((m) => { if (m && m.usuario) { S.me = m; drawAccount(); } }).catch(() => {});
+fetch("/api/me").then((r) => (r.ok ? r.json() : null)).then(async (m) => {
+  if (!m || !m.usuario) return;
+  S.me = m; drawAccount();
+  const n = await api("GET", "/api/notes/bienvenida").catch(() => null);  // primera vez: primeros pasos
+  if (n && !n.body) setTimeout(() => welcomeSheet().catch(() => {}), 600);
+}).catch(() => {});
 route();

@@ -1122,3 +1122,14 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .tg-why { font-size: 12px; line-height: 1.45; margin-top: 4px; }
 .tg-prev.err { background: var(--danger-soft); color: var(--danger); font-size: 13.5px; }
 @media (max-width: 640px) { .tg-pre { grid-template-columns: 1fr 1fr; } .tg-g { grid-template-columns: 1fr 1fr; } .tg-g > div:last-child { grid-column: 1 / -1; } }
+
+/* ---- Primeros pasos */
+.wz-dots { display: flex; gap: 6px; margin-bottom: 14px; }
+.wz-dots i { flex: 1; height: 4px; border-radius: 99px; background: var(--surface-2); }
+.wz-dots i.on { background: var(--accent); } .wz-dots i.done { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+.wz-p { font-size: 13.5px; margin: 0 0 12px; line-height: 1.5; }
+.wz-seg { width: 100%; margin-bottom: 12px; } .wz-seg button { flex: 1; }
+.wz-g { margin-bottom: 10px; }
+.wz-ol { margin: 0 0 12px; padding-left: 20px; font-size: 14px; line-height: 1.55; } .wz-ol li { margin: 4px 0; }
+.wz-res { font-size: 13.5px; color: var(--accent); font-weight: 600; margin: 8px 0 12px; min-height: 1em; }
+@media (max-width: 640px) { .wz-g { grid-template-columns: 1fr 1fr; } .wz-g > div:first-child { grid-column: 1 / -1; } }
