@@ -1509,6 +1509,11 @@ async function welcomeSheet() {
       h("div", { class: "wz-opt soon" }, h("b", null, "Android · Health Connect"), h("span", null, "Próximamente.")),
       h("div", { class: "wz-opt soon" }, h("b", null, "iPhone · Salud de Apple"), h("span", null, "Próximamente.")),
       h("div", { class: "wz-opt" }, h("b", null, "Mientras tanto"), h("span", null, "Apúntalos al final del día en Hoy → Pasos, o díselos a tu agente («hoy 8.000 pasos»)."))], null],
+    () => ["Lo que sueles comer", [
+      h("p", { class: "muted wz-p" }, "Mete primero tus alimentos y comidas de siempre: luego apuntar el día es un toque."),
+      h("div", { class: "wz-opt" }, h("b", null, "Con tu agente"), h("span", null, "Mándale fotos de las etiquetas («créame estos productos») o descríbele tu desayuno de siempre («guárdalo como comida habitual»).")),
+      h("div", { class: "wz-opt" }, h("b", null, "O a mano"), h("span", null, "En Biblioteca: + Producto, + Receta o + Comida habitual."),
+        h("button", { class: "btn sm", onclick: () => { sh.close(); location.hash = "#/biblioteca"; } }, "Ir a la Biblioteca"))], null],
     () => ["Tu objetivo", [
       h("p", { class: "muted wz-p" }, "Dile a tu agente ", h("b", null, "«ayúdame a fijar mi objetivo»"), ": te pregunta qué quieres conseguir y lo deja configurado en un minuto."),
       h("p", { class: "muted wz-p" }, "O elígelo tú:"), h("button", { class: "btn sm", onclick: () => targetSheet(data.current_target, null) }, "Elegir objetivo")], null],
