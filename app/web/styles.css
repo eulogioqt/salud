@@ -1266,3 +1266,4 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .exh-ic span { font-size: 12px; font-weight: 650; color: var(--muted); }
 .exh-x { font-size: 12.5px; margin-bottom: 2px; }
 .exn-v { font-size: 12px; color: var(--muted); margin-top: 6px; } .exn-v b { color: var(--text); font-weight: 650; }
+@media (max-width: 640px) { .kpis.recs { grid-template-columns: 1fr 1fr !important; } }

@@ -152,7 +152,8 @@ BASES = [  # (expresión en el nombre normalizado, página base en inglés)
     (r"aperturas|mariposa|cruce de poleas", "chest-fly"), (r"encogimiento", "shrug"), (r"face pull", "face-pull"),
     (r"dominadas? supinas?|chin up", "chin-ups"), (r"dominada", "pull-ups"), (r"muscle up", "muscle-ups"),
     (r"fondos? en banco|fondo de triceps", "bench-dips"), (r"fondos?", "dips"), (r"flexion(es)? diamante", "diamond-push-ups"),
-    (r"flexion(es)? declinada", "decline-push-up"), (r"flexion(es)? en pica", "pike-push-up"), (r"flexion(es)? a una mano", "one-arm-push-ups"),
+    (r"flexion(es)? declinada", "decline-push-up"), (r"flexion(es)? (arquero|de arquero)", "archer-push-ups"),
+    (r"flexion(es)? (con agarre cerrado|cerradas?)", "close-grip-push-up"), (r"flexion(es)? inclinada", "incline-push-up"), (r"flexion(es)? en pica", "pike-push-up"), (r"flexion(es)? a una mano", "one-arm-push-ups"),
     (r"flexion(es)?", "push-ups"), (r"abdominal corto|crunch", "crunches"), (r"sit ?up", "sit-ups"),
     (r"levantamiento de piernas en barra|elevacion de piernas colgado", "hanging-leg-raise"),
     (r"levantamiento de rodillas en barra|elevacion de rodillas colgado", "hanging-knee-raise"), (r"russian twist|giro ruso", "russian-twist"),
@@ -170,7 +171,7 @@ def candidates(name):
     """Páginas posibles, de más a menos probable (máx. 4)."""
     n = _norm(name)
     # variantes que NO son el ejercicio de la tabla: mejor sin nivel que con uno equivocado
-    if re.search(r"escapular|negativ|isometric|sostenid|austral|asistid|iso.?lateral|\balto\b|excentric|pausa|deficit", n):
+    if re.search(r"escapular|negativ|isometric|sostenid|austral|asistid|iso.?lateral|\balto\b|excentric|pausa|deficit|pseudo|plancha|planche|explosiv|palmada|clap|tipo t\b", n):
         return []
     eq = next((e for rx, e in EQUIP if re.search(rx, n)), "")
     out = []

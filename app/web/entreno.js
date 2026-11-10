@@ -1253,7 +1253,7 @@ async function exerciseSheet(name) {
           L.idx < 5 ? h("div", { class: "exn-ends" }, h("span", null, `${LVL[L.idx]} · ${u(lo)}`), h("span", null, `${LVL[L.idx + 1]} · ${u(hi)}`)) : null,
           h("div", { class: "exn-v" }, "Tu nivel se mide con tu ", h("b", null, L.valTxt.replace("lastre 1RM", "1RM con lastre")), L.machine ? " · máquina: orientativo" : ""));
       })() : null)),
-    h("div", { class: "kpis three tight recs" }, types.map((t) => { const r = rec[t];
+    h("div", { class: "kpis tight recs", style: { gridTemplateColumns: `repeat(${types.length}, 1fr)` } }, types.map((t) => { const r = rec[t];
       return h("div", { class: "kpi" }, h("div", { class: "l" }, h("span", { class: "sic c" }, "🏆"), REC_LABEL[t]), h("div", { class: "v num" }, r ? recTxt(t, r.v, kind) : "—"),
         h("div", { class: "s" }, r ? (r.set && ["w", "e1", "sv"].includes(t) ? setShort(kind, r.set) + " · " : "") + dateLabel(r.date, { day: "numeric", month: "short", year: "2-digit" }) : "")); })),
     h("div", { class: "kpis five tight" },
