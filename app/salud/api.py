@@ -137,6 +137,13 @@ def _entry_restore(c, q, b, s, eid):
     return core.restore_entry(c, int(eid), s)
 
 
+@route("POST", r"/api/pasos/tramos")
+def _steps_buckets(c, q, b, s):
+    """Pasos por tramos (mismo formato que el webhook del móvil: {"steps": [{count, start_time, end_time}]})
+    o el total de un día ({"steps": N, "date": "AAAA-MM-DD"}). Para meter a mano lo que no llegó del móvil."""
+    return core.ingest_health(c, b, s)
+
+
 @route("PUT", r"/api/days/(\d{4}-\d{2}-\d{2})")
 def _day_upd(c, q, b, s, d):
     return core.update_day(c, d, b, s)
