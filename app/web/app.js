@@ -1282,7 +1282,7 @@ function connectAgent() {
   const step1 = () => sh.set("Conectar un agente", [
     h("p", { class: "muted", style: { marginTop: 0 } }, "Tu agente (Claude u otro) podrá apuntar y consultar tus comidas, peso y entrenos. Solo tendrá acceso a tu cuenta. Puedes conectar varios y desconectar cada uno cuando quieras."),
     h("div", { class: "agent-grid" }, AGENTS.map((ag) => { const on = ag.k !== "otro" && agentsUsed().some((t) => t.kind === ag.k || t.agent === ag.k);
-      return on ? agentBtn({ ...ag, sub: "Conectado · desconéctalo abajo para conectar otro" }, null, true) : agentBtn(ag, () => step2(ag)); })),
+      return on ? agentBtn({ ...ag, sub: "Conectado" }, null, true) : agentBtn(ag, () => step2(ag)); })),
     agentConnected() ? h("div", null, h("div", { class: "sec-t" }, "Conectados"), agentList(step1)) : null]);
   const step2 = async (ag) => {
     let tok;
