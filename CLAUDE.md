@@ -14,13 +14,15 @@ Sistema de seguimiento de nutrición, peso y entrenamiento: web https://salud.eu
 
 Todos los comandos: `python3 app/salud_remoto.py <comando>` (abreviado abajo como `S <comando>`). Se ejecutan en el servidor sobre la cuenta del token; la salida es la confirmación. **Nunca simular un registro.**
 
+Red: el entorno de Claude debe poder salir a `salud.eulogioqt.com` y `github.com` (Ajustes de Claude → Capacidades → acceso a la red: «Todos los dominios» o añadir esos dos). Cloudflare bloquea el User-Agent de Python: `salud_remoto.py` ya manda el suyo; con `curl` usar `-A salud-remoto/1.0`.
+
 Reglas de acceso: un token = una cuenta. No intentar acceder a otras cuentas, ni pedir tokens o contraseñas de otras personas, ni entrar al servidor por SSH (eso es solo para el mantenimiento, y únicamente si el contexto personal del usuario lo indica). Las contraseñas las crea y escribe siempre el propio usuario.
 
 ## Primera vez (contexto vacío)
 
 Preguntar lo justo (de una en una o en un solo mensaje corto) y guardarlo con `S contexto-guardar --archivo notas.md`:
 - Objetivo (perder grasa / mantenimiento / ganar), kcal y proteína si ya las tiene; si no, proponerlas y fijarlas con `S api POST /api/targets '{json}'`.
-- Perfil: sexo, fecha de nacimiento, altura (Ajustes de la web o `S api PUT /api/settings '{"fecha_nacimiento":"AAAA-MM-DD","altura_cm":"170","sexo":"M"}'`).
+- Perfil: revisar `S api GET /api/settings` y corregir sexo, fecha de nacimiento, altura y peso aproximado (se usa hasta que haya pesajes): Ajustes de la web o `S api PUT /api/settings '{"fecha_nacimiento":"AAAA-MM-DD","altura_cm":"170","sexo":"M","peso_estimado_kg":"60"}'`.
 - Cómo quiere usarlo: qué apunta ella/él en la web y qué manda por el chat (capturas de Hevy, báscula, comidas fuera…), estilo de respuesta.
 Al cambiar algo del contexto: leer el actual, editarlo y guardarlo entero (sustituye al anterior).
 
