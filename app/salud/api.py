@@ -187,6 +187,13 @@ def _progress(c, q, b, s):
             "body": T.list_body(c, a, b_), "rev": rev(c)}
 
 
+@route("GET", r"/api/weights")
+def _weights(c, q, b, s):
+    """Todos los pesajes (peso del día), para interpolar el peso corporal de cualquier fecha."""
+    return [{"date": r["date"], "kg": r["weight_kg"]} for r in
+            c.execute("SELECT date, weight_kg FROM days WHERE weight_kg IS NOT NULL ORDER BY date")]
+
+
 # ---- entrenos
 @route("GET", r"/api/workouts")
 def _workouts(c, q, b, s):

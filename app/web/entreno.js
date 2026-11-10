@@ -235,47 +235,48 @@ function metricTxt(kind, v) {
 }
 
 // ------------------------------------------------------------- niveles de fuerza
-// Fuente: Strength Level (strengthlevel.com, tablas «By Bodyweight», hombre de 80 kg, consultadas el 2026-11-09).
-// Cada nivel = percentil entre los usuarios de ese peso: principiante 5 %, novato 20 %, intermedio 50 %, avanzado 80 %, élite 95 %.
-// Valores = 1RM en kg (mancuernas: por mancuerna) o reps máximas o lastre añadido (1RM). Se escalan con tu peso (× peso/80).
+// Fuente: Strength Level (strengthlevel.com), tablas «By Bodyweight» de hombre y mujer (niveles.js), consultadas el 2026-11-10.
+// Cada nivel = percentil entre los usuarios de ese sexo y peso: principiante 5 %, novato 20 %, intermedio 50 %, avanzado 80 %, élite 95 %.
+// Valores = 1RM en kg (mancuernas: por mancuerna), reps máximas o lastre 1RM. Entre filas de la tabla se interpola por peso corporal;
+// cada sesión se compara con el peso corporal de ese día (pesajes interpolados).
 // «Leyenda» = top 1 % (percentil 99), extrapolado de la curva de Strength Level (no lo publican).
 const LVL = ["Principiante", "Novato", "Intermedio", "Avanzado", "Élite", "Leyenda"];
 const PCT = [5, 20, 50, 80, 95];
 const STD = [
-  // [regex, métrica, [principiante, novato, intermedio, avanzado, élite] a 80 kg, tipos, máquina/polea]
-  [/press de banca inclinado \(barra\)/, "1rm", [50, 66, 87, 109, 134], ["peso"]],
-  [/press de banca inclinado \(mancuerna\)/, "db", [22, 29, 39, 50, 62], ["peso"]],
-  [/press de banca \(mancuerna\)/, "db", [19.5, 29, 40.4, 54, 68.9], ["peso"]],
-  [/press de banca \((barra|maquina smith)\)/, "1rm", [56, 75, 98, 124, 151], ["peso"]],
-  [/press de (banca inclinado \(maquina|pecho)/, "1rm", [39, 61, 89, 123, 160], ["peso"], true],
-  [/^aperturas \(maquina\)|aperturas inclinadas \(maquina\)|mariposa|pec deck/, "1rm", [42, 63, 89, 119, 152], ["peso"], true],
-  [/press de hombros \(mancuerna\)/, "db", [15, 22, 31, 42, 54], ["peso"]],
-  [/press de hombros/, "1rm", [29, 50, 76, 109, 145], ["peso"], true],
-  [/elevacion(es)? lateral(es)? \(mancuerna\)/, "db", [5, 10, 16, 25, 34], ["peso"]],
-  [/elevacion(es)? lateral(es)? \(maquina\)/, "1rm", [25, 41, 61, 84, 111], ["peso"], true],
-  [/jalon al pecho/, "1rm", [47, 64, 85, 108, 133], ["peso"], true],
-  [/remo sentado/, "1rm", [47, 65, 87, 112, 140], ["peso"], true],
-  [/curl de biceps \(cable\)/, "1rm", [20, 33, 51, 73, 98], ["peso"], true],
-  [/curl de biceps \(mancuerna\)/, "db", [8, 14, 22, 32, 42], ["peso"]],
-  [/curl martillo \(mancuerna\)/, "db", [11, 16, 24, 33, 42], ["peso"]],
-  [/curl predicador/, "1rm", [20, 31, 45, 61, 78], ["peso"], true],
-  [/curl con barra/, "1rm", [22, 33, 46, 63, 80], ["peso"]],
-  [/triceps con polea|jalon de triceps/, "1rm", [22, 36, 56, 80, 107], ["peso"], true],
-  [/press de piernas/, "1rm", [109, 162, 230, 309, 395], ["peso"], true],
-  [/sentadilla hack/, "1rm", [63, 102, 152, 213, 280], ["peso"], true],
-  [/extension de pierna/, "1rm", [48, 72, 103, 140, 180], ["peso"], true],
-  [/curl de pierna sentado/, "1rm", [39, 58, 83, 112, 144], ["peso"], true],
-  [/aduccion/, "1rm", [41, 67, 102, 145, 192], ["peso"], true],
-  [/abduccion/, "1rm", [38, 63, 95, 135, 179], ["peso"], true],
-  [/gemelos sentado/, "1rm", [31, 57, 93, 138, 188], ["peso"], true],
-  [/gemelos de pie/, "1rm", [49, 88, 141, 207, 282], ["peso"], true],
-  [/^dominada \(con peso/, "add", [-2, 14, 33, 54, 75], ["lastre"]],
-  [/^fondos \(con peso/, "add", [5, 26, 52, 81, 111], ["lastre"]],
-  [/^muscle up \(con peso/, "add", [-10, 1, 14, 28, 42], ["lastre"]],
-  [/^dominada$/, "reps", [1, 7, 13, 21, 29], ["corporal"]],
-  [/^fondos$/, "reps", [3, 10, 20, 31, 42], ["corporal"]],
-  [/^muscle up$/, "reps", [0.5, 2, 7, 11, 16], ["corporal"]],
-  [/^flexiones$/, "reps", [6, 20, 38, 60, 83], ["corporal"]],
+  // [regex, métrica, tabla de niveles.js (SL_TABLES), tipos, máquina/polea]
+  [/press de banca inclinado \(barra\)/, "1rm", "incline-bench-press", ["peso"]],
+  [/press de banca inclinado \(mancuerna\)/, "db", "incline-dumbbell-bench-press", ["peso"]],
+  [/press de banca \(mancuerna\)/, "db", "dumbbell-bench-press", ["peso"]],
+  [/press de banca \((barra|maquina smith)\)/, "1rm", "bench-press", ["peso"]],
+  [/press de (banca inclinado \(maquina|pecho)/, "1rm", "chest-press", ["peso"], true],
+  [/^aperturas \(maquina\)|aperturas inclinadas \(maquina\)|mariposa|pec deck/, "1rm", "machine-chest-fly", ["peso"], true],
+  [/press de hombros \(mancuerna\)/, "db", "dumbbell-shoulder-press", ["peso"]],
+  [/press de hombros/, "1rm", "machine-shoulder-press", ["peso"], true],
+  [/elevacion(es)? lateral(es)? \(mancuerna\)/, "db", "dumbbell-lateral-raise", ["peso"]],
+  [/elevacion(es)? lateral(es)? \(maquina\)/, "1rm", "machine-lateral-raise", ["peso"], true],
+  [/jalon al pecho/, "1rm", "lat-pulldown", ["peso"], true],
+  [/remo sentado/, "1rm", "seated-cable-row", ["peso"], true],
+  [/curl de biceps \(cable\)/, "1rm", "cable-bicep-curl", ["peso"], true],
+  [/curl de biceps \(mancuerna\)/, "db", "dumbbell-curl", ["peso"]],
+  [/curl martillo \(mancuerna\)/, "db", "dumbbell-hammer-curl", ["peso"]],
+  [/curl predicador/, "1rm", "preacher-curl", ["peso"], true],
+  [/curl con barra/, "1rm", "barbell-curl", ["peso"]],
+  [/triceps con polea|jalon de triceps/, "1rm", "tricep-pushdown", ["peso"], true],
+  [/press de piernas/, "1rm", "leg-press", ["peso"], true],
+  [/sentadilla hack/, "1rm", "hack-squat", ["peso"], true],
+  [/extension de pierna/, "1rm", "leg-extension", ["peso"], true],
+  [/curl de pierna sentado/, "1rm", "seated-leg-curl", ["peso"], true],
+  [/aduccion/, "1rm", "hip-adduction", ["peso"], true],
+  [/abduccion/, "1rm", "hip-abduction", ["peso"], true],
+  [/gemelos sentado/, "1rm", "seated-calf-raise", ["peso"], true],
+  [/gemelos de pie/, "1rm", "machine-calf-raise", ["peso"], true],
+  [/^dominada \(con peso/, "add", "pull-ups.add", ["lastre"]],
+  [/^fondos \(con peso/, "add", "dips.add", ["lastre"]],
+  [/^muscle up \(con peso/, "add", "muscle-ups.add", ["lastre"]],
+  [/^dominada$/, "reps", "pull-ups.reps", ["corporal"]],
+  [/^fondos$/, "reps", "dips.reps", ["corporal"]],
+  [/^muscle up$/, "reps", "muscle-ups.reps", ["corporal"]],
+  [/^flexiones$/, "reps", "push-ups.reps", ["corporal"]],
 ];
 // Percentil a partir de los cortes de Strength Level, interpolando en escala normal (z) con la carga en logaritmo.
 // Principiante 5 % · Novato 20 % · Intermedio 50 % · Avanzado 80 % · Élite 95 % · Leyenda 99 % (top 1 %, extrapolado).
@@ -289,43 +290,77 @@ function zOf(M, raw) {
   let i = 0; while (val >= A[i + 1]) i++;
   return Z[i] + (Z[i + 1] - Z[i]) * (lg(val) - lg(A[i])) / (lg(A[i + 1]) - lg(A[i]));
 }
-function exLevel(e, bw) {
-  const n = exKeyName(e.name);
-  const sd = STD.find(([rx, , , kinds]) => rx.test(n) && kinds.includes(e.kind));
-  if (!sd || !bw) return null;
-  const [, metric, base, , machine] = sd;
-  const sc = metric === "reps" ? 1 : bw / 80;
-  const ratio = loadRatio(e.name);
-  const sets = e.sessions.flatMap((x) => { const mk = machineKg(e.name, x.notes); return workSets(x.sets).map((s_) => ({ s_, mk })); });
-  let raw = null, rawSet = null;
-  for (const { s_, mk } of sets) {
-    let v = null;
-    // Lo apuntado incluye el peso de la máquina: para comparar con los estándares se usa solo lo cargado.
-    if (metric === "1rm" || metric === "db") { const w = s_.weight_kg != null ? s_.weight_kg - mk : null; v = w > 0 ? e1rm(w, s_.reps, e.name) : null; if (v != null) v *= ratio; if (v != null && metric === "db") v /= 2; }
-    else if (metric === "add") v = s_.reps && s_.weight_kg > 0 ? (bw + s_.weight_kg) / HEVY_PCT[Math.min(s_.reps, 30) - 1] - bw : null;
-    else v = s_.reps;
-    if (v != null && (raw == null || v > raw)) { raw = v; rawSet = s_; }
-  }
-  if (raw == null) return null;
+// Peso corporal en una fecha: pesajes del día; entre dos pesajes se interpola en línea recta; fuera de ellos, el más cercano.
+function bwAt(d) {
+  const W = S.weights || [];
+  if (!W.length) return null;
+  if (!d || d >= W[W.length - 1].date) return W[W.length - 1].kg;
+  if (d <= W[0].date) return W[0].kg;
+  let i = 0; while (W[i + 1].date < d) i++;
+  const A = W[i], B = W[i + 1]; if (B.date === d) return B.kg;
+  const t = (Date.parse(d) - Date.parse(A.date)) / (Date.parse(B.date) - Date.parse(A.date));
+  return A.kg + (B.kg - A.kg) * t;
+}
+function bwExact(d) { return (S.weights || []).some((w) => w.date === d); }
+const sexKey = () => (S.sex === "M" ? "M" : "H");
+const sexWord = () => (S.sex === "M" ? "mujeres" : "hombres");
+// Cortes [principiante…élite] para un peso corporal, interpolando entre filas de la tabla (fuera del rango, la fila extrema).
+function slCuts(slug, bw) {
+  const T = SL_TABLES[slug] && SL_TABLES[slug][sexKey()];
+  if (!T || !bw) return null;
+  if (bw <= T[0][0]) return T[0].slice(1);
+  if (bw >= T[T.length - 1][0]) return T[T.length - 1].slice(1);
+  let i = 0; while (T[i + 1][0] < bw) i++;
+  const t = (bw - T[i][0]) / (T[i + 1][0] - T[i][0]);
+  return T[i].slice(1).map((v, k) => v + (T[i + 1][k + 1] - v) * t);
+}
+function slModel(slug, metric, bw) {
+  const base = slCuts(slug, bw); if (!base) return null;
   // Para «lastre» se trabaja con carga total (peso corporal + lastre); para el resto, con el valor tal cual.
   const off = metric === "add" ? bw : 0;
-  const pts = base.map((x) => x * sc + off).map((x) => Math.max(0.5, x));
+  const pts = base.map((x) => Math.max(0.5, x + off));
+  for (let k = 1; k < pts.length; k++) if (pts[k] <= pts[k - 1]) pts[k] = pts[k - 1] * 1.05;
   const lg = (x) => Math.log(Math.max(0.5, x));
   const slope = (lg(pts[4]) - lg(pts[3])) / (Z[4] - Z[3]);
   const legend = Math.exp(lg(pts[4]) + slope * (Z[5] - Z[4]));
-  const all = [...pts, legend];
-  const model = { all, off, slope, metric };
-  const z = zOf(model, raw);
+  return { all: [...pts, legend], off, slope, metric };
+}
+// bw: número (peso fijo) o función fecha → peso (cada sesión con el peso de ese día).
+function exLevel(e, bw) {
+  const n = exKeyName(e.name);
+  const sd = STD.find(([rx, , , kinds]) => rx.test(n) && kinds.includes(e.kind));
+  if (!sd) return null;
+  const [, metric, slug, , machine] = sd;
+  const bwFn = typeof bw === "function" ? bw : () => bw;
+  const ratio = loadRatio(e.name);
+  let best = null;
+  for (const x of e.sessions) {
+    const b = bwFn(x.date); if (!b) continue;
+    const model = slModel(slug, metric, b); if (!model) continue;
+    const mk = machineKg(e.name, x.notes);
+    for (const s_ of workSets(x.sets)) {
+      let v = null;
+      // Lo apuntado incluye el peso de la máquina: para comparar con los estándares se usa solo lo cargado.
+      if (metric === "1rm" || metric === "db") { const w = s_.weight_kg != null ? s_.weight_kg - mk : null; v = w > 0 ? e1rm(w, s_.reps, e.name) : null; if (v != null) v *= ratio; if (v != null && metric === "db") v /= 2; }
+      else if (metric === "add") v = s_.reps && s_.weight_kg > 0 ? (b + s_.weight_kg) / HEVY_PCT[Math.min(s_.reps, 30) - 1] - b : null;
+      else v = s_.reps;
+      if (v == null) continue;
+      const z = zOf(model, v);
+      if (!best || z > best.z) best = { z, v, s_, b, model, date: x.date };
+    }
+  }
+  if (!best) return null;
+  const { z, v: raw, s_: rawSet, b: bwUsed, model } = best;
   const pct = Math.min(99.9, Math.max(0.1, PHI(z) * 100));
-  const cuts = all.slice(1).map((x) => x - off); // novato, intermedio, avanzado, élite, leyenda (en las unidades del valor)
+  const cuts = model.all.slice(1).map((x) => x - model.off); // novato, intermedio, avanzado, élite, leyenda (en las unidades del valor)
   let idx = 0; while (idx < cuts.length && raw >= cuts[idx]) idx++;
   const lo = idx ? cuts[idx - 1] : 0, hi = cuts[idx];
   const frac = hi == null ? 1 : Math.max(0, Math.min(1, (raw - lo) / (hi - lo)));
   const need = hi == null ? null : `${metric === "reps" ? "+" + Math.ceil(hi - raw) + " reps" : "+" + fmt(Math.max(1, hi - raw)) + " kg de 1RM" + (metric === "db" ? " por mancuerna" : "")} para ${LVL[idx + 1]}`;
   const valTxt = metric === "1rm" ? `1RM ≈ ${fmt(raw)} kg` + (ratio !== 1 ? ` (polea × ${fmt(ratio, 2)})` : "") : metric === "db" ? `1RM ≈ ${fmt(raw)} kg por mancuerna (${fmt(raw * 2)} kg las dos)`
     : metric === "add" ? `lastre 1RM ≈ +${fmt(raw)} kg` : `${raw} reps seguidas`;
-  const cutsTxt = `Cortes para ${fmt(bw, 1)} kg: ` + cuts.map((x, i) => `${LVL[i + 1]} ${metric === "reps" ? Math.round(x) : (metric === "add" && x > 0 ? "+" : "") + fmt(x)}`).join(" · ");
-  return { idx, frac, score: idx + frac, raw, pct, z, metric, need, valTxt, cutsTxt, cuts, rawSet, machine: !!machine, solid: !machine, model, bw, name: e.name };
+  const cutsTxt = `Cortes para ${sexWord()} de ${fmt(bwUsed, 1)} kg: ` + cuts.map((x, i) => `${LVL[i + 1]} ${metric === "reps" ? Math.round(x) : (metric === "add" && x > 0 ? "+" : "") + fmt(x)}`).join(" · ");
+  return { idx, frac, score: idx + frac, raw, pct, z, metric, need, valTxt, cutsTxt, cuts, rawSet, machine: !!machine, solid: !machine, model, bw: bwUsed, date: best.date, name: e.name };
 }
 // Paleta de rangos: cobre → plata → oro → esmeralda → diamante → mítico
 const TIER = [["Principiante", "Cobre", ["#e0a070", "#9c5a2c", "#6e3a17"]], ["Novato", "Plata", ["#f1f4f8", "#aab4bf", "#6f7a86"]],
@@ -360,7 +395,7 @@ function lvlBadge(idx, size = 30) {
 function lvlPill(L) {
   if (!L) return null;
   const u = L.metric === "reps" ? " reps" : " kg", sg = (x) => (L.metric === "add" && x > 0 ? "+" : "") + fmt(x) + u;
-  const lines = [`${LVL[L.idx]} · ${TIER[L.idx][1]} · ${topTxt(L.pct)}`, `Más fuerte que el ${fmt(L.pct)} % de los hombres de ${fmt(L.bw, 1)} kg`,
+  const lines = [`${LVL[L.idx]} · ${TIER[L.idx][1]} · ${topTxt(L.pct)}`, `Más fuerte que el ${fmt(L.pct)} % de los ${sexWord()} de ${fmt(L.bw, 1)} kg` + (L.date ? ` (tu peso el ${dateLabel(L.date, { day: "numeric", month: "short" })})` : ""),
     "## Tu marca", L.valTxt, L.need ? "Siguiente | " + L.need.replace(/ para .*/, "") + " → " + LVL[L.idx + 1] : "Rango máximo",
     "## Cortes", ...L.cuts.map((c, i) => `${LVL[i + 1]} | ${sg(c)}`)];
   if (L.machine) lines.push("## Ojo", "Máquina/polea: orientativo");
@@ -422,7 +457,7 @@ function trainingStats(ws, bw) {
     }
   }
   const list = Object.values(exs);
-  for (const e of list) e.level = exLevel(e, bw);
+  for (const e of list) e.level = exLevel(e, bwAt);
   // racha: semanas seguidas (la actual cuenta si ya hay entreno; si no, se mira desde la anterior)
   const weeksWith = new Set(ws.map((w) => mondayOf(w.date)));
   let streak = 0, wk = mondayOf(todayISO());
@@ -557,7 +592,7 @@ function viewTraining() {
     h("button", { class: "btn sm ghost", onclick: () => importCsv() }, "Importar de Hevy"));
   if (!ws.length) return h("div", { class: "training" }, head, h("div", { class: "card empty" }, icon("dumbbell"), h("h3", null, "Aún no hay entrenos"),
     h("p", { class: "muted" }, "Dime «entreno hecho» por el chat y lo traigo de Hevy, o importa el CSV de Hevy.")));
-  const st = S.tStats && S.tStats._src === ws && S.tStats._bw === S.bw && S.tStats._set === S.exSet ? S.tStats : (S.tStats = Object.assign(trainingStats(ws, S.bw), { _src: ws, _bw: S.bw, _set: S.exSet }));
+  const st = S.tStats && S.tStats._src === ws && S.tStats._bw === S.weights && S.tStats._set === S.exSet ? S.tStats : (S.tStats = Object.assign(trainingStats(ws, S.bw), { _src: ws, _bw: S.weights, _set: S.exSet }));
   const tabs = h("div", { class: "seg tabs2" }, [["resumen", "Resumen"], ["historial", "Historial"], ["ejercicios", "Ejercicios"], ["records", "Récords"], ["nivel", "Nivel"]]
     .map(([k, l]) => h("button", { class: S.tTab === k ? "on" : "", onclick: () => { S.tTab = k; render(); } }, l)));
   const body = { resumen: tResumen, historial: tHistorial, ejercicios: tEjercicios, records: tRecords, nivel: tNivel }[S.tTab](st, ws);
@@ -724,7 +759,7 @@ function lvAgg(L) {
   return { pct, idx: zToIdx(pct) };
 }
 function tNivel(st) {
-  if (!S.bw) return h("div", { class: "card panel muted" }, "Para calcular niveles hace falta tu peso: apúntalo en Progreso → Báscula.");
+  if (!S.bw) return h("div", { class: "card panel muted" }, "Para calcular niveles hace falta tu peso: apúntalo en Hoy (o la báscula en Progreso) y tu sexo en Ajustes.");
   const xs = st.list.filter((e) => e.level).sort((a, b) => b.level.pct - a.level.pct);
   if (!xs.length) return h("div", { class: "card panel muted" }, "Aún no hay ejercicios con estándares.");
   const G = lvAgg(xs);
@@ -756,17 +791,23 @@ function tNivel(st) {
       h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, h("span", null, e.name)), h("div", { class: "exr-s" }, e.level.valTxt), lvlBar(e.level)),
       h("div", { class: "exr-v" }, h("div", { class: "lvr click", onclick: (ev) => { ev.stopPropagation(); levelSheet(e.name, e.level); } }, lvlBadge(e.level.idx, 20), lvlPill(e.level)), h("span", null, topTxt(e.level.pct)))))
       : h("div", { class: "muted" }, "Nada con estos filtros."))),
-    h("div", { class: "note" }, `Fuente: Strength Level (strengthlevel.com), hombres de tu peso (${fmt(S.bw, 1)} kg, pesaje del ${dateLabel(S.bwDate, { day: "numeric", month: "short" })}); se actualiza solo cada vez que te pesas. Niveles por percentil: Novato 20 %, Intermedio 50 %, Avanzado 80 %, Élite 95 % (top 5 %), Leyenda 99 % (top 1 %, extrapolado). Se compara tu mejor 1RM estimado con la tabla de Hevy, tus reps máximas o tu lastre. Mancuernas: entre dos. Poleas que pesan la mitad: × 0,5. Máquinas (etiqueta punteada): orientativo.`));
+    h("div", { class: "note" }, `Fuente: Strength Level (strengthlevel.com), tablas de ${sexWord()} por peso corporal. Cada entreno se compara con tu peso de ese día (pesajes; los días sin pesaje se interpolan entre el anterior y el siguiente). Último pesaje: ${fmt(S.bw, 1)} kg (${dateLabel(S.bwDate, { day: "numeric", month: "short" })}). Niveles por percentil: Novato 20 %, Intermedio 50 %, Avanzado 80 %, Élite 95 % (top 5 %), Leyenda 99 % (top 1 %, extrapolado). Se compara tu mejor 1RM estimado con la tabla de Hevy, tus reps máximas o tu lastre. Mancuernas: entre dos. Poleas que pesan la mitad: × 0,5. Máquinas (etiqueta punteada): orientativo.`));
 }
 
 // ------------------------------------------------------------- hojas
 const PR_SHORT = { e1: "1RM", w: "Peso", sv: "Volumen", vol: "Vol. sesión", reps: "Reps", sreps: "Reps sesión", secs: "Tiempo", stime: "Tiempo sesión", dist: "Distancia" };
 async function ensureTrainingMeta() {
-  if (S.bw === undefined || S.exSet === undefined) {
-    const [body, set] = await Promise.all([api("GET", "/api/body").catch(() => []), api("GET", "/api/exercise-settings").catch(() => ({}))]);
-    const lastB = [...(body || [])].filter((b) => b.weight_kg).sort((a, b) => (b.date + (b.time || "")).localeCompare(a.date + (a.time || "")))[0];
-    S.bw = lastB ? lastB.weight_kg : null; S.bwDate = lastB ? lastB.date : null; S.exSet = set;
-  }
+  if (S.weights === undefined || S.exSet === undefined) await loadBodyMeta();
+}
+// Pesajes (para el peso de cada día), sexo (tablas de niveles) y ajustes por ejercicio.
+async function loadBodyMeta() {
+  const [ws, st, set] = await Promise.all([api("GET", "/api/weights").catch(() => []), api("GET", "/api/settings").catch(() => ({})),
+    api("GET", "/api/exercise-settings").catch(() => ({}))]);
+  S.weights = (ws || []).filter((w) => w.kg).sort((a, b) => a.date.localeCompare(b.date));
+  const last = S.weights[S.weights.length - 1];
+  S.bw = last ? last.kg : null; S.bwDate = last ? last.date : null;
+  const sx = ((st.settings || st).sexo || "").toUpperCase().slice(0, 1); S.sex = sx === "M" ? "M" : sx === "H" ? "H" : "";
+  S.exSet = set;
 }
 function prChips(prs) {
   if (!prs || !prs.length) return null;
@@ -841,10 +882,10 @@ function levelSheet(name, L) {
   });
   sheet("Nivel · " + name, [
     h("div", { class: "lvhero mini" }, h("div", { class: "lvh-b" }, lvlBadge(L.idx, 54)), h("div", { class: "lvh-t" }, h("b", { class: "tn t" + L.idx }, LVL[L.idx]),
-      h("span", { class: "muted" }, `${topTxt(L.pct)} · más fuerte que el ${fmt(L.pct)} % de los hombres de ${fmt(L.bw, 1)} kg`), h("span", { class: "faint" }, L.valTxt + (L.need ? " · " + L.need : "")))),
+      h("span", { class: "muted" }, `${topTxt(L.pct)} · más fuerte que el ${fmt(L.pct)} % de los ${sexWord()} de ${fmt(L.bw, 1)} kg` + (L.date ? ` (tu peso el ${dateLabel(L.date, { day: "numeric", month: "short" })})` : "")), h("span", { class: "faint" }, L.valTxt + (L.need ? " · " + L.need : "")))),
     h("div", { class: "card panel flat" }, h("h3", null, L.metric === "reps" ? "Reps máximas → percentil" : L.metric === "add" ? "Lastre (1RM) → percentil" : "1RM → percentil"), svg),
     h("table", { class: "t lvtable" }, h("tr", null, h("th", null, "Rango"), h("th", { class: "r" }, L.metric === "reps" ? "Reps" : "1RM"), h("th", { class: "r" }, "Percentil"), h("th", { class: "r" }, "Te falta")), rows),
-    h("div", { class: "note" }, "Strength Level publica los cortes de principiante a élite para hombres de tu peso; la curva entre ellos y el corte de Leyenda (top 1 %) están interpolados. " + (L.machine ? "En máquinas y poleas es orientativo." : "")),
+    h("div", { class: "note" }, "Strength Level publica los cortes de principiante a élite para " + sexWord() + " de cada peso corporal; la curva entre ellos y el corte de Leyenda (top 1 %) están interpolados. " + (L.machine ? "En máquinas y poleas es orientativo." : "")),
   ], null, { wide: true });
 }
 
@@ -870,7 +911,7 @@ async function workoutSheet(id) {
         cols.map(([, f]) => h("td", { class: "r num" }, f(st))), hasRpe ? h("td", { class: "r num faint" }, st.rpe ? "RPE " + fmt(st.rpe, 1) : "") : null);
     });
     const e1 = ex.kind === "peso" ? Math.max(0, ...workSets(ex.sets).map((s_) => e1rm(s_.weight_kg, s_.reps, ex.name) || 0)) : 0;
-    const L = exLevel({ name: ex.name, kind: ex.kind, sessions: [{ sets: ex.sets, notes: ex.notes }] }, S.bw);
+    const L = exLevel({ name: ex.name, kind: ex.kind, sessions: [{ date: w.date, sets: ex.sets, notes: ex.notes }] }, bwAt);
     return h("div", { class: "exb" },
       h("div", { class: "exb-h v2" }, exIcon(ex.name, 40),
         h("div", { class: "exb-tt" },
@@ -900,7 +941,8 @@ async function workoutSheet(id) {
     h("span", { class: "grow" }), w.activity_id ? h("button", { class: "btn", onclick: () => { sh.close(); goDay(w.date); } }, "Ver día") : null],
   { big: true, desc: w.notes || "", titleExtra: [
     nPR ? tip(h("span", { class: "prc lg" }, icon("trophy"), `${nPR} ${nPR === 1 ? "récord" : "récords"}`), w.exercises.filter((ex) => ex.prs && ex.prs.length).map((ex) => `${ex.name}: ${ex.prs.map((t) => PR_SHORT[t]).join(", ")}`).join("\n")) : null,
-    h("span", { class: "datec" }, dateLabel(w.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) + (w.start_time ? " · " + w.start_time : ""))] });
+    h("span", { class: "datec" }, dateLabel(w.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) + (w.start_time ? " · " + w.start_time : "")),
+    bwAt(w.date) ? tip(h("span", { class: "datec" }, `${fmt(bwAt(w.date), 1)} kg`), bwExact(w.date) ? "Tu peso ese día (pesaje)" : "Tu peso ese día (interpolado entre pesajes)") : null] });
 }
 
 // Ajustes del ejercicio: material, peso de la máquina, polea que pesa la mitad y si es a un brazo.
@@ -987,7 +1029,7 @@ async function exerciseSheet(name) {
       tip(h("div", { class: "rm" }, h("span", null, r + " rep" + (r > 1 ? "s" : "")), h("b", { class: "num" }, (kind === "lastre" ? "+" : "") + fmt(x.w, 1)), h("em", null, dateLabel(x.date, { day: "numeric", month: "short" }))),
         kind === "peso" ? `${r} × ${fmt(x.w, 1)} kg → 1RM ≈ ${fmt(e1rm(x.w, +r, name))} kg` : null)))) : null,
     h("div", { class: "sec-t" }, "Historial"),
-    h("div", { class: "hist" }, hist.map((e2) => { const L2 = exLevel({ name: e2.name, kind: e2.kind, sessions: [{ sets: e2.sets, notes: e2.notes }] }, S.bw); return h("div", { class: "hrow", onclick: () => workoutSheet(e2.workout_id) },
+    h("div", { class: "hist" }, hist.map((e2) => { const L2 = exLevel({ name: e2.name, kind: e2.kind, sessions: [{ date: e2.date, sets: e2.sets, notes: e2.notes }] }, bwAt); return h("div", { class: "hrow", onclick: () => workoutSheet(e2.workout_id) },
       h("div", { class: "hd" }, h("b", null, dateLabel(e2.date, { day: "numeric", month: "short", year: e2.date.slice(0, 4) === todayISO().slice(0, 4) ? undefined : "2-digit" })), h("span", null, e2.title), L2 ? lvlInline(L2, 16, { name: e2.name, kind: e2.kind }) : null),
       h("div", { class: "hs" }, e2.sets.map((s_) => h("span", { class: "hset " + s_.type }, setShort(e2.kind, s_)))),
       h("div", { class: "hv num" }, (() => { const r = recsOf(e2.kind, e2.sets, e2.name)[types[0]]; return r ? recTxt(types[0], r.v, kind) : "—"; })())); })),

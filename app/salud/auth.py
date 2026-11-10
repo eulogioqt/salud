@@ -138,8 +138,18 @@ def new_api_token(base, username):
         if username not in users:
             raise AuthError("No existe la cuenta")
         users[username]["api_token"] = hashlib.sha256(token.encode()).hexdigest()
+        users[username]["api_token_at"] = time.strftime("%Y-%m-%d %H:%M")
         _write(users_path(base), users)
     return token
+
+
+def revoke_api_token(base, username):
+    with _LOCK:
+        users = list_users(base)
+        if username in users:
+            users[username].pop("api_token", None)
+            users[username].pop("api_token_at", None)
+            _write(users_path(base), users)
 
 
 def token_user(base, token):

@@ -6,11 +6,11 @@ Seguimiento de nutrición, peso y entrenamiento (estilo Hevy) para uso personal,
 - **Claude**: cada persona usa su propio Claude con un token personal (`app/salud_remoto.py`), que solo da acceso a su cuenta. Funciona también desde el entorno en la nube de Claude, con el ordenador apagado. Instrucciones en `CLAUDE.md`.
 - **Datos**: solo en el servidor (SQLite por usuario + fotos + contexto personal). Este repositorio no contiene datos personales.
 
-## Para usarlo con Claude
+## Para usarlo con Claude (u otra IA)
 
-1. En la web, pide a quien administra el servidor un token (`salud usuario-token <usuario>`).
-2. Dile a Claude: «Lee https://github.com/eulogioqt/salud/blob/main/CLAUDE.md y úsalo con mi token sal_…». Claude clona el repo, guarda el token y lee tu contexto personal.
-3. Para actualizar: Claude hace `git pull` al empezar.
+1. Entra en la web → **Ajustes → Conectar con Claude** → «Generar token» → «Copiar mensaje».
+2. Pégalo en Claude (Cowork, Claude Code…) o, mejor, en tus instrucciones personales de Claude para que valga en todas las conversaciones. Claude clona este repo, guarda el token, lee tu contexto y, la primera vez, te pregunta tus objetivos.
+3. Funciona con cualquier agente que pueda ejecutar Python con acceso a internet (`AGENTS.md`). El token solo da acceso a tu cuenta; si lo pierdes, genera otro en la web (el anterior deja de valer).
 
 ## Código
 

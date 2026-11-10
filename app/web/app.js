@@ -79,10 +79,7 @@ async function refresh() {
   if (S.view === "hoy") await Promise.all([loadDay(), loadCatalog()]);
   else if (S.view === "biblioteca") await loadCatalog();
   else if (S.view === "entreno") {
-    let body;
-    [S.training, body, S.exSet] = await Promise.all([api("GET", "/api/workouts?limit=5000"), api("GET", "/api/body").catch(() => []), api("GET", "/api/exercise-settings").catch(() => ({}))]);
-    const lastB = [...(body || [])].filter((b) => b.weight_kg).sort((a, b) => (b.date + (b.time || "")).localeCompare(a.date + (a.time || "")))[0];
-    S.bw = lastB ? lastB.weight_kg : null; S.bwDate = lastB ? lastB.date : null;
+    [S.training] = await Promise.all([api("GET", "/api/workouts?limit=5000"), loadBodyMeta()]);
   }
   else if (S.view === "progreso") S.progress = await api("GET", `/api/progress?days=${S.progDays}&weeks=12`);
   const r = await api("GET", "/api/rev"); S.rev = r.rev;
@@ -258,7 +255,8 @@ function summaryCard(st) {
 function energyTable(en, balance) {
   const r = (a, b, c) => h("tr", null, h("td", null, a, c ? h("span", { class: "faint" }, " · " + c) : null), h("td", { class: "num" }, b));
   return h("div", { class: "energy" }, h("table", null,
-    r("Metabolismo basal (BMR)", fmt(en.bmr), `${fmt(en.weight_used_kg, 1)} kg, ${en.weight_source}`),
+    (en.missing_profile || []).length ? r("Metabolismo basal (BMR)", h("span", { class: "miss" }, "falta"), "completa en Ajustes: " + en.missing_profile.join(", "))
+      : r("Metabolismo basal (BMR)", fmt(en.bmr), `${fmt(en.weight_used_kg, 1)} kg, ${en.weight_source}`),
     r("Efecto térmico (TEF)", fmt(en.tef), "10 % de lo ingerido"),
     r("NEAT sin pasos", fmt(en.neat), en.neat_source),
     r("Pasos", en.steps_kcal == null ? h("span", { class: "miss" }, "falta") : fmt(en.steps_kcal),
@@ -1134,7 +1132,7 @@ function viewProgress() {
       kpi("Media 7 días", lastAvg ? fmt(lastAvg.avg7, 2) + " kg" : "—", prevAvg && prevAvg.avg7 != null ? signed(lastAvg.avg7 - prevAvg.avg7, 2) + " kg vs semana anterior" : ""),
       kpi("Ingesta media 7 d", avgK != null ? fmt(avgK) + " kcal" : "—", avgP != null ? `P ${fmt(avgP)} g · ${logged7.length} días` : ""),
       kpi("Mantenimiento observado", cal.ready ? fmt(cal.observed_maintenance) + " kcal" : "—", cal.ready ? `tendencia ${signed(cal.slope_kg_week, 2)} kg/sem · modelo ${fmt(cal.model_tdee_avg)}` : "faltan datos (≥14 días)")),
-    h("div", { class: "card panel" }, h("h3", null, "Peso", h("span", { class: "faint", style: { fontWeight: 400 } }, " · puntos: pesajes · línea: media móvil 7 días")), weightChart(ws)),
+    h("div", { class: "card panel" }, h("h3", null, "Peso", h("span", { class: "faint", style: { fontWeight: 400 } }, " · puntos: pesajes (huecos: interpolados) · línea gruesa: media móvil 7 días")), h("div", { class: "faint", style: { fontSize: "12.5px", marginTop: "-4px" } }, "Pésate siempre igual: al levantarte, después de ir al baño, antes de comer o beber y con la misma ropa (o sin ella)"), weightChart(ws)),
     bodyPanel(P.body || []),
     h("div", { class: "card panel" }, h("h3", null, "Semanas"), weeksTable(P.weeks)),
     h("div", { class: "card panel" }, h("h3", null, "Días"), daysTable(P.history)));
@@ -1156,9 +1154,16 @@ function weightChart(ws) {
     const t = el("text", { x: L - 6, y: y(g) + 4, "text-anchor": "end", class: "axis" }); t.textContent = fmt(g, 1); svg.append(t);
   }
   const ticks = Math.min(6, n); for (let k = 0; k < ticks; k++) { const i = Math.round((k * (n - 1)) / Math.max(1, ticks - 1)); const t = el("text", { x: x(i), y: H - 6, "text-anchor": k === 0 ? "start" : k === ticks - 1 ? "end" : "middle", class: "axis" }); t.textContent = dateLabel(ws[i].date, { day: "numeric", month: "short" }); svg.append(t); }
+  // Curva de peso: pesajes unidos; los días sin pesaje entre dos pesajes se interpolan en línea recta.
+  let dc = ""; ws.forEach((w, i) => { const v = w.weight_kg ?? w.interp; if (v != null) dc += (dc ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1); else dc += ""; });
+  if (dc) svg.append(el("path", { d: dc, class: "wline", "vector-effect": "non-scaling-stroke" }));
   let d = ""; ws.forEach((w, i) => { if (w.avg7 != null) d += (d ? "L" : "M") + x(i).toFixed(1) + " " + y(w.avg7).toFixed(1); });
   if (d) svg.append(el("path", { d, class: "avg", "vector-effect": "non-scaling-stroke" }));
-  ws.forEach((w, i) => { if (w.weight_kg != null) { const c = el("circle", { cx: x(i), cy: y(w.weight_kg), r: 3.2, class: "pt" }); const tt = el("title", {}); tt.textContent = `${w.date}: ${fmt(w.weight_kg, 1)} kg`; c.append(tt); svg.append(c); } });
+  ws.forEach((w, i) => {
+    const v = w.weight_kg ?? w.interp; if (v == null) return;
+    const c = el("circle", { cx: x(i), cy: y(v), r: w.weight_kg != null ? 3.2 : 2, class: w.weight_kg != null ? "pt" : "ipt" });
+    const tt = el("title", {}); tt.textContent = `${w.date}: ${fmt(v, 1)} kg` + (w.weight_kg != null ? "" : " (interpolado)"); c.append(tt); svg.append(c);
+  });
   return svg;
 }
 
@@ -1210,6 +1215,33 @@ function hevyBox() {
   return box;
 }
 
+// Token personal para que Claude (o cualquier agente que pueda ejecutar código) use tu cuenta, con el mensaje listo para pegar.
+function aiBox() {
+  const box = h("div");
+  const copy = async (txt) => { try { await navigator.clipboard.writeText(txt); toast("Copiado"); } catch (e) { toast("No se pudo copiar: selecciónalo y cópialo a mano", { error: true }); } };
+  const prompt = (tok) => `Quiero que lleves mi seguimiento de salud (comida, peso y entrenos) en ${location.origin}.\n` +
+    `1. Clona https://github.com/eulogioqt/salud (o haz git pull si ya lo tienes) y sigue sus instrucciones: CLAUDE.md.\n` +
+    `2. Mi token personal: ${tok}\n   Guárdalo con: python3 app/salud_remoto.py login ${tok}   (no lo repitas en tus respuestas)\n` +
+    `3. Lee mi contexto: python3 app/salud_remoto.py contexto  — si está vacío, pregúntame lo necesario y guárdalo.`;
+  const draw = async (newTok) => {
+    const info = await api("GET", "/api/token").catch(() => ({}));
+    const gen = async () => {
+      if (info.has_token && !confirm("Se creará un token nuevo y el anterior dejará de funcionar. ¿Seguir?")) return;
+      const r = await api("POST", "/api/token", {}); draw(r.token);
+    };
+    box.replaceChildren(
+      newTok ? h("div", null,
+        h("div", { class: "note" }, "Copia este mensaje y pégalo en Claude (Cowork, Claude Code…) o en tus instrucciones personales de Claude para no tener que pegarlo cada vez. El token solo se muestra ahora."),
+        h("textarea", { class: "input", rows: 7, readonly: true, style: { fontFamily: "ui-monospace, monospace", fontSize: "12.5px" }, onclick: (e) => e.target.select() }, prompt(newTok)),
+        h("div", { class: "row", style: { marginTop: "8px", justifyContent: "flex-end" } }, h("button", { class: "btn", onclick: () => copy(newTok) }, "Copiar solo el token"), h("button", { class: "btn primary", onclick: () => copy(prompt(newTok)) }, "Copiar mensaje")))
+      : h("div", { class: "row" }, h("span", { class: "grow muted" }, info.has_token ? `Tienes un token activo${info.created_at ? " (creado " + info.created_at + ")" : ""}.` : "Tu IA usará un token personal: solo da acceso a tu cuenta."),
+          info.has_token ? h("button", { class: "btn", onclick: async () => { if (!confirm("¿Desactivar el token? Tu IA dejará de tener acceso.")) return; await api("DELETE", "/api/token"); draw(); } }, "Desactivar") : null,
+          h("button", { class: "btn primary", onclick: gen }, info.has_token ? "Generar uno nuevo" : "Generar token")));
+  };
+  draw();
+  return box;
+}
+
 async function settingsSheet() {
   const data = await api("GET", "/api/settings");
   const tg = data.current_target || {}, st = data.settings;
@@ -1233,7 +1265,7 @@ async function settingsSheet() {
     h("div", { class: "sec-t" }, "Perfil para el gasto estimado"),
     h("div", { class: "grid4" }, prof.map(([k, l, inp]) => h("div", null, h("label", { class: "f" }, l), inp))),
     h("div", { class: "row", style: { marginTop: "8px", justifyContent: "flex-end" } }, h("button", { class: "btn", onclick: async () => {
-      const body = {}; for (const [k, , inp] of prof) body[k] = k === "sexo" ? inp.value.trim().toUpperCase() : k === "fecha_nacimiento" ? inp.value : String(parseNum(inp.value));
+      const body = {}; for (const [k, , inp] of prof) body[k] = k === "sexo" ? inp.value.trim().toUpperCase() : k === "fecha_nacimiento" ? inp.value : (parseNum(inp.value) == null ? "" : String(parseNum(inp.value)));
       await act(() => api("PUT", "/api/settings", body), "Perfil guardado"); sh.close();
     } }, "Guardar perfil")),
     h("div", { class: "sec-t" }, "Datos"),
@@ -1243,6 +1275,8 @@ async function settingsSheet() {
     S.me ? h("div", { class: "sec-t" }, "Cuenta") : null,
     S.me ? h("div", { class: "row" }, h("span", null, "Sesión iniciada como ", h("b", null, S.me.nombre || S.me.usuario)), h("span", { class: "grow" }),
       h("button", { class: "btn", onclick: async () => { await api("POST", "/api/logout", {}); location.href = "/login"; } }, "Cerrar sesión")) : null,
+    S.me ? h("div", { class: "sec-t" }, "Conectar con Claude (u otra IA)") : null,
+    S.me ? aiBox() : null,
   ], null, { wide: true });
 }
 // Menú de cuenta (arriba a la derecha): nombre, Ajustes y Cerrar sesión

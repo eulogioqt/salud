@@ -13,7 +13,7 @@ import re
 import sqlite3
 import unicodedata
 import zipfile
-from datetime import timedelta
+from datetime import date, timedelta
 
 from . import nutrition as N
 from .db import (BACKUP_DIR, DEFAULT_DB, EXPORT_DIR, ClosedDayError, NotFound, ValidationError,
@@ -38,11 +38,11 @@ MET = {
 STEP_TYPES = ("carrera", "hyrox", "caminata")  # sesiones cuyos pasos suele contar el móvil/reloj
 
 DEFAULT_SETTINGS = {
-    "sexo": ("H", "H/M para Mifflin-St Jeor"),
-    "altura_cm": ("175", "Aproximada; pendiente de confirmar"),
-    "edad": ("30", "Solo si no hay fecha de nacimiento"),
+    "sexo": ("", "H/M para Mifflin-St Jeor y los niveles de fuerza"),
+    "altura_cm": ("", "cm"),
+    "edad": ("", "Solo si no hay fecha de nacimiento"),
     "fecha_nacimiento": ("", "AAAA-MM-DD; la edad se calcula sola cada día"),
-    "peso_estimado_kg": ("75", "Solo si no hay pesajes reales recientes"),
+    "peso_estimado_kg": ("", "Solo si no hay pesajes reales recientes"),
     "neat_base_kcal": ("150", "NEAT no procedente de pasos (en casa normal 100–200)"),
     "kcal_por_kg_km": ("0.5", "Coste NETO de caminar sobre reposo"),
     "factor_zancada": ("0.415", "Zancada = altura × factor"),
@@ -111,7 +111,13 @@ def update_settings(conn, data, source="web"):
             if k == "fecha_nacimiento":
                 if v and not re.match(r"^\d{4}-\d{2}-\d{2}$", str(v)):
                     raise ValidationError("Fecha de nacimiento: formato AAAA-MM-DD")
-            elif k != "sexo":
+            elif k == "sexo":
+                v = str(v or "").strip().upper()[:1]
+                if v not in ("", "H", "M"):
+                    raise ValidationError("Sexo: H (hombre) o M (mujer)")
+            elif k in ("altura_cm", "edad", "peso_estimado_kg") and v in (None, ""):
+                v = ""
+            else:
                 _num(v, k, 0, 10000, allow_none=False)
             conn.execute("INSERT INTO settings(key,value,updated_at) VALUES(?,?,?) "
                          "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
@@ -126,7 +132,7 @@ def age_on(s, d):
         y, m, dd = map(int, fn.split("-"))
         Y, M, D = map(int, str(d)[:10].split("-"))
         return Y - y - ((M, D) < (m, dd))
-    return float(s["edad"])
+    return float(s["edad"]) if s.get("edad") not in (None, "") else None
 
 
 def get_setting(conn, key, default=None):
@@ -801,7 +807,12 @@ def weight_for_energy(conn, d, s):
                      "ORDER BY date DESC LIMIT 1", (d, shift(d, -30))).fetchone()
     if r:
         return r["weight_kg"], "último pesaje (%s)" % r["date"], True
-    return float(s["peso_estimado_kg"]), "peso estimado de perfil (sin pesajes)", False
+    r = conn.execute("SELECT date, weight_kg FROM days WHERE weight_kg IS NOT NULL AND date<? ORDER BY date DESC LIMIT 1", (d,)).fetchone()
+    if r:
+        return r["weight_kg"], "último pesaje (%s)" % r["date"], True
+    if s.get("peso_estimado_kg") not in (None, ""):
+        return float(s["peso_estimado_kg"]), "peso estimado de perfil (sin pesajes)", False
+    return None, "sin pesajes ni peso estimado", False
 
 
 def activity_kcal(a, kg):
@@ -821,31 +832,34 @@ def energy(conn, d, intake_kcal=None, day=None, acts=None):
     day = day or get_day_row(conn, d)
     acts = acts if acts is not None else day_activities(conn, d)
     kg, ksrc, measured = weight_for_energy(conn, d, s)
-    h, age = float(s["altura_cm"]), age_on(s, d)
-    bmr = 10 * kg + 6.25 * h - 5 * age + (5 if s["sexo"].upper().startswith("H") else -161)
+    h = float(s["altura_cm"]) if s.get("altura_cm") not in (None, "") else None
+    age, sex = age_on(s, d), (s.get("sexo") or "").upper()[:1]
+    missing = [n for n, v in (("peso", kg), ("altura", h), ("edad o fecha de nacimiento", age), ("sexo", sex if sex in ("H", "M") else None)) if v is None]
+    bmr = None if missing else 10 * kg + 6.25 * h - 5 * age + (5 if sex == "H" else -161)
     tef = float(s["tef_pct"]) * (intake_kcal or 0)
     neat = day["neat_kcal"] if day["neat_kcal"] is not None else float(s["neat_base_kcal"])
-    stride_m = h * float(s["factor_zancada"]) / 100
+    stride_m = (h or 170) * float(s["factor_zancada"]) / 100
     steps_in_acts = sum(a["steps_in_activity"] or 0 for a in acts)
-    if day["steps"] is None:
+    if day["steps"] is None or kg is None:
         steps_kcal, eff_steps = None, None
     else:
         eff_steps = max(0, day["steps"] - steps_in_acts)
         steps_kcal = eff_steps * stride_m / 1000 * kg * float(s["kcal_por_kg_km"])
     ex = []
     for a in acts:
-        k, src = activity_kcal(a, kg)
+        k, src = activity_kcal(a, kg) if kg is not None or a["kcal_net"] is not None else (0, "falta el peso")
         ex.append({"id": a["id"], "type": a["type"], "kcal": round(k), "source": src})
     ex_total = sum(x["kcal"] for x in ex)
-    total = bmr + tef + neat + (steps_kcal or 0) + ex_total
+    total = None if bmr is None else bmr + tef + neat + (steps_kcal or 0) + ex_total
     return {
-        "weight_used_kg": round(kg, 2), "weight_source": ksrc, "weight_measured": measured,
-        "bmr": round(bmr), "tef": round(tef), "neat": round(neat),
+        "weight_used_kg": None if kg is None else round(kg, 2), "weight_source": ksrc, "weight_measured": measured,
+        "missing_profile": missing,
+        "bmr": None if bmr is None else round(bmr), "tef": round(tef), "neat": round(neat),
         "neat_source": "día" if day["neat_kcal"] is not None else "ajuste base",
         "steps": day["steps"], "steps_effective": eff_steps, "steps_in_activities": steps_in_acts,
         "steps_kcal": None if steps_kcal is None else round(steps_kcal),
         "exercise": ex, "exercise_kcal": round(ex_total),
-        "total": round(total), "complete": steps_kcal is not None,
+        "total": None if total is None else round(total), "complete": steps_kcal is not None and bmr is not None,
         "stride_m": round(stride_m, 3), "kcal_per_kg_km": float(s["kcal_por_kg_km"]),
         "method": "Mifflin-St Jeor + TEF %.0f %% + NEAT + pasos netos (%.2f kcal/kg/km, zancada %.2f m) + ejercicio neto (MET−1)"
                   % (float(s["tef_pct"]) * 100, float(s["kcal_por_kg_km"]), stride_m),
@@ -878,7 +892,7 @@ def day_state(conn, d=None):
     return {
         "date": d, "today": today(), "day": day, "status": day["status"], "meals": meals,
         "totals": N.rounded(totals), "target": tgt, "energy": en,
-        "balance": None if totals["kcal"] is None else round(totals["kcal"] - en["total"]),
+        "balance": None if totals["kcal"] is None or en["total"] is None else round(totals["kcal"] - en["total"]),
         "activities": acts, "avg7": None if a7 is None else round(a7, 2), "avg7_n": n7,
         "entry_count": len(entries), "closure": closure, "closure_count": n_closures, "rev": rev(conn),
     }
@@ -1110,13 +1124,30 @@ def calibration(conn, days=28):
     return res
 
 
+def weight_at(allw, d):
+    """Peso de una fecha entre dos pesajes (interpolación lineal). None fuera del primer/último pesaje."""
+    ks = sorted(allw)
+    if not ks or d < ks[0] or d > ks[-1]:
+        return None
+    if d in allw:
+        return allw[d]
+    i = next(i for i, k in enumerate(ks) if k > d)
+    a, b = ks[i - 1], ks[i]
+    da = (date.fromisoformat(d) - date.fromisoformat(a)).days
+    db = (date.fromisoformat(b) - date.fromisoformat(a)).days
+    return allw[a] + (allw[b] - allw[a]) * da / db
+
+
 def weight_series(conn, a, b):
     ws = weights_between(conn, shift(a, -6), b)
+    allw = weights_between(conn, "0000-01-01", "9999-12-31")
     out = []
     d = a
     while d <= b:
         win = [v for k, v in ws.items() if shift(d, -6) <= k <= d]
-        out.append({"date": d, "weight_kg": ws.get(d), "avg7": round(sum(win) / len(win), 2) if win else None})
+        it = None if d in allw else weight_at(allw, d)
+        out.append({"date": d, "weight_kg": ws.get(d), "interp": None if it is None else round(it, 2),
+                    "avg7": round(sum(win) / len(win), 2) if win else None})
         d = shift(d, 1)
     return out
 

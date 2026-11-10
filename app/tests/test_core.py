@@ -24,6 +24,7 @@ class Base(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.conn = connect(os.path.join(self.tmp.name, "t.db"))
         init_db(self.conn)
+        core.update_settings(self.conn, {"sexo": "H", "altura_cm": "185", "edad": "23", "peso_estimado_kg": "81.5"}, "test")
 
     def tearDown(self):
         self.conn.close()
@@ -345,6 +346,15 @@ class TestHevy(Base):
         r = H.sync(self.conn)  # idempotente
         self.assertEqual(r["created"], 0); self.assertEqual(r["updated"], 2)
         self.assertEqual(len(T.list_workouts(self.conn)), 2)
+
+
+class TestProfileDefaults(unittest.TestCase):
+    def test_new_account_has_no_invented_profile(self):
+        with tempfile.TemporaryDirectory() as t:
+            conn = connect(os.path.join(t, "n.db")); core.ensure_defaults(conn)
+            en = core.energy(conn, D1, 0)
+            self.assertIsNone(en["bmr"]); self.assertIsNone(en["total"]); self.assertIn("peso", en["missing_profile"])
+            conn.close()
 
 
 class TestNotes(Base):

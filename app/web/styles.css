@@ -209,6 +209,8 @@ table.t tr.click { cursor: pointer; } table.t tr.click:hover td { background: va
 .chart .axis { fill: var(--faint); font-size: 11px; }
 .chart .pt { fill: var(--muted); opacity: .55; }
 .chart .avg { stroke: var(--accent); stroke-width: 2.2; fill: none; }
+.chart .wline { stroke: var(--muted); stroke-width: 1; opacity: .45; fill: none; }
+.chart .ipt { fill: var(--surface, #fff); stroke: var(--muted); stroke-width: 1; opacity: .7; }
 .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
 .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
 .kpi .l { font-size: 12px; color: var(--muted); }
