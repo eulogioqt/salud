@@ -323,7 +323,8 @@ class Handler(BaseHTTPRequestHandler):
             "response_modes_supported": ["query"], "grant_types_supported": ["authorization_code", "refresh_token"],
             "code_challenge_methods_supported": ["S256"],
             "token_endpoint_auth_methods_supported": ["none", "client_secret_post", "client_secret_basic"],
-            "authorization_response_iss_parameter_supported": True, "service_documentation": base + "/"})
+            "authorization_response_iss_parameter_supported": True, "client_id_metadata_document_supported": True,
+            "service_documentation": base + "/"})
 
     def _oauth_register(self):
         try:
@@ -446,18 +447,28 @@ class Handler(BaseHTTPRequestHandler):
         if not user:
             return self._json(401, {"error": "invalid_token", "error_description": "Conecta el agente: inicia sesión en Salud"},
                               {"WWW-Authenticate": 'Bearer realm="salud", resource_metadata="%s/.well-known/oauth-protected-resource"' % self._base()})
+        if method == "DELETE":  # fin de sesión: no hay nada que guardar
+            return self._json(200, {"ok": True})
         if method != "POST":
-            return self._json(405, {"error": "Solo POST (Streamable HTTP sin SSE)"}, {"Allow": "POST"})
+            return self._json(405, {"error": "Solo POST (Streamable HTTP sin SSE)"}, {"Allow": "POST, DELETE"})
         try:
             msg = json.loads(self._body_raw().decode("utf-8"))
         except ValueError:
             return self._json(400, {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "JSON no válido"}})
         _conn, lock = user_ctx(user)
         run = lambda argv: self.run_cli(argv, lock, user)  # noqa: E731
+        # Sesión sin estado: el id lleva la versión de las herramientas con la que empezó el chat (para avisar si cambian).
+        sid = self.headers.get("Mcp-Session-Id") or ""
+        ver = sid[1:9] if sid.startswith("v") and "." in sid else None
+        msgs = msg if isinstance(msg, list) else [msg]
+        extra = {}
+        if any(isinstance(m, dict) and m.get("method") == "initialize" for m in msgs):
+            import secrets
+            extra["Mcp-Session-Id"] = "v%s.%s" % (mcp.tools_version(), secrets.token_urlsafe(12))
         if isinstance(msg, list):
-            res = [r for r in (mcp.handle(m, run) for m in msg) if r is not None]
+            res = [r for r in (mcp.handle(m, run, ver) for m in msg) if r is not None]
         else:
-            res = mcp.handle(msg, run)
+            res = mcp.handle(msg, run, ver)
         if not res:
             self.send_response(202)
             for k, v in self.CORS.items():
@@ -465,7 +476,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
-        return self._json(200, res)
+        return self._json(200, res, extra)
 
     def _oauth_routes(self, method):
         """Rutas públicas del conector MCP. Devuelve True si la ha atendido."""

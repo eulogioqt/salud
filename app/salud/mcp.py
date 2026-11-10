@@ -184,6 +184,17 @@ def guia():
         return GUIA
 
 
+def tools_version():
+    """Huella corta de la lista de herramientas: cambia al añadir o modificar herramientas."""
+    import hashlib
+    return hashlib.sha256(json.dumps(tool_list(), sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:8]
+
+
+AVISO_NUEVAS = ("\n\n[Aviso del servidor Salud: desde que empezó este chat hay herramientas nuevas o cambiadas. "
+                "Si algo no lo puedes hacer con las que ves, dile a la persona que abra un chat nuevo "
+                "(o que desactive y vuelva a activar Salud en «+» → Conectores) para cargarlas.]")
+
+
 def tool_list():
     out = []
     for name, desc, schema, _fn, ro in TOOLS:
@@ -204,8 +215,9 @@ def tool_argv(name, args):
     raise KeyError(name)
 
 
-def handle(msg, run_cli):
-    """Procesa un mensaje JSON-RPC. `run_cli(argv)` → (código, stdout, stderr). Devuelve la respuesta o None (notificación)."""
+def handle(msg, run_cli, session_ver=None):
+    """Procesa un mensaje JSON-RPC. `run_cli(argv)` → (código, stdout, stderr). Devuelve la respuesta o None (notificación).
+    `session_ver`: versión de las herramientas con la que empezó la sesión del cliente (si es antigua, se avisa al agente)."""
     if not isinstance(msg, dict) or msg.get("jsonrpc") != "2.0" or "method" not in msg:
         return {"jsonrpc": "2.0", "id": msg.get("id") if isinstance(msg, dict) else None, "error": {"code": -32600, "message": "Petición no válida"}}
     mid, method, params = msg.get("id"), msg["method"], msg.get("params") or {}
@@ -241,6 +253,8 @@ def handle(msg, run_cli):
         text = (out + ("\n" + err if err else "")).strip()
         if not text:
             text = "Sin resultados (si no existe, créalo con api POST /api/foods)" if name == "buscar_alimento" else ("Hecho" if code == 0 else "Error")
+        if session_ver and session_ver != tools_version():
+            text += AVISO_NUEVAS
         if name == "leer_contexto" and code == 0:
             text += "\n\n---\nPerfil y objetivos actuales: usa ver_dia para el día; api GET /api/settings para el perfil."
         return ok({"content": [{"type": "text", "text": text}], "isError": code != 0})

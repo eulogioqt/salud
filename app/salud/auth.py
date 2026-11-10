@@ -254,7 +254,55 @@ def register_client(base, meta):
     return out
 
 
-def get_client(base, cid):
+_CIMD = {}
+
+
+def _public_host(host):
+    import ipaddress
+    import socket
+    try:
+        for info in socket.getaddrinfo(host, 443):
+            ip = ipaddress.ip_address(info[4][0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                return False
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def _cimd(cid, fetch=None):
+    """Cliente identificado por URL (Client ID Metadata Document): Claude publica sus datos en una URL https."""
+    import urllib.request
+    from urllib.parse import urlparse
+    now = time.time()
+    hit = _CIMD.get(cid)
+    if hit and hit[0] > now:
+        return hit[1]
+    p = urlparse(cid)
+    if p.scheme != "https" or not p.hostname or p.path in ("", "/") or (fetch is None and not _public_host(p.hostname)):
+        return None
+    try:
+        if fetch:
+            raw = fetch(cid)
+        else:
+            req = urllib.request.Request(cid, headers={"Accept": "application/json", "User-Agent": "salud-oauth/1.0"})
+            with urllib.request.urlopen(req, timeout=8) as r:
+                raw = r.read(65536)
+        meta = json.loads(raw)
+    except Exception:
+        return None
+    uris = meta.get("redirect_uris")
+    if meta.get("client_id") != cid or not isinstance(uris, list) or not uris or not all(isinstance(u, str) and _redirect_ok(u) for u in uris):
+        return None
+    c = {"name": str(meta.get("client_name") or p.hostname)[:80], "redirect_uris": uris[:10], "method": "none", "cimd": True}
+    _CIMD[cid] = (now + 3600, c)
+    return c
+
+
+def get_client(base, cid, fetch=None):
+    if (cid or "").startswith("https://"):
+        c = _cimd(cid, fetch)
+        return dict(c, client_id=cid) if c else None
     c = _read(clients_path(base), {}).get(cid or "")
     return dict(c, client_id=cid) if c else None
 

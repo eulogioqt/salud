@@ -1,4 +1,5 @@
 import base64
+import json
 import hashlib
 import os
 import sys
@@ -36,6 +37,16 @@ class OAuthTest(unittest.TestCase):
         auth.issue_oauth(self.base, "ana", cl)  # reconectar sustituye
         self.assertEqual(len(auth.list_tokens(self.base, "ana")), 1)
 
+    def test_cimd(self):
+        url = "https://claude.ai/oauth/mcp-oauth-client-metadata"
+        doc = json.dumps({"client_id": url, "client_name": "Claude", "redirect_uris": ["https://claude.ai/api/mcp/auth_callback"]})
+        c = auth.get_client(self.base, url, fetch=lambda u: doc)
+        self.assertEqual((c["name"], c["redirect_uris"][0]), ("Claude", "https://claude.ai/api/mcp/auth_callback"))
+        auth._CIMD.clear()
+        self.assertIsNone(auth.get_client(self.base, url, fetch=lambda u: json.dumps({"client_id": "otra", "redirect_uris": ["https://x.y/cb"]})))
+        t = auth.issue_oauth(self.base, "ana", dict(c, client_id=url))
+        self.assertEqual(auth.token_user(self.base, t["access_token"]), "ana")
+
     def test_tipos(self):
         self.assertEqual(auth.kind_of("Claude Code (salud)"), "claude-code")
         self.assertEqual(auth.kind_of("ChatGPT"), "chatgpt")
@@ -66,6 +77,10 @@ class McpTest(unittest.TestCase):
         r = call("guia_ilustraciones", {})
         self.assertIn("viewBox", r["result"]["content"][0]["text"])
         self.assertIn("error", call("no_existe", {}))
+        viejo = mcp.handle({"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "ver_dia", "arguments": {}}}, self.run_cli, "00000000")
+        self.assertIn("herramientas nuevas", viejo["result"]["content"][0]["text"])
+        nuevo = mcp.handle({"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "ver_dia", "arguments": {}}}, self.run_cli, mcp.tools_version())
+        self.assertNotIn("herramientas nuevas", nuevo["result"]["content"][0]["text"])
 
 
 if __name__ == "__main__":
