@@ -273,65 +273,59 @@ function energySheet(st) {
   const t = st.totals, tg = st.target || {}, c = st.closure, en = st.energy, closed = st.status === "cerrado";
   const bal = st.balance, kc = t.kcal || 0;
   const pct = (x, of) => (of ? Math.max(0, Math.min(100, (100 * x) / of)) : 0);
-  // Cabecera: Consumido − Gasto = Balance
   const hero = h("div", { class: "bd-hero" },
-    h("div", { class: "bd-n" }, h("span", null, "Consumido"), h("b", { class: "num" }, v(t, "kcal")), h("em", null, tg.kcal ? "de " + fmt(tg.kcal) : "kcal")),
+    h("div", { class: "bd-n" }, h("span", null, "Consumido"), h("b", { class: "num" }, v(t, "kcal")), h("em", null, tg.kcal ? "objetivo " + fmt(tg.kcal) : "kcal")),
     h("span", { class: "bd-op" }, "−"),
-    h("div", { class: "bd-n" }, h("span", null, "Gasto"), h("b", { class: "num" }, en.total == null ? "?" : fmt(en.total)), h("em", null, en.complete ? "estimado" : "incompleto")),
+    h("div", { class: "bd-n" }, h("span", null, "Gasto"), h("b", { class: "num" }, en.total == null ? "?" : fmt(en.total)), h("em", null, en.complete ? "estimado" : "faltan datos")),
     h("span", { class: "bd-op" }, "="),
     h("div", { class: "bd-n bal " + (bal == null ? "" : bal < 0 ? "def" : "sup") }, h("span", null, "Balance"), h("b", { class: "num" }, bal == null ? "?" : signed(bal)),
-      h("em", null, bal == null ? "falta el gasto" : bal < 0 ? "déficit" : bal > 0 ? "superávit" : "equilibrio")));
-  const mx = Math.max(kc, en.total || 0, 1);
-  const vs = h("div", { class: "bd-vs" },
-    h("div", { class: "bd-vsr" }, h("span", null, "Comido"), h("i", { class: "eat", style: { width: pct(kc, mx) + "%" } })),
-    h("div", { class: "bd-vsr" }, h("span", null, "Gastado"), h("i", { class: "burn", style: { width: pct(en.total || 0, mx) + "%" } })));
-  // Lo comido: macros frente al objetivo y reparto de kcal
-  const mk = { p: (t.protein_g || 0) * 4, c: (t.carbs_g || 0) * 4, g: (t.fat_g || 0) * 9 }, mkT = mk.p + mk.c + mk.g || 1;
-  // Barra hasta el objetivo (marca) con margen para ver si te pasas; grasas con su rango
+      h("em", null, bal == null ? "—" : bal < 0 ? "déficit" : bal > 0 ? "superávit" : "equilibrio")));
+  // Lo comido
   const macroRow = (k, name, f, goal, goalTxt, lo) => {
-    const val = t[f] || 0, top = goal || 0, scale = Math.max(top * 1.3, val, 1);
-    const diff = top ? (lo != null ? (val > top ? val - top : val < lo ? val - lo : 0) : val - top) : null;
-    const dTxt = diff == null ? "" : lo != null ? (diff === 0 ? "en rango" : signed(diff) + " g") : (Math.abs(diff) < 1 ? "en objetivo" : signed(diff) + " g");
+    const val = t[f] || 0, top = goal || 0, scale = Math.max(top * 1.25, val, 1);
+    const diff = !kc || !top ? null : lo != null ? (val > top ? val - top : val < lo ? val - lo : 0) : val - top;
+    const dTxt = diff == null ? null : diff === 0 && lo != null ? "en rango" : Math.abs(diff) < 1 ? "✓" : signed(diff);
     return h("div", { class: "bd-m " + k },
-      h("div", { class: "bd-mh" }, h("span", { class: "bd-chip " + k }, name[0]), h("b", null, name), h("span", { class: "grow" }),
-        h("span", { class: "num" }, h("b", null, v(t, f)), goalTxt ? h("span", { class: "faint" }, " / " + goalTxt) : null),
-        h("span", { class: "bd-pc num" }, fmt((100 * mk[k]) / mkT) + " %")),
+      h("div", { class: "bd-mh" }, h("span", { class: "bd-chip " + k }, name[0]), h("span", { class: "bd-mn" }, name),
+        h("span", { class: "bd-mv num" }, h("b", null, v(t, f)), goalTxt ? h("span", { class: "faint" }, " / " + goalTxt) : null),
+        h("span", { class: "bd-d num " + (dTxt == null ? "" : (lo != null && diff !== 0) || (k === "p" && diff < -0.5) ? "off" : "ok") }, k === "c" ? "" : dTxt || "")),
       h("div", { class: "bd-bar" }, h("i", { style: { width: pct(val, scale) + "%" } }),
-        top ? h("span", { class: "band", style: { left: pct(lo != null ? lo : top, scale) + "%", width: Math.max(0.6, pct(top, scale) - pct(lo != null ? lo : top, scale)) + "%" } }) : null),
-      dTxt && k !== "c" ? h("div", { class: "bd-d " + (lo != null ? (diff === 0 ? "ok" : "off") : diff < -0.5 ? "off" : "ok") }, dTxt) : null);  // los carbohidratos son «el resto»: sin aviso
+        top ? h("span", { class: "mark", style: { left: pct(lo != null ? lo : top, scale) + "%", width: Math.max(0, pct(top, scale) - pct(lo != null ? lo : top, scale)) + "%" } }) : null));
   };
   const meals = MEALS.map(([m, l]) => [l, (st.meals[m] && st.meals[m].totals && st.meals[m].totals.kcal) || 0]).filter((x) => x[1] > 0);
   const eaten = h("div", { class: "bd-sec" },
-    h("div", { class: "bd-st" }, h("span", { class: "sic c" }, "🍽️"), "Lo que has comido", h("span", { class: "grow" }), h("b", { class: "num" }, v(t, "kcal") + " kcal")),
-    tg.kcal ? h("div", { class: "bd-goal" }, h("div", { class: "bd-bar k" }, h("i", { class: kc > tg.kcal ? "over" : "", style: { width: pct(kc, tg.kcal) + "%" } })),
-      h("div", { class: "faint" }, kc <= tg.kcal ? `Quedan ${fmt(tg.kcal - kc)} kcal del objetivo` : `${fmt(kc - tg.kcal)} kcal por encima del objetivo`, tg.dynamic ? ` · objetivo según tu gasto (${goalName(tg.kcal_offset)})` + (tg.steps_pending ? ", con tus pasos medios hasta que apuntes los de hoy" : "") : tg.provisional ? " (provisional)" : "")) : null,
-    macroRow("p", "Proteína", "protein_g", tg.protein_g, tg.protein_g != null ? fmt(tg.protein_g) + " g" : null),
-    macroRow("c", "Carbohidratos", "carbs_g", tg.carbs_g, tg.carbs_g != null ? fmt(tg.carbs_g) + " g" : null),
-    macroRow("g", "Grasas", "fat_g", tg.fat_max_g, tg.fat_min_g != null ? `${fmt(tg.fat_min_g)}–${fmt(tg.fat_max_g)} g` : null, tg.fat_min_g),
-    meals.length ? h("div", { class: "bd-meals" }, h("div", { class: "bd-stack" }, meals.map(([l, k], i) => h("i", { class: "m" + i, style: { flex: k }, title: `${l}: ${fmt(k)} kcal` }))),
+    h("div", { class: "bd-st" }, h("span", { class: "sic c" }, "🍽️"), h("span", { class: "grow" }, "Lo que has comido"),
+      h("span", { class: "num bd-tot" }, h("b", null, v(t, "kcal")), tg.kcal ? h("span", { class: "faint" }, " / " + fmt(tg.kcal) + " kcal") : " kcal")),
+    tg.kcal ? h("div", { class: "bd-bar k" }, h("i", { class: kc > tg.kcal ? "over" : "", style: { width: pct(kc, tg.kcal) + "%" } })) : null,
+    tg.kcal ? h("div", { class: "bd-cap" }, kc <= tg.kcal ? `Te quedan ${fmt(tg.kcal - kc)} kcal` : `${fmt(kc - tg.kcal)} kcal por encima`,
+      tg.dynamic ? ` · objetivo según tu gasto (${goalName(tg.kcal_offset)})` : tg.provisional ? " · objetivo provisional" : "") : null,
+    h("div", { class: "bd-macros" },
+      macroRow("p", "Proteína", "protein_g", tg.protein_g, tg.protein_g != null ? fmt(tg.protein_g) + " g" : null),
+      macroRow("c", "Carbohidratos", "carbs_g", tg.carbs_g, tg.carbs_g != null ? fmt(tg.carbs_g) + " g" : null),
+      macroRow("g", "Grasas", "fat_g", tg.fat_max_g, tg.fat_min_g != null ? `${fmt(tg.fat_min_g)}–${fmt(tg.fat_max_g)} g` : null, tg.fat_min_g)),
+    meals.length > 1 ? h("div", { class: "bd-meals" }, h("div", { class: "bd-sub" }, "Por comidas"), h("div", { class: "bd-stack" }, meals.map(([l, k], i) => h("i", { class: "m" + i, style: { flex: k }, title: `${l}: ${fmt(k)} kcal` }))),
       h("div", { class: "bd-leg" }, meals.map(([l, k], i) => h("span", null, h("i", { class: "m" + i }), l + " ", h("b", { class: "num" }, fmt(k)))))) : null,
     (t.missing || []).length ? h("div", { class: "note warn" }, "Hay valores desconocidos: los totales son un mínimo.") : null);
-  // Lo gastado: cada parte con su color
+  // Lo gastado
   const parts = [
-    ["bmr", "Metabolismo basal", (en.missing_profile || []).length ? null : en.bmr, (en.missing_profile || []).length ? "completa en Ajustes: " + en.missing_profile.join(", ") : `en reposo · ${fmt(en.weight_used_kg, 1)} kg, ${en.weight_source}`],
-    ["tef", "Digestión (TEF)", en.tef, "10 % de lo que comes"],
-    ["neat", "Día a día", en.neat, "estar de pie, tareas… · " + en.neat_source],
-    ["steps", "Pasos", en.steps_kcal, en.steps == null ? "sin registrar" : `${fmt(en.steps_effective)} pasos netos` + (en.steps_in_activities ? ` (−${fmt(en.steps_in_activities)} de sesiones)` : "")],
+    ["bmr", "Metabolismo basal", (en.missing_profile || []).length ? null : en.bmr, (en.missing_profile || []).length ? "completa tu perfil en Ajustes" : `en reposo · ${fmt(en.weight_used_kg, 1)} kg`],
+    ["tef", "Digestión", en.tef, "10 % de lo que comes"],
+    ["neat", "Día a día", en.neat, en.neat_set ? en.neat_source : "de pie, tareas… · se elige al cerrar"],
+    ["steps", "Pasos", en.steps_kcal, en.steps == null ? "sin apuntar" : `${fmt(en.steps_effective)} pasos`],
     ...en.exercise.map((x) => ["ex", "Ejercicio · " + x.type, x.kcal, x.source.startsWith("estimado") ? "neto, estimado" : x.source]),
   ];
   const tot = en.total || parts.reduce((a, p) => a + (p[2] || 0), 0) || 1;
   const burned = h("div", { class: "bd-sec" },
-    h("div", { class: "bd-st" }, h("span", { class: "sic e" }, "🔥"), "Lo que has gastado", h("span", { class: "grow" }), h("b", { class: "num" }, (en.total == null ? "?" : fmt(en.total)) + " kcal")),
+    h("div", { class: "bd-st" }, h("span", { class: "sic e" }, "🔥"), h("span", { class: "grow" }, "Lo que has gastado"), h("span", { class: "num bd-tot" }, h("b", null, en.total == null ? "?" : fmt(en.total)), " kcal")),
     h("div", { class: "bd-stack big" }, parts.filter((p) => p[2]).map((p) => h("i", { class: "e-" + p[0], style: { flex: p[2] }, title: `${p[1]}: ${fmt(p[2])} kcal` }))),
     h("div", { class: "bd-parts" }, parts.map(([k, l, val, sub]) => h("div", { class: "bd-p" }, h("i", { class: "dot e-" + k }),
-      h("div", { class: "grow" }, h("b", null, l), h("div", { class: "faint" }, sub)),
+      h("div", { class: "bd-pl" }, h("span", null, l), h("small", null, sub)),
       val == null ? (k === "steps" && !closed ? h("button", { class: "btn sm", onclick: () => stepsSheet(st) }, "Añadir") : h("span", { class: "miss" }, "falta"))
-        : h("div", { class: "bd-pv num" }, h("b", null, fmt(val)), h("span", { class: "faint" }, fmt((100 * val) / tot) + " %"))))));
+        : h("div", { class: "bd-pv num" }, h("b", null, fmt(val)), h("span", null, fmt((100 * val) / tot) + " %"))))));
   const closedNote = closed && c ? h("div", { class: "bd-closed" }, icon("lock"), ` Cerrado el ${dateLabel(c.closed_at.slice(0, 10), { day: "numeric", month: "short" })} a las ${c.closed_at.slice(11, 16)}` + (c.version > 1 ? ` · versión ${c.version}` : "") + (c.forced ? " · con datos incompletos" : "")) : null;
   const obs = closed && c && c.summary && (c.summary.observations || []).length
     ? h("div", { class: "bd-sec" }, h("div", { class: "bd-st" }, h("span", { class: "sic s" }, "📝"), "Observaciones del cierre"), h("ul", { class: "bd-obs" }, c.summary.observations.map((o) => h("li", null, o)))) : null;
-  const neatSel = !closed ? h("div", { class: "bd-neat" }, neatPicker(st.date, async () => { await refresh(); sh2.close(); energySheet(S.day); })) : null;
-  const sh2 = sheet(closed ? "Resumen del día" : "Desglose del día", [closedNote, hero, vs, eaten, burned, neatSel, obs,
+  sheet(closed ? "Resumen del día" : "Desglose del día", [closedNote, hero, eaten, burned, obs,
     h("div", { class: "faint bd-foot" }, "El gasto es una estimación, no una medición: ", en.method)], null, { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }) });
 }
 function energyTable(en, balance) {

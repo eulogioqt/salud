@@ -201,7 +201,8 @@ function machineKg(name, notes) {
   return exSet(name).machine_kg || 0;
 }
 const e1rm = (w, r, name) => { if (!w || !r) return null; if (isUni(name)) r = Math.max(1, Math.round(r / 2)); return w / HEVY_PCT[Math.min(Math.round(r), 30) - 1]; };
-const EX_ALIASES = { "elevacion laterales (maquina)": "elevacion lateral (maquina)", "flexiones de brazos (con peso agregado)": "flexiones (con peso anadido)", "dead hang": "colgado en barra" };
+const EX_ALIASES = { "elevacion laterales (maquina)": "elevacion lateral (maquina)", "flexiones de brazos (con peso agregado)": "flexiones (con peso anadido)", "dead hang": "colgado en barra",
+  "vuelos posteriores": "aperturas invertidas", "vuelo posterior": "aperturas invertidas", "vuelos posteriores (maquina)": "aperturas invertidas", "vuelo posterior (maquina)": "aperturas invertidas", "vuelos posteriores en maquina": "aperturas invertidas", "vuelo posterior en maquina": "aperturas invertidas" };  // vuelos posteriores = aperturas invertidas (mismo ejercicio)
 const exKeyName = (name) => { const n = norm(name).replace(/\s+/g, " ").trim(); return EX_ALIASES[n] || n; };
 
 // Métrica principal por tipo de ejercicio (para récords y gráficas)
@@ -494,19 +495,36 @@ function trainingStats(ws, bw) {
     byDate: ws.reduce((m, w) => { (m[w.date] = m[w.date] || []).push(w); return m; }, {}) };
 }
 
-const PERIODS = [["7", "Última semana", 7, "la semana anterior"], ["30", "Último mes", 30, "el mes anterior"], ["90", "Últimos 3 meses", 90, "los 3 meses anteriores"],
-  ["365", "Último año", 365, "el año anterior"], ["all", "Desde siempre", null, null]];
-function periodRange(key, st) {
-  const today = todayISO(), P = PERIODS.find((p) => p[0] === key) || PERIODS[1];
-  if (!P[2]) return { key: P[0], from: st.first, to: today, days: daysBetween(st.first, today) + 1, label: P[1], all: true };
-  return { key: P[0], from: addDays(today, -(P[2] - 1)), to: today, days: P[2], label: P[1], prevLabel: P[3] };
+// Periodos: una semana, un mes, un año concretos (con ‹ › para moverse) o todo. Se compara con el mismo tramo del periodo anterior.
+const GRANS = [["semana", "Semana"], ["mes", "Mes"], ["año", "Año"], ["todo", "Todo"]];
+const cap1 = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+function periodRange(gran, off, st) {
+  const today = todayISO();
+  if (gran === "todo") return { key: "todo", gran, off: 0, from: st.first, to: today, end: today, days: daysBetween(st.first, today) + 1, label: "Desde siempre", all: true };
+  let from, end, label, prevFrom, prevEnd, prevLabel;
+  if (gran === "semana") {
+    from = addDays(mondayOf(today), 7 * off); end = addDays(from, 6);
+    label = off === 0 ? "Esta semana" : off === -1 ? "La semana pasada" : "Semana del " + dateLabel(from, { day: "numeric", month: "short" });
+    prevFrom = addDays(from, -7); prevEnd = addDays(end, -7); prevLabel = "la semana anterior";
+  } else if (gran === "mes") {
+    const [y, m] = today.split("-").map(Number), d0 = new Date(y, m - 1 + off, 1);
+    from = isoLocal(d0); end = isoLocal(new Date(d0.getFullYear(), d0.getMonth() + 1, 0));
+    label = cap1(d0.toLocaleDateString("es-ES", { month: "long", year: "numeric" }));
+    prevFrom = isoLocal(new Date(d0.getFullYear(), d0.getMonth() - 1, 1)); prevEnd = isoLocal(new Date(d0.getFullYear(), d0.getMonth(), 0)); prevLabel = "el mes anterior";
+  } else {
+    const y = Number(today.slice(0, 4)) + off; from = `${y}-01-01`; end = `${y}-12-31`; label = String(y);
+    prevFrom = `${y - 1}-01-01`; prevEnd = `${y - 1}-12-31`; prevLabel = "el año anterior";
+  }
+  const to = end > today ? today : end, days = daysBetween(from, to) + 1;
+  const prevTo = addDays(prevFrom, days - 1) > prevEnd ? prevEnd : addDays(prevFrom, days - 1);  // mismo tramo: si el periodo va por la mitad, se compara con la misma mitad
+  return { key: gran, gran, off, from, to, end, days, label, prevFrom, prevTo, prevLabel: (to < end ? "el mismo tramo de " : "") + prevLabel, canNext: end < today, canPrev: from > st.first };
 }
 function periodStats(st, ws, R) {
   const inR = (d) => d >= R.from && d <= R.to;
   const L = ws.filter((w) => inR(w.date));
   const agg = (X) => ({ n: X.length, min: X.reduce((a, w) => a + (w.duration_min || 0), 0), vol: X.reduce((a, w) => a + (w.volume_kg || 0), 0), sets: X.reduce((a, w) => a + w.sets_count, 0) });
   const cur = agg(L);
-  const prev = R.all ? null : agg(ws.filter((w) => w.date >= addDays(R.from, -R.days) && w.date < R.from));
+  const prev = R.all || R.prevTo < st.first ? null : agg(ws.filter((w) => w.date >= R.prevFrom && w.date <= R.prevTo));  // sin datos del periodo anterior, no hay comparación
   const groups = Object.fromEntries(MAIN_GROUPS.map((g) => [g, 0]));
   const exN = {};
   for (const w of L) for (const ex of w.exercises) {
@@ -517,7 +535,7 @@ function periodStats(st, ws, R) {
   if (!groups.Otros) delete groups.Otros;
   const top = st.list.filter((e) => exN[exKeyName(e.name)]).map((e) => ({ e, n: exN[exKeyName(e.name)] })).sort((a, b) => b.n - a.n);
   // cubetas para las barras
-  const gran = R.days <= 31 ? "day" : R.days <= 120 ? "week" : "month";
+  const gran = R.gran === "semana" || R.gran === "mes" ? "day" : R.gran === "año" ? "month" : R.days <= 120 ? "week" : "month";
   const buckets = [], bi = {};
   const keyOf = (d) => (gran === "day" ? d : gran === "week" ? mondayOf(d) : d.slice(0, 7) + "-01");
   let k = keyOf(R.from);
@@ -589,36 +607,56 @@ function bars(values, opts = {}) {
   });
   return svg;
 }
-// Mapa de actividad del periodo elegido (si cabe; si no, las semanas que quepan)
-function heatmap(byDate, days) {
-  const avail = Math.max(280, Math.min(728, window.innerWidth - 66)), maxW = avail < 520 ? 17 : 30;
-  const weeksBack = Math.max(5, Math.min(maxW, Math.ceil((days || maxW * 7) / 7) + 1));
-  const today = todayISO();
-  const [y, m, d] = today.split("-").map(Number); const t0 = new Date(y, m - 1, d); t0.setDate(t0.getDate() - ((t0.getDay() + 6) % 7) - 7 * (weeksBack - 1));
-  const gap = 3, cell = Math.min(weeksBack <= 8 ? 30 : 20, Math.floor(avail / weeksBack) - gap), W = weeksBack * (cell + gap), H = 7 * (cell + gap);
+// Mapa de actividad: un año o todo (semanas en columnas; si no cabe, se desliza y empieza por lo último)
+function heatmap(byDate, from, to) {
+  const avail = Math.max(280, Math.min(728, window.innerWidth - 66));
+  const t0d = mondayOf(from), weeks = Math.floor(daysBetween(t0d, to) / 7) + 1, today = todayISO();
+  const gap = 3, cell = Math.max(11, Math.min(20, Math.floor(avail / weeks) - gap)), W = weeks * (cell + gap), H = 7 * (cell + gap);
   const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H + 14}`, width: W, height: H + 14, class: "heat" });
   let lastMonth = -1;
-  for (let wk = 0; wk < weeksBack; wk++) for (let dd = 0; dd < 7; dd++) {
-    const dt = new Date(t0); dt.setDate(t0.getDate() + wk * 7 + dd); const iso = isoLocal(dt);
-    if (iso > today) continue;
-    const ws = byDate[iso] || []; const vol = ws.reduce((a, w) => a + (w.volume_kg || 0) + (w.duration_min || 0) * 30, 0);
-    const lvl = !ws.length ? 0 : vol > 12000 ? 4 : vol > 7000 ? 3 : vol > 3000 ? 2 : 1;
-    const r = svgEl("rect", { x: wk * (cell + gap), y: 14 + dd * (cell + gap), width: cell, height: cell, rx: 3, class: "h" + lvl,
-      "data-tip": dateLabel(iso, { weekday: "long", day: "numeric", month: "short" }) + (ws.length ? "\n" + ws.map((w) => `${w.title} · ${w.duration_min ? fmt(w.duration_min) + " min · " : ""}${fmt(w.volume_kg)} kg`).join("\n") : "\nDescanso") });
-    if (ws.length) { r.style.cursor = "pointer"; r.addEventListener("click", () => workoutSheet(ws[0].id)); }
-    svg.append(r);
-    if (dd === 0 && dt.getMonth() !== lastMonth) { lastMonth = dt.getMonth(); const t = svgEl("text", { x: wk * (cell + gap), y: 10, class: "axis" }); t.textContent = dt.toLocaleDateString("es-ES", { month: "short" }); svg.append(t); }
+  for (let wk = 0; wk < weeks; wk++) for (let dd = 0; dd < 7; dd++) {
+    const iso = addDays(t0d, wk * 7 + dd);
+    if (iso > today || iso > to || iso < from) continue;
+    svg.append(heatCell(byDate, iso, wk * (cell + gap), 14 + dd * (cell + gap), cell));
+    const mo = Number(iso.slice(5, 7));
+    if (mo !== lastMonth && Number(iso.slice(8)) <= 7) { lastMonth = mo; const t = svgEl("text", { x: wk * (cell + gap), y: 10, class: "axis" }); t.textContent = dateLabel(iso, { month: "short" }); svg.append(t); }
   }
-  return svg;
+  const wrap = h("div", { class: "heat-wrap" }, svg);
+  if (W > avail) requestAnimationFrame(() => { wrap.scrollLeft = wrap.scrollWidth; });
+  return wrap;
+}
+function heatCell(byDate, iso, x, y, cell, num) {
+  const ws = byDate[iso] || []; const vol = ws.reduce((a, w) => a + (w.volume_kg || 0) + (w.duration_min || 0) * 30, 0);
+  const lvl = !ws.length ? 0 : vol > 12000 ? 4 : vol > 7000 ? 3 : vol > 3000 ? 2 : 1;
+  const g = svgEl("g", { "data-tip": dateLabel(iso, { weekday: "long", day: "numeric", month: "short" }) + (ws.length ? "\n" + ws.map((w) => `${w.title} · ${w.duration_min ? fmt(w.duration_min) + " min · " : ""}${fmt(w.volume_kg)} kg`).join("\n") : "\nDescanso") });
+  g.append(svgEl("rect", { x, y, width: cell, height: cell, rx: Math.min(8, cell / 5), class: "h" + lvl }));
+  if (num) { const t = svgEl("text", { x: x + cell / 2, y: y + cell / 2 + 4, "text-anchor": "middle", class: "hnum" + (lvl >= 2 ? " on" : "") }); t.textContent = String(Number(iso.slice(8))); g.append(t); }
+  if (ws.length) { g.style.cursor = "pointer"; g.addEventListener("click", () => workoutSheet(ws[0].id)); }
+  return g;
+}
+// Un mes como calendario (lunes a domingo), con el número de cada día
+function monthCal(byDate, from, end) {
+  const avail = Math.max(280, Math.min(520, window.innerWidth - 66)), gap = 5, cell = Math.min(52, Math.floor((avail - 6 * gap) / 7));
+  const t0d = mondayOf(from), weeks = Math.floor(daysBetween(t0d, end) / 7) + 1, W = 7 * cell + 6 * gap, H = weeks * (cell + gap) + 16;
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, class: "heat cal" });
+  "LMXJVSD".split("").forEach((d, i) => { const t = svgEl("text", { x: i * (cell + gap) + cell / 2, y: 11, "text-anchor": "middle", class: "axis" }); t.textContent = d; svg.append(t); });
+  for (let wk = 0; wk < weeks; wk++) for (let dd = 0; dd < 7; dd++) {
+    const iso = addDays(t0d, wk * 7 + dd);
+    if (iso < from || iso > end) continue;
+    const c = heatCell(byDate, iso, dd * (cell + gap), 16 + wk * (cell + gap), cell, true);
+    if (iso > todayISO()) c.setAttribute("opacity", ".35");
+    svg.append(c);
+  }
+  return h("div", { class: "heat-wrap cal" }, svg);
 }
 
 // ------------------------------------------------------------- vista
 function viewTraining() {
   const T = S.training; if (!T) return h("div");
-  S.tTab = S.tTab || "resumen"; S.tPeriod = S.tPeriod || "30";
+  S.tTab = S.tTab || "resumen"; S.tGran = S.tGran || "mes"; S.tOff = S.tOff || 0;
   const ws = T.workouts;
   const head = h("div", { class: "row wrap", style: { marginBottom: "12px" } }, h("h2", { class: "vt" }, "Entreno"), h("span", { class: "grow" }),
-    h("button", { class: "btn sm ghost", title: "Sube el CSV que exporta Hevy (Perfil → Ajustes → Exportar e importar datos). Solo añade lo que falte: no duplica.", onclick: () => importCsv() }, "Subir CSV de Hevy"));
+    tip(h("button", { class: "btn sm ghost", onclick: () => importCsv() }, "Subir CSV de Hevy"), "Subir CSV de Hevy\nTrae de golpe los entrenos que falten: no duplica\n## Cómo sacarlo\nHevy → Perfil → ⚙ Ajustes → Exportar e importar datos → Exportar entrenos"));
   if (!ws.length) return h("div", { class: "training" }, head, h("div", { class: "card empty" }, icon("dumbbell"), h("h3", null, "Aún no hay entrenos"),
     h("p", { class: "muted" }, "Dime «entreno hecho» por el chat y lo traigo de Hevy, o importa el CSV de Hevy.")));
   const st = S.tStats && S.tStats._src === ws && S.tStats._bw === S.weights && S.tStats._set === S.exSet ? S.tStats : (S.tStats = Object.assign(trainingStats(ws, S.bw), { _src: ws, _bw: S.weights, _set: S.exSet }));
@@ -635,8 +673,9 @@ const KPI_ICON = { "Entrenos": ["🏋️", "e"], "Tiempo": ["⏱️", "s"], "Vol
   "Récords": ["🏆", "c"], "Más trabajado": ["💪", "e"], "Menos trabajado": ["🪫", "s"], "Tu punto fuerte": ["⭐", "c"] };
 const kpiLbl = (l) => { const ic = KPI_ICON[l]; return ic ? [h("span", { class: "sic " + ic[1] }, ic[0]), l] : l; };
 function kpi(l, v, s, delta, tipTxt) {
-  return tip(h("div", { class: "kpi" }, h("div", { class: "l" }, kpiLbl(l)), h("div", { class: "v num" }, v),
-    h("div", { class: "s" }, delta ? h("span", { class: "dl " + (delta.v > 0 ? "up" : delta.v < 0 ? "down" : "") }, delta.t) : null, delta && s ? " " : null, s || "")), tipTxt);
+  return tip(h("div", { class: "kpi" }, h("div", { class: "l" }, kpiLbl(l)),
+    h("div", { class: "v num" }, h("span", { class: "vv" }, v), delta && delta.t ? h("span", { class: "dl " + (delta.v > 0 ? "up" : delta.v < 0 ? "down" : "") }, delta.t) : null),
+    h("div", { class: "s" }, s || "")), tipTxt);
 }
 function deltaOf(cur, prev, f = (x) => fmt(x)) {
   if (prev == null) return null;
@@ -644,14 +683,13 @@ function deltaOf(cur, prev, f = (x) => fmt(x)) {
   return { v: dv, t: (dv > 0 ? "▲ " : dv < 0 ? "▼ " : "= ") + (dv ? f(Math.abs(dv)) : "") };
 }
 
-function heatLabel(R) {
-  const maxW = Math.max(280, Math.min(728, window.innerWidth - 66)) < 520 ? 17 : 30;
-  return R.days && Math.ceil(R.days / 7) + 1 <= maxW ? R.label.toLowerCase() : `últimos ${Math.round(maxW * 7 / 30.4)} meses`;
-}
 function tResumen(st, ws) {
-  const R = periodRange(S.tPeriod, st), P = periodStats(st, ws, R);
-  const sel = h("select", { class: "input sm psel", onchange: (e) => { S.tPeriod = e.target.value; render(); } },
-    PERIODS.map(([k, l, d]) => h("option", { value: k, selected: k === R.key }, d ? l : `${l} (desde ${dateLabel(st.first, { month: "short", year: "numeric" })})`)));
+  const R = periodRange(S.tGran, S.tOff, st), P = periodStats(st, ws, R);
+  const nav = (d) => { S.tOff += d; render(); };
+  const sel = h("div", { class: "pnav" },
+    h("div", { class: "seg pgran" }, GRANS.map(([k, l]) => h("button", { class: S.tGran === k ? "on" : "", onclick: () => { S.tGran = k; S.tOff = 0; render(); } }, l))),
+    R.all ? null : h("div", { class: "pstep" }, h("button", { class: "icon-btn", disabled: !R.canPrev, onclick: () => nav(-1), "aria-label": "Anterior" }, icon("left")),
+      h("b", null, R.label), h("button", { class: "icon-btn", disabled: !R.canNext, onclick: () => nav(1), "aria-label": "Siguiente" }, icon("right"))));
   const pv = P.prev, c = P.cur, vs = R.prevLabel ? "vs " + R.prevLabel : "";
   const groups = Object.entries(P.groups).sort((a, b) => b[1] - a[1]);
   const gmax = Math.max(1, ...groups.map((g) => g[1]));
@@ -668,22 +706,24 @@ function tResumen(st, ws) {
   const showBars = P.buckets.length > 1;
   const yr = (b) => (P.gran === "day" ? "" : "");
   return h("div", null,
-    h("div", { class: "prow" }, h("div", { class: "faint" }, R.all ? `Desde el ${dateLabel(R.from, { day: "numeric", month: "short", year: "numeric" })} · ${fmt(days)} días entrenados` : `${dateLabel(R.from, { day: "numeric", month: "short" })} – hoy · ${days} ${days === 1 ? "día entrenado" : "días entrenados"}`), h("span", { class: "grow" }), sel),
+    sel,
+    h("div", { class: "prow" }, h("div", { class: "faint" }, `${dateLabel(R.from, { day: "numeric", month: "short", year: R.all || R.gran === "año" ? "numeric" : undefined })} – ${R.to === todayISO() ? "hoy" : dateLabel(R.to, { day: "numeric", month: "short" })} · ${fmt(days)} ${days === 1 ? "día entrenado" : "días entrenados"}`)),
     h("div", { class: "kpis five" },
-      kpi("Entrenos", fmt(c.n), `${fmt(P.perWeek, 1)}/sem.`, deltaOf(c.n, pv && pv.n), `${c.n} entrenos ${R.all ? "en total" : "en " + R.label.toLowerCase()}${pv ? `\n${pv.n} ${vs}` : ""}`),
+      kpi("Entrenos", fmt(c.n), `${fmt(P.perWeek, 1)}/sem.`, deltaOf(c.n, pv && pv.n), `${c.n} entrenos ${R.all ? "en total" : "· " + R.label}${pv ? `\n${pv.n} ${vs}` : ""}`),
       kpi("Tiempo", fmt(c.min / 60, 1) + " h", c.n ? fmt(c.min / c.n) + " min/entreno" : "", deltaOf(c.min / 60, pv && pv.min / 60, (x) => fmt(x, 1) + " h"), pv ? `${fmt(pv.min / 60, 1)} h ${vs}` : null),
       kpi("Volumen", fmt(c.vol / 1000, 1) + " t", c.n ? fmt(c.vol / c.n) + " kg/entreno" : "", deltaOf(c.vol / 1000, pv && pv.vol / 1000, (x) => fmt(x, 1) + " t"), `${fmt(c.vol)} kg levantados (como en Hevy: todas las series)${pv ? `\n${fmt(pv.vol)} kg ${vs}` : ""}`),
       kpi("Series", fmt(c.sets), c.n ? fmt(c.sets / c.n, 1) + "/entreno" : "", deltaOf(c.sets, pv && pv.sets), pv ? `${fmt(pv.sets)} series ${vs}` : null),
       kpi("Racha", st.streak + " sem.", "seguidas", null, "Semanas seguidas con al menos un entreno")),
     h("div", { class: "hl" }, hl.map(([l, v, s_, fn]) => h(fn ? "button" : "div", { class: "hli" + (fn ? " click" : ""), onclick: fn || undefined }, h("span", { class: "l" }, kpiLbl(l)), h("b", null, v), h("span", { class: "s" }, s_)))),
-    h("div", { class: "card panel" }, h("h3", null, "Actividad", h("span", { class: "faint", style: { fontWeight: 400 } }, " · " + heatLabel(R) + " · más oscuro = más volumen")), h("div", { class: "heat-wrap" }, heatmap(st.byDate, R.days))),
+    R.gran === "semana" ? null : h("div", { class: "card panel" }, h("h3", null, "Actividad", h("span", { class: "faint", style: { fontWeight: 400 } }, " · más oscuro = más volumen")),
+      R.gran === "mes" ? monthCal(st.byDate, R.from, R.end) : heatmap(st.byDate, R.from, R.to)),
     showBars ? h("div", { class: "grid2 gap-big" },
       h("div", { class: "card panel" }, h("h3", null, P.gran === "day" ? "Minutos por día" : P.gran === "week" ? "Entrenos por semana" : "Entrenos por mes"),
         bars(P.buckets.map((b) => ({ v: P.gran === "day" ? b.min || (b.n ? 30 : 0) : b.n, label: `${P.bLabel(b)}\n${b.n} ${b.n === 1 ? "entreno" : "entrenos"}${b.min ? " · " + fmt(b.min) + " min" : ""}` })), { h: 90 }),
-        h("div", { class: "axis-row" }, h("span", null, P.bLabel(P.buckets[0]).replace("Semana del ", "")), h("span", null, "hoy"))),
+        h("div", { class: "axis-row" }, h("span", null, P.bLabel(P.buckets[0]).replace("Semana del ", "")), h("span", null, R.to === todayISO() ? "hoy" : P.bLabel(P.buckets[P.buckets.length - 1]).replace("Semana del ", "")))),
       h("div", { class: "card panel" }, h("h3", null, "Volumen"),
         bars(P.buckets.map((b) => ({ v: b.vol, label: `${P.bLabel(b)}\n${fmt(b.vol)} kg · ${fmt(b.sets)} series` })), { h: 90 }),
-        h("div", { class: "axis-row" }, h("span", null, P.bLabel(P.buckets[0]).replace("Semana del ", "")), h("span", null, "hoy")))) : null,
+        h("div", { class: "axis-row" }, h("span", null, P.bLabel(P.buckets[0]).replace("Semana del ", "")), h("span", null, R.to === todayISO() ? "hoy" : P.bLabel(P.buckets[P.buckets.length - 1]).replace("Semana del ", ""))))) : null,
     h("div", { class: "grid2 gap-big" },
       h("div", { class: "card panel" }, h("h3", null, "Series por semana y grupo", h("span", { class: "faint", style: { fontWeight: 400 } }, " · zona verde = 10–20 recomendadas")),
         h("div", { class: "gbars wk" }, groups.map(([g, n]) => { const pw = n / Math.max(1, R.days / 7), max = 26; const zone = pw < 10 ? "low" : pw > 20 ? "high" : "ok";
@@ -694,7 +734,7 @@ function tResumen(st, ws) {
       h("div", { class: "card panel" }, h("h3", null, "Lo que más has hecho"),
         P.top.length ? h("div", { class: "exlist" }, P.top.slice(0, 6).map(({ e, n }) => exRow(e, null, `${n} ${n === 1 ? "sesión" : "sesiones"} en el periodo`))) : h("div", { class: "muted" }, "Nada en este periodo."))),
     P.prs.length ? h("div", { class: "card panel" }, h("div", { class: "row", style: { marginBottom: "6px" } }, h("h3", { style: { margin: 0 } }, "Récords del periodo", h("span", { class: "faint", style: { fontWeight: 400 } }, ` · ${P.prs.length} · los más recientes`)), h("span", { class: "grow" }),
-      P.prs.length > 6 ? h("button", { class: "btn sm ghost", onclick: () => sheet(`Récords · ${R.label.toLowerCase()}`, h("div", { class: "exlist" }, P.prs.map((p) => prRow(p))), null, { sub: `${P.prs.length} récords, del más reciente al más antiguo` }) }, `Ver todos (${P.prs.length})`) : null),
+      P.prs.length > 6 ? h("button", { class: "btn sm ghost", onclick: () => sheet(`Récords · ${R.label}`, h("div", { class: "exlist" }, P.prs.map((p) => prRow(p))), null, { sub: `${P.prs.length} récords, del más reciente al más antiguo` }) }, `Ver todos (${P.prs.length})`) : null),
       h("div", { class: "exlist" }, P.prs.slice(0, 6).map((p) => prRow(p)))) : null);
 }
 

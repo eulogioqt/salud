@@ -251,6 +251,9 @@ def _note_put(c, q, b, s, key):
     with tx(c, "set_note", s, ref=key):
         c.execute("INSERT INTO notes(key, body, updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET body=excluded.body, updated_at=excluded.updated_at",
                   (key, body, ts()))
+        if key == "claude" and body.strip():  # el agente ya hizo el inicio («Empezar con Salud»): la web da por hechos los primeros pasos
+            c.execute("INSERT INTO notes(key, body, updated_at) VALUES('bienvenida', ?, ?) ON CONFLICT(key) DO UPDATE SET body=excluded.body, "
+                      "updated_at=excluded.updated_at WHERE notes.body NOT LIKE 'hecho%'", ("hecho (con el agente)", ts()))
     return _note_get(c, q, b, s, key)
 
 

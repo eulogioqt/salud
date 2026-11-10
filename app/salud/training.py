@@ -26,6 +26,12 @@ EX_ALIASES = {
     "elevacion laterales (maquina)": "elevacion lateral (maquina)",
     "flexiones de brazos (con peso agregado)": "flexiones (con peso anadido)",
     "dead hang": "colgado en barra",
+    "vuelos posteriores": "aperturas invertidas",
+    "vuelo posterior": "aperturas invertidas",
+    "vuelos posteriores (maquina)": "aperturas invertidas",
+    "vuelo posterior (maquina)": "aperturas invertidas",
+    "vuelos posteriores en maquina": "aperturas invertidas",
+    "vuelo posterior en maquina": "aperturas invertidas",
 }
 
 # 1RM estimado igual que Hevy: peso ÷ porcentaje según reps (tabla del centro de ayuda de Hevy; >30 reps = 50 %).
