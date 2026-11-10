@@ -207,6 +207,8 @@ const baseKey = (name) => { const n = norm(name).replace(/\s+/g, " ").trim(); re
 // Ejercicios unidos por la persona (mismo ejercicio o misma máquina con otro nombre en Hevy): clave → clave del principal
 let USER_ALIAS = {}, USER_NAMES = {};
 const exKeyName = (name) => { const k = baseKey(name); return USER_ALIAS[k] || k; };
+// Nombre con el que se muestra: el del ejercicio principal si está unido a otro
+const dispName = (name) => USER_NAMES[exKeyName(name)] || name;
 function setExSet(set) {
   S.exSet = set || {};
   USER_ALIAS = {}; USER_NAMES = {};
@@ -776,7 +778,7 @@ function exRow(e, extra, sub) {
 function prRow(p) {
   const setTxt = p.set && ["w", "e1", "sv"].includes(p.type) ? " · " + setShort(p.kind, p.set) : "";
   return h("button", { class: "exrow", onclick: () => exerciseSheet(p.name) }, exIcon(p.name, 34),
-    h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, h("span", null, p.name), (() => { const e = (S.tStats && S.tStats.list || []).find((x) => exKeyName(x.name) === exKeyName(p.name)); return e && e.level ? lvlShield(e.level, 18) : null; })()),
+    h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, h("span", null, dispName(p.name)), (() => { const e = (S.tStats && S.tStats.list || []).find((x) => exKeyName(x.name) === exKeyName(p.name)); return e && e.level ? lvlShield(e.level, 18) : null; })()),
       h("div", { class: "exr-s" }, dateLabel(p.date, { weekday: "short", day: "numeric", month: "short" }) + ` · antes ${recTxt(p.type, p.prev, p.kind)}` + setTxt)),
     h("div", { class: "exr-v pr" }, h("b", { class: "num" }, h("span", { class: "trophy" }, icon("trophy")), recTxt(p.type, p.value, p.kind)), h("span", null, REC_LABEL[p.type])));
 }
@@ -1151,7 +1153,7 @@ async function workoutSheet_(id) {
     return h("div", { class: "exb card2" },
       h("div", { class: "exb-h v2" }, exIcon(ex.name, 40),
         h("div", { class: "exb-tt" },
-          h("div", { class: "exb-r1" }, h("button", { class: "exn", onclick: () => exerciseSheet(ex.name) }, ex.name), prChips(ex.prs)),
+          h("div", { class: "exb-r1" }, tip(h("button", { class: "exn", onclick: () => exerciseSheet(ex.name) }, dispName(ex.name)), dispName(ex.name) !== ex.name ? "En Hevy: " + ex.name : null), prChips(ex.prs)),
           h("div", { class: "exb-r2" }, L ? lvlShield(L, 16) : null, L ? h("span", { class: "lvname sm l" + L.idx }, LVL[L.idx]) : null, eqTag(ex.name),
             e1 ? tip(h("span", { class: "faint" }, "· 1RM ≈ " + fmt(e1) + " kg"), "1RM estimado de la mejor serie (tabla de Hevy: peso ÷ % según reps)" + (isUni(ex.name) ? "\nA un brazo: se usan la mitad de las reps" : "")) : null))),
       ex.notes ? h("div", { class: "exnote" }, ex.notes) : null,
