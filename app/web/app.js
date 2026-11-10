@@ -676,7 +676,9 @@ async function hevySync(full) {
 
 // Suplementos (productos con categoría «Suplemento»): una fila propia en Hoy para marcarlos de un toque.
 // Se apuntan como una comida más («otro»); los que no tienen kcal (creatina…) no salen en la lista de comidas.
-const isSupp = (f) => f && !f.deleted && !f.hidden && /suplement/i.test(f.category || "");
+// (solo los de dosis sin apenas kcal: la proteína en polvo sigue apuntándose en su comida con sus gramos)
+const suppPortion = (f) => (f.portions || []).find((p) => p.is_default) || (f.portions || [])[0];
+const isSupp = (f) => f && !f.deleted && !f.hidden && /suplement/i.test(f.category || "") && !((suppPortion(f) || {}).kcal >= 20);
 function suppEntries(st) {
   const sup = new Set((S.catalog && S.catalog.foods || []).filter(isSupp).map((f) => f.id));
   return Object.values(st.meals).flatMap((m) => m.entries).filter((e) => sup.has(e.food_id));
@@ -692,7 +694,7 @@ function suppRow(st, closed) {
       return h("button", { class: "supp-c" + (e ? " on" : ""), disabled: closed, title: e ? "Tomado · toca para quitarlo" : "Toca para apuntarlo",
         onclick: async () => {
           if (e) await act(() => api("DELETE", "/api/entries/" + e.id), f.name + " quitado");
-          else await act(() => api("POST", "/api/entries", { date: S.date, food_id: f.id, unit_key: "rac", quantity: 1, meal: "otro", time: st.date === st.today ? nowT() : null }), f.name + " apuntado");
+          else await act(() => api("POST", "/api/entries", { date: S.date, food_id: f.id, unit_key: suppPortion(f) ? "p:" + suppPortion(f).id : "g", quantity: suppPortion(f) ? 1 : 5, meal: "otro", time: st.date === st.today ? nowT() : null }), f.name + " apuntado");
         } }, e ? icon("check") : h("i", { class: "supp-dot" }), h("span", null, f.name), e && e.time ? h("em", null, e.time) : null);
     }));
 }
