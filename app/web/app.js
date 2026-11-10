@@ -228,8 +228,8 @@ const NS_SVG = "http://www.w3.org/2000/svg";
 const svgE = (t, a) => { const e = document.createElementNS(NS_SVG, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
 function ringSvg(size, r, w, p, cls, center) {
   const C = 2 * Math.PI * r, svg = svgE("svg", { width: size, height: size, viewBox: `${-size / 2} ${-size / 2} ${size} ${size}`, class: "ring " + cls });
-  svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-bg" }),
-    svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${Math.max(0.001, C * Math.min(1, p))} ${C}`, transform: "rotate(-90)" }));
+  svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-bg" }));
+  if (p > 0) svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${C * Math.min(1, p)} ${C}`, transform: "rotate(-90)" }));  // a 0, anillo vacío (sin puntito)
   for (const [y, txt, c] of center) { const t = svgE("text", { y, "text-anchor": "middle", class: c }); t.textContent = txt; svg.append(t); }
   return svg;
 }
@@ -246,6 +246,7 @@ function summaryCard(st) {
       h("div", { class: "mr-l" }, label, miss ? h("span", { class: "miss", title: "Hay valores desconocidos: el total es un mínimo" }, " *") : null));
   };
   return h("div", { class: "card summary b" },
+    h("button", { class: "sum-des", onclick: open }, "Desglose ›"),
     h("button", { class: "ring-btn", onclick: open, "aria-label": "Ver desglose" }, big),
     h("div", { class: "mrings" },
       macro("p", "Proteína", "protein_g", tg.protein_g, fmt(tg.protein_g)),
@@ -253,8 +254,7 @@ function summaryCard(st) {
       macro("g", "Grasas", "fat_g", tg.fat_max_g, `${fmt(tg.fat_min_g)}–${fmt(tg.fat_max_g)}`)),
     h("div", { class: "sum-chips" },
       h("button", { class: "schip", onclick: open }, "Gasto ", h("b", { class: "num" }, fmt(en.total)), en.complete ? null : h("span", { class: "miss", title: "Faltan datos" }, " *")),
-      h("button", { class: "schip", onclick: open }, "Balance ", h("b", { class: "num" }, signed(st.balance))),
-      h("button", { class: "schip lnk", onclick: open }, "Desglose ›")));
+      h("button", { class: "schip", onclick: open }, "Balance ", h("b", { class: "num" }, signed(st.balance)))));
 }
 // Desglose único: lo consumido (con macros) y el gasto con sus partes, hasta el balance.
 function energySheet(st) {
@@ -1328,6 +1328,7 @@ function connectAgent() {
         clearInterval(timer); const real = agentOf(t.agent || t.kind);
         status.replaceChildren(agentLogo(real, 22), h("span", null, `Conectado: ${real.n}` + (t.agent && ag.k !== "otro" && !t.agent.startsWith(ag.k) ? ` (elegiste ${ag.n})` : "") + ". Ya puedes pedirle cosas."));
         status.classList.add("done"); if (doneN) { doneN.textContent = "✓"; doneN.classList.add("ok"); }
+        const nm = sh.el.querySelector(".no-mcp"); if (nm) nm.closest(".sheet-f").classList.add("hidden");
       }
     }, 3000);
   };
@@ -1351,7 +1352,7 @@ function connectAgent() {
         steps.map(([t, d, ...rest], i) => h("div", { class: "ast" }, h("span", { class: "n" }, String(i + 1)),
           h("div", null, h("b", null, t), d ? h("div", { class: "muted" }, d) : null, rest.map(extra)))),
         h("div", { class: "ast" }, doneN, h("div", null, h("b", null, "Escríbele en cualquier chat"), h("div", { class: "muted" }, "«Apunta mi desayuno», «¿cuánto llevo hoy?», «cierra el día»…"), status)))],
-      [h("span", { class: "grow" }), h("button", { class: "btn ghost sm", onclick: noMcp }, "Mi agente no tiene conectores")],
+      [h("span", { class: "grow" }), h("button", { class: "btn ghost sm no-mcp", onclick: noMcp }, "Mi agente no tiene conectores")],
       { back: step1, titleExtra: agentLogo(ag, 26) });
     watch(status, ag, doneN);
   };
