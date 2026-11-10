@@ -1421,3 +1421,11 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .pc-i.warn { filter: none; opacity: .9; background: #fdf2dc; } .pc-i.man { filter: none; opacity: 1; }
 .pc-key { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); margin-top: 10px; }
 .rev-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); margin: 10px 0; font-size: 13px; }
+/* Suplementos */
+.supp { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: -10px 0 18px; }
+.supp-l { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); margin-right: 2px; } .supp-l svg { width: 15px; height: 15px; }
+.supp-c { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: 99px; padding: 5px 12px 5px 9px; font: inherit; font-size: 13px; cursor: pointer; }
+.supp-c svg { width: 14px; height: 14px; stroke-width: 2.6; } .supp-c em { font-style: normal; font-size: 11.5px; color: var(--faint); }
+.supp-c.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; } .supp-c.on em { color: var(--accent); opacity: .8; }
+.supp-dot { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--faint); display: inline-block; }
+.supp-c:disabled { cursor: default; opacity: .8; }

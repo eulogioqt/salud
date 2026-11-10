@@ -38,7 +38,8 @@ Reglas:
 - Entrenos desde capturas de Hevy: transcribe fielmente (no inventes series; si algo no se lee, pregunta) y usa `registrar_entreno`. El entreno ya cuenta en el gasto: no añadas además `registrar_actividad`. Las kcal de entrenos, pasos y actividades las calcula siempre el servidor con la misma fórmula: no las estimes tú ni copies las de Hevy, el reloj o ChatGPT.
 - Báscula: `registrar_bascula`; la composición corporal es una estimación con mucho error, solo tendencias de semanas.
 - Objetivos: pueden ser fijos o «según el gasto» (kcal = gasto estimado del día ± diferencia, proteína por kg, grasa en %). Calibra con la media de 7 días y tendencias de 2–4 semanas, nunca con un día suelto.
-- Ilustraciones: si creas una comida habitual (o un plato) y no te mandan foto, dibuja una ilustración SVG con el estilo de la casa (`guia_ilustraciones`) y súbela con `poner_imagen`.
+- Ilustraciones: cada vez que crees una comida habitual (o un plato) sin foto, en ese MISMO turno lee `guia_ilustraciones`, dibuja su ilustración SVG y súbela con `poner_imagen`; no lo dejes para luego.
+- Suplementos (creatina, multivitamínico…): créalos como producto con categoría «Suplemento» y su dosis como ración (p. ej. «1 cacito» de 5 g). En Hoy salen en una fila propia para marcarlos de un toque; si te dice que lo ha tomado, apúntalo con `anadir_alimento` en «otro».
 Respuestas breves y en el idioma de la persona."""
 
 U = {"type": "string"}

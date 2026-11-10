@@ -204,7 +204,7 @@ function icon(name) {
     star: "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z", chev: "M6 9l6 6 6-6",
     minus: "M5 12h14", camera: "M4 8h3l2-3h6l2 3h3v11H4zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", out: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6",
     gear: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z",
-    swap: "M7 7h13l-3-3M17 17H4l3 3", up: "M12 19V5M6 11l6-6 6 6", plug: "M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5", flag: "M5 21V4M5 4h12l-2.5 4L17 12H5", flame: "M12 3c1 3 4 5 4 9a4 4 0 0 1-8 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 0-8z", bolt: "M13 2L4 14h7l-1 8 9-12h-7z", cal: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
+    swap: "M7 7h13l-3-3M17 17H4l3 3", up: "M12 19V5M6 11l6-6 6 6", pill: "M10.5 20.5l10-10a4.95 4.95 0 0 0-7-7l-10 10a4.95 4.95 0 0 0 7 7zM8.5 8.5l7 7", plug: "M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5", flag: "M5 21V4M5 4h12l-2.5 4L17 12H5", flame: "M12 3c1 3 4 5 4 9a4 4 0 0 1-8 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 0-8z", bolt: "M13 2L4 14h7l-1 8 9-12h-7z", cal: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
     target: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", medal: "M12 21a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM8.5 9.5L6 3h4l2 5M15.5 9.5L18 3h-4l-2 5", check: "M5 12l5 5 9-10", route: "M6 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM6 15V9a4 4 0 0 1 4-4h6M18 9v6a4 4 0 0 1-4 4H8", dumbbell: "M6 7v10M3 9v6M18 7v10M21 9v6M6 12h12", trophy: "M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8M10 17h4v3h-4z", scale: "M5 4h14v16H5zM9 9a3 3 0 0 1 6 0M12 9l1-2",
   };
   const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -240,7 +240,7 @@ function viewHoy() {
     h("span", { class: "spacer" }),
     !isToday ? h("button", { class: "btn ghost sm", onclick: () => goDay(st.today) }, "Ir a hoy") : null,
     closed ? h("span", { class: "pill closed" }, icon("lock"), "Cerrado") : h("span", { class: "pill" }, "Abierto"));
-  const wrap = h("div", { class: closed ? "locked" : "" }, head, summaryCard(st), bodyStrip(st));
+  const wrap = h("div", { class: closed ? "locked" : "" }, head, summaryCard(st), bodyStrip(st), suppRow(st, closed));
   for (const [m] of MEALS) { const mb = mealBlock(st, m, closed); if (mb) wrap.append(mb); }
   wrap.append(h("div", { class: "closebar" }, closed
     ? h("button", { class: "btn ghost", onclick: () => reopenSheet(st.date) }, "Reabrir día")  // el resumen del cierre está en «Desglose»
@@ -674,8 +674,31 @@ async function hevySync(full) {
   } catch (e) { toast(e.message, { error: true }); }
 }
 
+// Suplementos (productos con categoría «Suplemento»): una fila propia en Hoy para marcarlos de un toque.
+// Se apuntan como una comida más («otro»); los que no tienen kcal (creatina…) no salen en la lista de comidas.
+const isSupp = (f) => f && !f.deleted && !f.hidden && /suplement/i.test(f.category || "");
+function suppEntries(st) {
+  const sup = new Set((S.catalog && S.catalog.foods || []).filter(isSupp).map((f) => f.id));
+  return Object.values(st.meals).flatMap((m) => m.entries).filter((e) => sup.has(e.food_id));
+}
+function suppRow(st, closed) {
+  const sups = (S.catalog && S.catalog.foods || []).filter(isSupp);
+  if (!sups.length) return null;
+  const taken = suppEntries(st);
+  const nowT = () => { const d = new Date(); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
+  return h("div", { class: "supp" }, h("span", { class: "supp-l" }, icon("pill"), "Suplementos"),
+    sups.map((f) => {
+      const e = taken.find((x) => x.food_id === f.id);
+      return h("button", { class: "supp-c" + (e ? " on" : ""), disabled: closed, title: e ? "Tomado · toca para quitarlo" : "Toca para apuntarlo",
+        onclick: async () => {
+          if (e) await act(() => api("DELETE", "/api/entries/" + e.id), f.name + " quitado");
+          else await act(() => api("POST", "/api/entries", { date: S.date, food_id: f.id, unit_key: "rac", quantity: 1, meal: "otro", time: st.date === st.today ? nowT() : null }), f.name + " apuntado");
+        } }, e ? icon("check") : h("i", { class: "supp-dot" }), h("span", null, f.name), e && e.time ? h("em", null, e.time) : null);
+    }));
+}
 function mealBlock(st, meal, closed) {
-  const m = st.meals[meal];
+  const supHide = new Set(suppEntries(st).filter((e) => !(e.kcal > 0.5)).map((e) => e.id));
+  const m0 = st.meals[meal], m = supHide.size ? { ...m0, entries: m0.entries.filter((e) => !supHide.has(e.id)) } : m0;
   if (meal === "otro" && !m.entries.length && closed) return null;
   const head = h("div", { class: "meal-h" }, h("h3", null, m.label),
     m.entries.length ? h("span", { class: "mt num" }, h("b", null, v(m.totals, "kcal")), " kcal") : null,
