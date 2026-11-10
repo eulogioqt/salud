@@ -1215,28 +1215,48 @@ function hevyBox() {
   return box;
 }
 
-// Token personal para que Claude (o cualquier agente que pueda ejecutar código) use tu cuenta, con el mensaje listo para pegar.
+// Token personal para que un agente (Claude, Codex, Gemini…) use tu cuenta, con el mensaje de arranque listo para pegar.
+const AGENTS = [
+  ["cowork", "Claude (app / Cowork)", "Pégalo en Claude → Ajustes → Perfil → «Instrucciones personales» para que valga en todas las conversaciones (o en un chat de Cowork para probar)."],
+  ["claude-code", "Claude Code", "Pégalo en Claude Code desde una carpeta de trabajo vacía."],
+  ["codex", "ChatGPT Codex", "Pégalo en Codex (CLI o web) con acceso a internet."],
+  ["gemini", "Gemini CLI", "Pégalo en Gemini CLI desde una carpeta de trabajo vacía."],
+  ["otro", "Otro agente", "Sirve cualquier agente que pueda ejecutar comandos (Python 3) con internet."],
+];
+function agentPrompt(kind, tok) {
+  const site = location.origin, repo = "https://github.com/eulogioqt/salud";
+  const doc = kind === "codex" || kind === "otro" ? "AGENTS.md" : kind === "gemini" ? "GEMINI.md" : "CLAUDE.md";
+  const where = kind === "cowork"
+    ? "Usa tu entorno de ejecución en la nube (no necesitas mi ordenador, funciona aunque esté apagado). Si no puedes salir a internet, dime que active en Ajustes → Capacidades el acceso a salud.eulogioqt.com y github.com (o «Todos los dominios»)."
+    : kind === "otro" ? "Necesitas poder ejecutar comandos (Python 3) con acceso a internet; si no puedes, dímelo." : "Trabaja en una carpeta de trabajo propia.";
+  return `Usa mi sistema de salud (comida, peso y entrenos): ${site}\n${where}\n` +
+    `1. Al empezar cada conversación en la que te pida algo de salud: clona ${repo} (o haz git pull si ya está) y sigue sus instrucciones (${doc}).\n` +
+    `2. Mi token personal: ${tok}\n   Guárdalo con: python3 app/salud_remoto.py login ${tok}   (no lo repitas en tus respuestas)\n` +
+    `3. Lee mi contexto: python3 app/salud_remoto.py contexto — si está vacío, pregúntame mis objetivos y guárdalos.`;
+}
 function aiBox() {
   const box = h("div");
+  let kind = "cowork", tok = null;
   const copy = async (txt) => { try { await navigator.clipboard.writeText(txt); toast("Copiado"); } catch (e) { toast("No se pudo copiar: selecciónalo y cópialo a mano", { error: true }); } };
-  const prompt = (tok) => `Quiero que lleves mi seguimiento de salud (comida, peso y entrenos) en ${location.origin}.\n` +
-    `1. Clona https://github.com/eulogioqt/salud (o haz git pull si ya lo tienes) y sigue sus instrucciones: CLAUDE.md.\n` +
-    `2. Mi token personal: ${tok}\n   Guárdalo con: python3 app/salud_remoto.py login ${tok}   (no lo repitas en tus respuestas)\n` +
-    `3. Lee mi contexto: python3 app/salud_remoto.py contexto  — si está vacío, pregúntame lo necesario y guárdalo.`;
-  const draw = async (newTok) => {
-    const info = await api("GET", "/api/token").catch(() => ({}));
+  const draw = async () => {
+    const info = tok ? {} : await api("GET", "/api/token").catch(() => ({}));
     const gen = async () => {
-      if (info.has_token && !confirm("Se creará un token nuevo y el anterior dejará de funcionar. ¿Seguir?")) return;
-      const r = await api("POST", "/api/token", {}); draw(r.token);
+      if (info.has_token && !confirm("Se creará un token nuevo y el anterior dejará de funcionar (también en los agentes que ya lo usen). ¿Seguir?")) return;
+      tok = (await api("POST", "/api/token", {})).token; draw();
     };
+    const picker = h("div", { class: "seg", style: { flexWrap: "wrap", marginBottom: "8px" } },
+      AGENTS.map(([k, l]) => h("button", { class: kind === k ? "on" : "", onclick: () => { kind = k; draw(); } }, l)));
+    const ag = AGENTS.find((x) => x[0] === kind);
     box.replaceChildren(
-      newTok ? h("div", null,
-        h("div", { class: "note" }, "Copia este mensaje y pégalo en Claude (Cowork, Claude Code…) o en tus instrucciones personales de Claude para no tener que pegarlo cada vez. El token solo se muestra ahora."),
-        h("textarea", { class: "input", rows: 7, readonly: true, style: { fontFamily: "ui-monospace, monospace", fontSize: "12.5px" }, onclick: (e) => e.target.select() }, prompt(newTok)),
-        h("div", { class: "row", style: { marginTop: "8px", justifyContent: "flex-end" } }, h("button", { class: "btn", onclick: () => copy(newTok) }, "Copiar solo el token"), h("button", { class: "btn primary", onclick: () => copy(prompt(newTok)) }, "Copiar mensaje")))
-      : h("div", { class: "row" }, h("span", { class: "grow muted" }, info.has_token ? `Tienes un token activo${info.created_at ? " (creado " + info.created_at + ")" : ""}.` : "Tu IA usará un token personal: solo da acceso a tu cuenta."),
-          info.has_token ? h("button", { class: "btn", onclick: async () => { if (!confirm("¿Desactivar el token? Tu IA dejará de tener acceso.")) return; await api("DELETE", "/api/token"); draw(); } }, "Desactivar") : null,
-          h("button", { class: "btn primary", onclick: gen }, info.has_token ? "Generar uno nuevo" : "Generar token")));
+      h("div", { class: "note", style: { marginTop: 0 } }, "Tu agente usa un token personal que solo da acceso a tu cuenta. Elige cuál usas y te preparo el mensaje para pegarle."),
+      picker,
+      tok ? h("div", null,
+        h("div", { class: "note" }, ag[2] + " El token solo se muestra ahora; si lo pierdes, genera otro."),
+        h("textarea", { class: "input", rows: 8, readonly: true, style: { fontFamily: "ui-monospace, monospace", fontSize: "12.5px" }, onclick: (e) => e.target.select() }, agentPrompt(kind, tok)),
+        h("div", { class: "row", style: { marginTop: "8px", justifyContent: "flex-end" } }, h("button", { class: "btn", onclick: () => copy(tok) }, "Copiar solo el token"), h("button", { class: "btn primary", onclick: () => copy(agentPrompt(kind, tok)) }, "Copiar mensaje")))
+      : h("div", { class: "row" }, h("span", { class: "grow muted" }, info.has_token ? `Tienes un token activo${info.created_at ? " (creado " + info.created_at + ")" : ""}. Para ver el mensaje hay que generar uno nuevo.` : "Aún no tienes token."),
+          info.has_token ? h("button", { class: "btn", onclick: async () => { if (!confirm("¿Desactivar el token? Tu agente dejará de tener acceso.")) return; await api("DELETE", "/api/token"); draw(); } }, "Desactivar") : null,
+          h("button", { class: "btn primary", onclick: gen }, info.has_token ? "Generar uno nuevo" : "Generar token y mensaje")));
   };
   draw();
   return box;
@@ -1275,7 +1295,7 @@ async function settingsSheet() {
     S.me ? h("div", { class: "sec-t" }, "Cuenta") : null,
     S.me ? h("div", { class: "row" }, h("span", null, "Sesión iniciada como ", h("b", null, S.me.nombre || S.me.usuario)), h("span", { class: "grow" }),
       h("button", { class: "btn", onclick: async () => { await api("POST", "/api/logout", {}); location.href = "/login"; } }, "Cerrar sesión")) : null,
-    S.me ? h("div", { class: "sec-t" }, "Conectar con Claude (u otra IA)") : null,
+    S.me ? h("div", { class: "sec-t" }, "Conectar con un agente (Claude, Codex, Gemini…)") : null,
     S.me ? aiBox() : null,
   ], null, { wide: true });
 }
