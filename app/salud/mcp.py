@@ -17,12 +17,11 @@ INSTRUCTIONS = """Salud: seguimiento personal de comidas, peso, pasos y entrenos
 
 AL EMPEZAR cualquier tarea de salud: llama a `leer_contexto` (objetivos, perfil, cómo quiere usarlo y estilo de respuesta) y síguelo.
 
-PRIMERA VEZ (contexto vacío): inicio rápido, en un solo mensaje corto y sin cuestionarios:
-1. `ver_perfil`: si falta sexo, fecha de nacimiento, altura o peso aproximado, pídelos (solo los que falten) y guárdalos con `cambiar_perfil`.
-2. Pregunta qué quiere conseguir: perder grasa, mantener o ganar músculo/peso.
-NO preguntes pasos medios, nivel de actividad, trabajo, horas de sueño ni nada más: el gasto se calcula solo con los pasos y entrenos que vaya apuntando.
-3. Propón el objetivo «según el gasto» con `objetivo` (sin guardar): perder −300 kcal (−500 si quiere ir más rápido), mantener 0, ganar +250; proteína 1,8 g/kg (2,0 si entrena fuerza); grasa 25–35 %. Enséñale la vista previa en una línea y guárdalo cuando diga que sí.
-4. Guarda con `guardar_contexto` lo que te haya dicho (objetivo y cómo quiere usarlo) y ofrécele, en una frase cada cosa y sin insistir: volcar su historial de Hevy (exporta el CSV en Hevy → Perfil → Ajustes → Exportar e importar datos → Exportar entrenos y te lo adjunta) que los pasos los puede apuntar a mano o decírtelos, y que conviene meter primero lo que suele comer (fotos de etiquetas para crear productos, o su desayuno de siempre como comida habitual).
+PRIMERA VEZ (contexto vacío, o te dice «empezar con Salud»): inicio rápido y sin cuestionarios. Sus datos (sexo, nacimiento, altura, peso) ya los puso en la web; compruébalo con `ver_perfil` y pide solo lo que falte.
+1. Pregunta solo qué quiere conseguir: perder grasa, mantener o ganar. NO preguntes pasos medios, nivel de actividad, trabajo, sueño ni nada más: el gasto se calcula solo con lo que vaya apuntando.
+2. Propón el objetivo «según el gasto» con `objetivo` (sin guardar): perder −300 kcal (−500 si quiere ir más rápido), mantener 0, ganar +250; proteína 1,8 g/kg (2,0 si entrena fuerza); grasa 25–35 %. Enséñale la vista previa en una línea y guárdalo cuando diga que sí.
+3. Si entrena con Hevy, ofrécele volcar su historial: en Hevy, Perfil → ⚙ Ajustes → Exportar e importar datos → Exportar entrenos; que te adjunte el .csv aquí y lo importas con `importar_hevy` (si lo prefiere, también lo puede subir en la web: Entreno → Importar CSV de Hevy).
+4. Guarda con `guardar_contexto` su objetivo y cómo quiere usarlo, y termina en dos líneas: ya puede usarlo («apunta mi desayuno», «cierra el día», capturas de Hevy o de la báscula), y le recomiendas conectar los pasos para que lleguen solos, que eso se hace en la web: Hoy → Pasos → «Conectar». Menciona también que conviene ir guardando lo que suele comer (fotos de etiquetas, o su desayuno de siempre como comida habitual).
 Después, a lo que pida.
 
 Reglas:
@@ -34,7 +33,7 @@ Reglas:
 - Aceite: una línea más en la comida (chorrito ≈ 8 g, cucharada ≈ 10 g; plancha/salteado cuenta 100 %, fritura ~10–15 % del peso del alimento).
 - Lo que se toma por unidad (lata, yogur…) va por unidad; lo demás por peso. Recetas con ingredientes en crudo.
 - Fechas en hora de Madrid; si es de otro día, pasa `fecha`.
-- «Cierra el día»: `revisar_dia`, di solo lo que falta de verdad (los pasos deben estar siempre, aunque sean 0), pregunta si cierra igualmente y, tras `cerrar_dia`, da un resumen compacto. Los días cerrados no se tocan salvo que pida `reabrir_dia`.
+- «Cierra el día»: `revisar_dia`, di solo lo que falta de verdad (los pasos deben estar siempre, aunque sean 0; si no ha dicho cómo fue el día, pregúntalo en la misma frase y guárdalo con `como_fue_el_dia`), pregunta si cierra igualmente y, tras `cerrar_dia`, da un resumen compacto. Los días cerrados no se tocan salvo que pida `reabrir_dia`.
 - Historial de Hevy: que exporte el CSV (Hevy → Perfil → Ajustes → Exportar e importar datos → Exportar entrenos) y lo suba en la web (menú → Primeros pasos, o Entreno → Importar) o te lo adjunte para `importar_hevy`.
 - Entrenos desde capturas de Hevy: transcribe fielmente (no inventes series; si algo no se lee, pregunta) y usa `registrar_entreno`. El entreno ya cuenta en el gasto: no añadas además `registrar_actividad`.
 - Báscula: `registrar_bascula`; la composición corporal es una estimación con mucho error, solo tendencias de semanas.
@@ -64,6 +63,11 @@ def _fh(a, argv):
     _opt(a, "--fecha", "fecha", argv)
     _opt(a, "--hora", "hora", argv)
     return argv
+
+
+def _hoy():
+    from .db import now_local
+    return now_local().strftime("%Y-%m-%d")
 
 
 def _api(a):
@@ -148,6 +152,9 @@ TOOLS = [
     ("registrar_peso", "Peso en ayunas (kg).", _o({"kg": N, "fecha": FECHA, "hora": HORA}, ["kg"]), lambda a: _fh(a, ["peso", str(a["kg"])]), False),
     ("registrar_pasos", "Pasos totales del día (0 si no anduvo).", _o({"pasos": I, "fecha": FECHA}, ["pasos"]),
      lambda a: ["pasos", str(a["pasos"])] + (["--fecha", a["fecha"]] if a.get("fecha") else []), False),
+    ("como_fue_el_dia", "Movimiento del día sin contar los pasos (gasto «día a día»): casa (casi todo sentado, 50 kcal), normal (150), activo (mucho de pie o tareas, 300) o muy (trabajo físico, 450). Pregúntalo al cerrar el día si no está.",
+     _o({"nivel": {"type": "string", "enum": ["casa", "normal", "activo", "muy"]}, "fecha": FECHA}, ["nivel"]),
+     lambda a: ["api", "PUT", "/api/days/%s" % (a.get("fecha") or _hoy()), json.dumps({"neat_kcal": {"casa": 50, "normal": 150, "activo": 300, "muy": 450}[a["nivel"]]})], False),
     ("dia_descanso", "Marca (o quita con quitar=true) el día como descanso de entreno.", _o({"fecha": FECHA, "quitar": {"type": "boolean"}}),
      lambda a: ["descanso"] + (["--fecha", a["fecha"]] if a.get("fecha") else []) + (["--no"] if a.get("quitar") else []), False),
     ("registrar_actividad", "Actividad sin Hevy para el gasto (si conoces las kcal netas, pásalas).",

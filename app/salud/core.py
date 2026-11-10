@@ -48,7 +48,26 @@ DEFAULT_SETTINGS = {
     "kcal_por_kg_km": ("0.5", "Coste NETO de caminar sobre reposo"),
     "factor_zancada": ("0.415", "Zancada = altura × factor"),
     "tef_pct": ("0.10", "Efecto térmico ≈ 10 % de la ingesta registrada"),
+    "revisar_agente": ("0", "1 = lo que crea el agente (productos, recetas, comidas habituales) queda «por revisar» en la Biblioteca"),
 }
+# Movimiento del día sin contar los pasos (estar de pie, tareas de casa…): se elige al cerrar el día
+NEAT_LEVELS = (("casa", "Casi todo el día sentado", 50), ("normal", "Normal", 150), ("activo", "Activo: mucho de pie o tareas", 300), ("muy", "Muy activo: trabajo físico", 450))
+
+
+def neat_label(kcal):
+    for k, l, v in NEAT_LEVELS:
+        if kcal is not None and abs(kcal - v) < 1:
+            return l
+    return None
+
+
+def _auto_reviewed(conn, data, source):
+    """Lo creado en la web ya está aceptado; lo del agente solo queda por revisar si la persona lo pidió en Ajustes."""
+    if "reviewed" in data:
+        return 1 if data["reviewed"] else 0
+    if source == "web":
+        return 1
+    return 0 if settings(conn).get("revisar_agente") == "1" else 1
 
 
 def _norm(s):
@@ -352,7 +371,7 @@ def create_food(conn, data, source="web"):
             (data.get("code"), name, data.get("original_name"), data.get("previous_name"), data.get("category"),
              data.get("brand"), status, data.get("source"), data.get("notes"), data.get("import_note"),
              data.get("historical_text"), 1 if data.get("favorite") else 0, data.get("image"), data.get("image_source"),
-             1 if data.get("reviewed", source == "web") else 0, ts(), ts()))
+             _auto_reviewed(conn, data, source), ts(), ts()))
         fid = cur.lastrowid
         for i, v in enumerate(vals):
             conn.execute(
@@ -440,7 +459,7 @@ def create_recipe(conn, data, source="web"):
             "INSERT INTO foods(name,kind,category,status,source,notes,favorite,recipe_servings,recipe_cooked_weight_g,reviewed,created_at,updated_at) "
             "VALUES(?, 'receta', ?, 'historico', 'receta propia', ?, ?, ?, ?, ?, ?, ?)",
             (name, data.get("category") or "receta", data.get("notes"), 1 if data.get("favorite", True) else 0,
-             servings or 1, cooked, 1 if data.get("reviewed", source == "web") else 0, ts(), ts()))
+             servings or 1, cooked, _auto_reviewed(conn, data, source), ts(), ts()))
         rid = cur.lastrowid
         _write_recipe_items(conn, rid, data.get("items") or [])
     return food_summary(conn, N.get_food(conn, rid))
@@ -549,7 +568,7 @@ def create_template(conn, data, source="web"):
         raise ValidationError("Franja no válida")
     with tx(conn, "create_template", source, payload=data):
         cur = conn.execute("INSERT INTO templates(name,meal,notes,reviewed,created_at,updated_at) VALUES(?,?,?,?,?,?)",
-                           (name, meal, data.get("notes"), 1 if data.get("reviewed", source == "web") else 0, ts(), ts()))
+                           (name, meal, data.get("notes"), _auto_reviewed(conn, data, source), ts(), ts()))
         _write_template_items(conn, cur.lastrowid, data.get("items") or [])
     return get_template(conn, cur.lastrowid)
 
@@ -575,7 +594,7 @@ def get_day_row(conn, d):
     if r:
         return row(r)
     return {"date": d, "status": "abierto", "weight_kg": None, "weight_time": None, "steps": None,
-            "neat_kcal": None, "rest_day": None, "notes": None, "hunger": None, "energy": None,
+            "neat_kcal": None, "rest_day": None, "notes": None, "hunger": None, "energy": None, "steps_auto": 0,
             "closed_at": None, "created_at": None, "updated_at": None}
 
 
@@ -763,6 +782,7 @@ def update_day(conn, d, data, source="web"):
     if "steps" in data:
         s = _num(data["steps"], "pasos", 0, 150000)
         fields["steps"] = None if s is None else int(s)
+        fields["steps_auto"] = 0
     if "neat_kcal" in data:
         fields["neat_kcal"] = _num(data["neat_kcal"], "NEAT", 0, 2000)
     if "rest_day" in data:
@@ -923,7 +943,8 @@ def energy(conn, d, intake_kcal=None, day=None, acts=None):
         "weight_used_kg": None if kg is None else round(kg, 2), "weight_source": ksrc, "weight_measured": measured,
         "missing_profile": missing,
         "bmr": None if bmr is None else round(bmr), "tef": round(tef), "neat": round(neat),
-        "neat_source": "día" if day["neat_kcal"] is not None else "ajuste base",
+        "neat_source": (neat_label(day["neat_kcal"]) or "elegido para el día") if day["neat_kcal"] is not None else "sin elegir: normal",
+        "neat_set": day["neat_kcal"] is not None,
         "steps": day["steps"], "steps_effective": eff_steps, "steps_in_activities": steps_in_acts,
         "steps_kcal": None if steps_kcal is None else round(steps_kcal),
         "exercise": ex, "exercise_kcal": round(ex_total),
@@ -963,6 +984,7 @@ def day_state(conn, d=None):
         "balance": None if totals["kcal"] is None or en["total"] is None else round(totals["kcal"] - en["total"]),
         "activities": acts, "avg7": None if a7 is None else round(a7, 2), "avg7_n": n7,
         "entry_count": len(entries), "closure": closure, "closure_count": n_closures, "rev": rev(conn),
+        "steps_hours": steps_hours(conn, d), "neat_levels": [{"key": k, "label": l, "kcal": v} for k, l, v in NEAT_LEVELS],
     }
 
 
@@ -980,6 +1002,8 @@ def close_check(conn, d):
         w.append({"level": "importante", "code": "peso", "text": "Falta el peso de la mañana"})
     if day["steps"] is None:
         w.append({"level": "importante", "code": "pasos", "text": "Faltan los pasos (si no anduviste, pon 0): sin ellos el gasto queda incompleto"})
+    if day.get("neat_kcal") is None:
+        w.append({"level": "info", "code": "neat", "text": "¿Cómo fue el día (sin contar los pasos)? Si no lo dices, cuenta como normal"})
     if not st["activities"] and day["rest_day"] != 1:
         w.append({"level": "importante", "code": "actividad", "text": "Sin entrenamiento registrado: ¿fue día de descanso?"})
     if st["entry_count"] == 0:
@@ -1301,3 +1325,58 @@ def events(conn, d=None, limit=100):
     if d:
         return rows(conn.execute("SELECT * FROM events WHERE date=? ORDER BY id DESC LIMIT ?", (d, limit)))
     return rows(conn.execute("SELECT * FROM events ORDER BY id DESC LIMIT ?", (limit,)))
+
+
+# ------------------------------------------------- pasos automáticos (Health Connect / Salud de Apple)
+def _local_dt(iso):
+    """Instante ISO-8601 (con zona) → fecha y hora en Madrid."""
+    from datetime import datetime as _dt
+    from zoneinfo import ZoneInfo
+    x = _dt.fromisoformat(str(iso).replace("Z", "+00:00"))
+    if x.tzinfo is None:
+        return x
+    return x.astimezone(ZoneInfo("Europe/Madrid")).replace(tzinfo=None)
+
+
+def ingest_health(conn, payload, source="health"):
+    """Recibe el JSON de la app «HC Webhook» / «Health Webhook»: guarda los tramos de pasos (sustituye el mismo
+    tramo si llega otra vez) y recalcula los pasos de los días afectados que sigan abiertos."""
+    if not isinstance(payload, dict):
+        raise ValidationError("JSON no válido")
+    recs = payload.get("steps") or []
+    days, n = set(), 0
+    with tx(conn, "health_sync", source, payload={"steps": len(recs), "app": payload.get("app_version")}):
+        for r in recs:
+            try:
+                start, end, cnt = _local_dt(r["start_time"]), _local_dt(r.get("end_time") or r["start_time"]), int(r["count"])
+            except (KeyError, ValueError, TypeError):
+                continue
+            if cnt < 0 or cnt > 200000:
+                continue
+            key = start.strftime("%Y-%m-%dT%H:%M:%S")
+            conn.execute("INSERT INTO step_buckets(start, end, steps, received_at) VALUES(?,?,?,?) "
+                         "ON CONFLICT(start) DO UPDATE SET end=excluded.end, steps=excluded.steps, received_at=excluded.received_at",
+                         (key, end.strftime("%Y-%m-%dT%H:%M:%S"), cnt, ts()))
+            days.add(key[:10])
+            n += 1
+        out = []
+        for d in sorted(days):
+            tot = conn.execute("SELECT SUM(steps) FROM step_buckets WHERE substr(start,1,10)=?", (d,)).fetchone()[0] or 0
+            st = conn.execute("SELECT status FROM days WHERE date=?", (d,)).fetchone()
+            if st and st["status"] == "cerrado":
+                out.append({"fecha": d, "pasos": int(tot), "guardado": False, "motivo": "día cerrado"})
+                continue
+            _ensure_day(conn, d)
+            conn.execute("UPDATE days SET steps=?, steps_auto=1, updated_at=? WHERE date=?", (int(tot), ts(), d))
+            out.append({"fecha": d, "pasos": int(tot), "guardado": True})
+    return {"ok": True, "tramos": n, "dias": out}
+
+
+def steps_hours(conn, d):
+    rows_ = conn.execute("SELECT start, end, steps FROM step_buckets WHERE substr(start,1,10)=?", (d,)).fetchall()
+    if not rows_:
+        return None
+    hrs = [0] * 24
+    for r in rows_:
+        hrs[int(r["start"][11:13])] += r["steps"]
+    return hrs

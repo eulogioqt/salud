@@ -583,11 +583,13 @@ function bars(values, opts = {}) {
   });
   return svg;
 }
-function heatmap(byDate) {
-  const avail = Math.max(280, Math.min(728, window.innerWidth - 66)), weeksBack = avail < 520 ? 17 : 30;
+// Mapa de actividad del periodo elegido (si cabe; si no, las semanas que quepan)
+function heatmap(byDate, days) {
+  const avail = Math.max(280, Math.min(728, window.innerWidth - 66)), maxW = avail < 520 ? 17 : 30;
+  const weeksBack = Math.max(5, Math.min(maxW, Math.ceil((days || maxW * 7) / 7) + 1));
   const today = todayISO();
   const [y, m, d] = today.split("-").map(Number); const t0 = new Date(y, m - 1, d); t0.setDate(t0.getDate() - ((t0.getDay() + 6) % 7) - 7 * (weeksBack - 1));
-  const gap = 3, cell = Math.min(20, Math.floor(avail / weeksBack) - gap), W = weeksBack * (cell + gap), H = 7 * (cell + gap);
+  const gap = 3, cell = Math.min(weeksBack <= 8 ? 30 : 20, Math.floor(avail / weeksBack) - gap), W = weeksBack * (cell + gap), H = 7 * (cell + gap);
   const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H + 14}`, width: W, height: H + 14, class: "heat" });
   let lastMonth = -1;
   for (let wk = 0; wk < weeksBack; wk++) for (let dd = 0; dd < 7; dd++) {
@@ -610,7 +612,7 @@ function viewTraining() {
   S.tTab = S.tTab || "resumen"; S.tPeriod = S.tPeriod || "30";
   const ws = T.workouts;
   const head = h("div", { class: "row wrap", style: { marginBottom: "12px" } }, h("h2", { class: "vt" }, "Entreno"), h("span", { class: "grow" }),
-    h("button", { class: "btn sm ghost", onclick: () => importCsv() }, "Importar de Hevy"));
+    h("button", { class: "btn sm ghost", title: "Sube el CSV que exporta Hevy (Perfil → Ajustes → Exportar e importar datos). Solo añade lo que falte: no duplica.", onclick: () => importCsv() }, "Subir CSV de Hevy"));
   if (!ws.length) return h("div", { class: "training" }, head, h("div", { class: "card empty" }, icon("dumbbell"), h("h3", null, "Aún no hay entrenos"),
     h("p", { class: "muted" }, "Dime «entreno hecho» por el chat y lo traigo de Hevy, o importa el CSV de Hevy.")));
   const st = S.tStats && S.tStats._src === ws && S.tStats._bw === S.weights && S.tStats._set === S.exSet ? S.tStats : (S.tStats = Object.assign(trainingStats(ws, S.bw), { _src: ws, _bw: S.weights, _set: S.exSet }));
@@ -636,6 +638,10 @@ function deltaOf(cur, prev, f = (x) => fmt(x)) {
   return { v: dv, t: (dv > 0 ? "▲ " : dv < 0 ? "▼ " : "= ") + (dv ? f(Math.abs(dv)) : "") };
 }
 
+function heatLabel(R) {
+  const maxW = Math.max(280, Math.min(728, window.innerWidth - 66)) < 520 ? 17 : 30;
+  return R.days && Math.ceil(R.days / 7) + 1 <= maxW ? R.label.toLowerCase() : `últimos ${Math.round(maxW * 7 / 30.4)} meses`;
+}
 function tResumen(st, ws) {
   const R = periodRange(S.tPeriod, st), P = periodStats(st, ws, R);
   const sel = h("select", { class: "input sm psel", onchange: (e) => { S.tPeriod = e.target.value; render(); } },
@@ -664,7 +670,7 @@ function tResumen(st, ws) {
       kpi("Series", fmt(c.sets), c.n ? fmt(c.sets / c.n, 1) + "/entreno" : "", deltaOf(c.sets, pv && pv.sets), pv ? `${fmt(pv.sets)} series ${vs}` : null),
       kpi("Racha", st.streak + " sem.", "seguidas", null, "Semanas seguidas con al menos un entreno")),
     h("div", { class: "hl" }, hl.map(([l, v, s_, fn]) => h(fn ? "button" : "div", { class: "hli" + (fn ? " click" : ""), onclick: fn || undefined }, h("span", { class: "l" }, kpiLbl(l)), h("b", null, v), h("span", { class: "s" }, s_)))),
-    h("div", { class: "card panel" }, h("h3", null, "Actividad", h("span", { class: "faint", style: { fontWeight: 400 } }, (window.innerWidth - 66 < 520 ? " · últimos 4 meses" : " · últimos 7 meses") + " · más oscuro = más volumen")), h("div", { class: "heat-wrap" }, heatmap(st.byDate))),
+    h("div", { class: "card panel" }, h("h3", null, "Actividad", h("span", { class: "faint", style: { fontWeight: 400 } }, " · " + heatLabel(R) + " · más oscuro = más volumen")), h("div", { class: "heat-wrap" }, heatmap(st.byDate, R.days))),
     showBars ? h("div", { class: "grid2 gap-big" },
       h("div", { class: "card panel" }, h("h3", null, P.gran === "day" ? "Minutos por día" : P.gran === "week" ? "Entrenos por semana" : "Entrenos por mes"),
         bars(P.buckets.map((b) => ({ v: P.gran === "day" ? b.min || (b.n ? 30 : 0) : b.n, label: `${P.bLabel(b)}\n${b.n} ${b.n === 1 ? "entreno" : "entrenos"}${b.min ? " · " + fmt(b.min) + " min" : ""}` })), { h: 90 }),

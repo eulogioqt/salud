@@ -160,7 +160,9 @@ def new_api_token(base, username, kind=None):
             raise AuthError("No existe la cuenta")
         ts = _tokens(users[username])
         ts[:] = [t for t in ts if t.get("used") or time.time() - t.get("created_ts", 0) < 86400]  # sin usar en 24 h: fuera
-        if kind and kind != "otro":  # un agente de cada tipo: si ya hay uno conectado hay que desconectarlo antes
+        if kind == "pasos":  # pasos automáticos del móvil: un solo token, el nuevo sustituye al anterior
+            ts[:] = [t for t in ts if t.get("kind") != "pasos"]
+        elif kind and kind != "otro":  # un agente de cada tipo: si ya hay uno conectado hay que desconectarlo antes
             if any(t.get("used") and (t.get("kind") == kind or t.get("agent") == kind) for t in ts):
                 raise AuthError("Ya tienes ese agente conectado: desconéctalo antes de conectar otro")
             ts[:] = [t for t in ts if t.get("kind") != kind]  # los generados y sin usar se sustituyen
@@ -180,13 +182,16 @@ def revoke_api_token(base, username, token_id=None):
             _write(users_path(base), users)
 
 
-def token_user(base, token, agent=None):
+def token_user(base, token, agent=None, kinds=None):
+    """Usuario del token. `kinds`: tipos admitidos (None = cualquiera salvo «pasos», que solo vale para enviar pasos)."""
     if not token or not token.startswith("sal_"):
         return None
     h = hashlib.sha256(token.encode()).hexdigest()
     for k, v in list_users(base).items():
         for t in _tokens(dict(v)):
             if hmac.compare_digest(t["hash"], h):
+                if (t.get("kind") == "pasos") != (kinds is not None and "pasos" in kinds):
+                    return None
                 if t.get("exp_ts") and t["exp_ts"] < time.time():
                     return None  # token OAuth caducado: el agente lo renueva con su refresh_token
                 _touch_token(base, k, t, agent if t.get("via") != "mcp" else None)

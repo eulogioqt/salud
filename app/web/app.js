@@ -103,11 +103,23 @@ function route() {
   if (S.view === "hoy") S.date = /^\d{4}-\d{2}-\d{2}$/.test(parts[1] || "") ? parts[1] : todayISO();
   document.querySelectorAll("#tabs a").forEach((a) => a.classList.toggle("on", a.dataset.v === S.view));
   $("#view").classList.toggle("wide", S.view !== "hoy");
+  // Cambio de pestaña al instante: lo que ya tenemos (y se actualiza detrás) o un esqueleto de carga, nunca la pestaña anterior
+  const cached = (S.view === "hoy" && S.day && S.day.date === S.date) || (S.view === "biblioteca" && S.catalog) || (S.view === "entreno" && S.training) || (S.view === "progreso" && S.progress);
+  if (cached) render(); else $("#view").replaceChildren(skeleton(S.view));
   refresh().catch((e) => { $("#view").replaceChildren(h("div", { class: "card panel" }, h("h3", null, "No se puede conectar con el servidor"), h("div", { class: "muted" }, e.message))); });
 }
 let lastView = null;
 window.addEventListener("hashchange", () => { const v0 = location.hash.split("/")[1] || "hoy"; if (v0 !== lastView) window.scrollTo(0, 0); lastView = v0; route(); });
 const goDay = (d) => { location.hash = "#/hoy/" + d; };
+
+function skeleton(view) {
+  const b = (hh, extra = {}) => h("div", { class: "sk", style: Object.assign({ height: hh + "px" }, extra) });
+  const grid = (n, hh) => h("div", { class: "sk-grid" }, Array.from({ length: n }, () => b(hh)));
+  return h("div", { class: "sk-wrap", "aria-busy": "true" },
+    view === "hoy" ? [b(36, { width: "40%" }), b(330), grid(3, 90), b(120), b(120)]
+      : view === "biblioteca" ? [b(42), b(34, { width: "70%" }), grid(4, 210), grid(4, 210)]
+        : [b(36, { width: "30%" }), grid(4, 92), b(220), grid(2, 160)]);
+}
 
 function render() {
   const root = $("#view");
@@ -303,7 +315,7 @@ function energySheet(st) {
   const parts = [
     ["bmr", "Metabolismo basal", (en.missing_profile || []).length ? null : en.bmr, (en.missing_profile || []).length ? "completa en Ajustes: " + en.missing_profile.join(", ") : `en reposo · ${fmt(en.weight_used_kg, 1)} kg, ${en.weight_source}`],
     ["tef", "Digestión (TEF)", en.tef, "10 % de lo que comes"],
-    ["neat", "Día a día", en.neat, "moverte por casa, de pie… (" + en.neat_source + ")"],
+    ["neat", "Día a día", en.neat, "estar de pie, tareas… · " + en.neat_source],
     ["steps", "Pasos", en.steps_kcal, en.steps == null ? "sin registrar" : `${fmt(en.steps_effective)} pasos netos` + (en.steps_in_activities ? ` (−${fmt(en.steps_in_activities)} de sesiones)` : "")],
     ...en.exercise.map((x) => ["ex", "Ejercicio · " + x.type, x.kcal, x.source.startsWith("estimado") ? "neto, estimado" : x.source]),
   ];
@@ -318,7 +330,8 @@ function energySheet(st) {
   const closedNote = closed && c ? h("div", { class: "bd-closed" }, icon("lock"), ` Cerrado el ${dateLabel(c.closed_at.slice(0, 10), { day: "numeric", month: "short" })} a las ${c.closed_at.slice(11, 16)}` + (c.version > 1 ? ` · versión ${c.version}` : "") + (c.forced ? " · con datos incompletos" : "")) : null;
   const obs = closed && c && c.summary && (c.summary.observations || []).length
     ? h("div", { class: "bd-sec" }, h("div", { class: "bd-st" }, h("span", { class: "sic s" }, "📝"), "Observaciones del cierre"), h("ul", { class: "bd-obs" }, c.summary.observations.map((o) => h("li", null, o)))) : null;
-  sheet(closed ? "Resumen del día" : "Desglose del día", [closedNote, hero, vs, eaten, burned, obs,
+  const neatSel = !closed ? h("div", { class: "bd-neat" }, neatPicker(st.date, async () => { await refresh(); sh2.close(); energySheet(S.day); })) : null;
+  const sh2 = sheet(closed ? "Resumen del día" : "Desglose del día", [closedNote, hero, vs, eaten, burned, neatSel, obs,
     h("div", { class: "faint bd-foot" }, "El gasto es una estimación, no una medición: ", en.method)], null, { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }) });
 }
 function energyTable(en, balance) {
@@ -349,10 +362,15 @@ function bodyStrip(st) {
   const weight = h("div", { class: "stat" },
     h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic w" }, "⚖"), "Peso")),
     h("div", { class: "v" }, el, h("small", null, "kg")), h("div", { class: "s" }, st.avg7 != null ? `media 7 d ${fmt(st.avg7, 1)}` : ""));
+  const pz = S.pasos || {};
   const steps = h("div", { class: "stat clickable", onclick: closed ? null : () => stepsSheet(st) },
-    h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic s" }, "👟"), "Pasos"), closed ? null : h("span", { class: "lnk" }, day.steps == null ? "+ Añadir" : "Editar")),
+    h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic s" }, "👟"), "Pasos", day.steps_auto ? h("span", { class: "auto-t", title: "Llegan solos desde el móvil" }, "auto") : null),
+      closed ? null : S.me && !pz.conectado ? h("button", { class: "lnk-btn", onclick: (e) => { e.stopPropagation(); stepsConnectSheet(); } }, "🔗 Conectar")
+        : h("span", { class: "lnk" }, day.steps == null ? "+ Añadir" : "Editar")),
     day.steps == null ? h("div", { class: "v" }, h("small", null, "Sin registrar"))
-      : h("div", { class: "v" }, fmt(day.steps)), h("div", { class: "s" }, day.steps != null && en.steps_kcal != null ? `${fmt(en.steps_kcal)} kcal` : ""));
+      : h("div", { class: "v" }, fmt(day.steps)),
+    st.steps_hours ? hourBars(st.steps_hours, st.date === st.today) : null,
+    h("div", { class: "s" }, day.steps != null && en.steps_kcal != null ? `${fmt(en.steps_kcal)} kcal` : ""));
   const ws = st.workouts || [];
   const other = st.activities.filter((a) => !ws.some((w) => w.activity_id === a.id));
   const kc = (id) => fmt((en.exercise.find((x) => x.id === id) || {}).kcal);
@@ -368,6 +386,46 @@ function bodyStrip(st) {
   return h("div", { class: "strip" }, weight, steps, train);
 }
 
+// Pasos por horas (cuando llegan del móvil): 24 barritas, la hora actual marcada
+function hourBars(hrs, today) {
+  const mx = Math.max(1, ...hrs), now = new Date().getHours();
+  return h("div", { class: "hbars", title: "Pasos por hora" }, hrs.map((v, i) => h("i", { class: (today && i === now ? "now" : "") + (today && i > now ? " fut" : ""), style: { height: Math.max(v ? 8 : 3, (100 * v) / mx) + "%" }, title: `${i}:00 · ${fmt(v)} pasos` })));
+}
+// Conectar los pasos del móvil: Android (Health Connect) o iPhone (Salud de Apple) con la app «Health Webhook»
+async function stepsConnectSheet() {
+  let info = await api("GET", "/api/pasos").catch(() => ({}));
+  let tok = null, os = /iPhone|iPad/.test(navigator.userAgent) ? "ios" : /Android/.test(navigator.userAgent) ? "android" : null;
+  const sh = sheet("Conectar tus pasos", null, null, { onClose: () => { clearInterval(tm); loadPasos(); } });
+  let tm = null;
+  const draw = () => {
+    const seg = h("div", { class: "seg tg-seg" }, [["android", "Android"], ["ios", "iPhone"]].map(([k, l]) => h("button", { class: os === k ? "on" : "", onclick: () => { os = k; draw(); } }, l)));
+    const tokLine = tok ? copyLine("Bearer " + tok) : h("button", { class: "btn sm", onclick: async () => { tok = (await api("POST", "/api/pasos", {})).token; draw(); } }, info.configurado ? "Generar una clave nueva" : "Generar mi clave");
+    const steps = os === "android" ? [
+      ["Que tus pasos lleguen a Health Connect", "Tu app de pasos (Samsung Health, Google Fit, Fitbit…) tiene que guardar en Health Connect: Ajustes del móvil → Health Connect → Permisos de apps."],
+      ["Instala «Health Connect Webhook»", "Gratis en Google Play. Ábrela y dale permiso a «Pasos».", { href: "https://play.google.com/store/apps/details?id=com.hcwebhook.app", t: "Abrir en Google Play" }],
+      ["Pasos: cada 15 o 60 minutos", "En Tipos de datos → Pasos, elige resolución de 15 min (o 60) y deja activado «Contar una vez las apps que se solapan»."],
+    ] : os === "ios" ? [
+      ["Instala «Health Webhook»", "Gratis en el App Store. Ábrela y dale permiso para leer los Pasos de Salud.", { href: "https://apps.apple.com/app/health-webhook/id6763619597", t: "Abrir en el App Store" }],
+      ["Pasos: cada 15 o 60 minutos", "En los tipos de datos, activa Pasos con resolución de 15 min (o 60)."],
+    ] : [];
+    sh.set("Conectar tus pasos", [
+      h("p", { class: "muted wz-p" }, "Así los pasos llegan solos (y por horas). Si no, los apuntas a mano en Hoy o se los dices a tu agente."),
+      seg,
+      os ? h("div", { class: "agent-steps simple" },
+        steps.map(([t, d, x], i) => h("div", { class: "ast" }, h("span", { class: "n" }, String(i + 1)), h("div", null, h("b", null, t), h("div", { class: "muted" }, d),
+          x ? h("a", { class: "btn sm ext", href: x.href, target: "_blank", rel: "noopener" }, x.t, " ↗") : null))),
+        h("div", { class: "ast" }, h("span", { class: "n" }, String(steps.length + 1)), h("div", null, h("b", null, "Añade el webhook"), h("div", { class: "muted" }, "Webhooks → Añadir. Dirección:"), copyLine(info.url || location.origin + "/api/hooks/salud"),
+          h("div", { class: "muted", style: { marginTop: "8px" } }, "Encabezado (header) → nombre «Authorization» y, como valor, tu clave (solo se ve ahora):"), tokLine,
+          h("div", { class: "muted", style: { marginTop: "8px" } }, "Sincronización: cada 30 min. Pulsa «Probar» o «Sincronizar ahora»."))),
+        h("div", { class: "ast" }, h("span", { class: "n" + (info.conectado ? " ok" : "") }, info.conectado ? "✓" : String(steps.length + 2)), h("div", null, h("b", null, "Listo"),
+          h("div", { class: "agent-wait soft" + (info.conectado ? " done" : "") }, info.conectado ? `Conectado · último envío ${info.ultimo}` : "Cuando llegue el primer envío, aquí pondrá «Conectado»."))))
+        : h("p", { class: "muted" }, "¿Qué móvil tienes?")],
+      info.configurado ? [h("button", { class: "btn ghost sm", onclick: async () => { if (!confirm("¿Desconectar los pasos automáticos? La clave dejará de funcionar.")) return; await api("DELETE", "/api/pasos"); info = {}; tok = null; draw(); } }, "Desconectar")] : null);
+  };
+  draw();
+  tm = setInterval(async () => { const r = await api("GET", "/api/pasos").catch(() => null); if (r && r.conectado !== info.conectado) { info = r; draw(); refresh(); } }, 4000);
+}
+async function loadPasos() { if (!S.me) return; S.pasos = await api("GET", "/api/pasos").catch(() => ({})); if (S.view === "hoy") render(); }
 function stepsSheet(st) {
   const en = st.energy;
   const inp = h("input", { class: "qty-in big num", inputMode: "numeric", value: st.day.steps ?? "", placeholder: "0" });
@@ -389,7 +447,8 @@ function stepsSheet(st) {
   draw();
   const sh = sheet("Pasos", [h("div", { class: "steps-box" }, inp, h("div", { class: "faint" }, "pasos del día"), kcalEl),
     h("div", { class: "note" }, `Zancada ${fmt(en.stride_m, 2)} m · ${fmt(en.weight_used_kg, 1)} kg · ${String(en.kcal_per_kg_km).replace(".", ",")} kcal/kg/km. Si una sesión de carrera ya está en el contador, se descuenta para no contarla dos veces.`)],
-    [h("span", { class: "grow" }), h("button", { class: "btn primary lg", onclick: save }, "Guardar")], { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }) });
+    [S.me ? h("button", { class: "btn ghost sm", onclick: () => { sh.close(); stepsConnectSheet(); } }, (S.pasos || {}).conectado ? "Pasos automáticos" : "🔗 Que lleguen solos") : null,
+      h("span", { class: "grow" }), h("button", { class: "btn primary lg", onclick: save }, "Guardar")], { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }) });
   setTimeout(() => { inp.focus(); inp.select(); }, 60);
 }
 
@@ -834,6 +893,16 @@ function summaryView(s, extra) {
     extra || null);
 }
 
+// Cómo fue el día sin contar los pasos (de pie, tareas…): cambia el «día a día» del gasto
+function neatPicker(date, onDone) {
+  const st = S.day && S.day.date === date ? S.day : null;
+  const levels = (st && st.neat_levels) || [{ key: "casa", label: "Casi todo el día sentado", kcal: 50 }, { key: "normal", label: "Normal", kcal: 150 }, { key: "activo", label: "Activo: mucho de pie o tareas", kcal: 300 }, { key: "muy", label: "Muy activo: trabajo físico", kcal: 450 }];
+  const cur = st ? st.day.neat_kcal : null;
+  const short = { casa: "En casa / sentado", normal: "Normal", activo: "Activo", muy: "Muy activo" };
+  return h("div", { class: "neat-pk" }, h("div", { class: "sec-t", style: { marginTop: 0 } }, "¿Cómo fue el día? ", h("span", { class: "faint", style: { textTransform: "none", letterSpacing: 0, fontWeight: 400 } }, "(sin contar los pasos)")),
+    h("div", { class: "neat-row" }, levels.map((l) => h("button", { class: "neat-b" + (cur != null && Math.abs(cur - l.kcal) < 1 ? " on" : ""), title: l.label,
+      onclick: async () => { await act(() => api("PUT", "/api/days/" + date, { neat_kcal: l.kcal })); onDone && onDone(); } }, h("b", null, short[l.key] || l.label), h("span", null, "+" + fmt(l.kcal) + " kcal")))));
+}
 async function closeSheet(date) {
   const sh = sheet("Cerrar día", h("div", { class: "muted" }, "Comprobando…"));
   const draw = async () => {
@@ -862,6 +931,7 @@ async function closeSheet(date) {
       } catch (e) { toast(e.message, { error: true }); }
     };
     sh.set("Cerrar " + (date === todayISO() ? "hoy" : dateLabel(date)), [
+      neatPicker(date, () => draw()),
       chk.warnings.length ? [h("div", { class: "sec-t" }, chk.has_important ? "Falta por registrar" : "Avisos"), warns] : h("div", { class: "ok-box" }, "Todo registrado."),
       h("div", { class: "sec-t" }, "Resumen"), summaryView(chk.summary)],
       [h("button", { class: "btn", onclick: sh.close }, "Seguir editando"), h("span", { class: "grow" }),
@@ -1475,59 +1545,60 @@ function targetSheet(tg, onSaved) {
       toast("Objetivo guardado"); sh.close(); await refresh(); onSaved && onSaved(); } }, "Guardar")]);
   draw();
 }
-// ---- Primeros pasos (la primera vez que entra alguien): perfil, Hevy, agente y objetivo
+// ---- Primeros pasos (obligatorio la primera vez): tus datos → conectar tu agente (y él hace el resto) o, sin agente, objetivo y Hevy a mano
 async function welcomeSheet() {
   const data = await api("GET", "/api/settings"); const st = data.settings;
-  let step = 0;
+  let page = "datos", path = null;
   const sexo = { v: st.sexo || "" };
   const born = h("input", { class: "input", type: "date", value: st.fecha_nacimiento || "" });
   const alt = numIn(st.altura_cm || null, "cm"), kg = numIn(st.peso_estimado_kg || null, "kg");
   const hevyOut = h("div", { class: "wz-res" });
-  const finish = async () => { await api("PUT", "/api/notes/bienvenida", { body: "hecho " + todayISO() }).catch(() => {}); sh.close(); await refresh(); };
-  const dots = () => h("div", { class: "wz-dots" }, pages.map((_, i) => h("i", { class: i === step ? "on" : i < step ? "done" : "" })));
-  const agentPage = () => ["Conecta tu agente", [
-    h("p", { class: "muted wz-p" }, "Es lo primero: con tu Claude (u otro agente) apuntas comidas hablando, le mandas capturas de Hevy o de la báscula y te guía en todo lo demás."),
-    agentConnected() ? h("div", { class: "agent-wait soft done" }, "✓ Agente conectado.") : h("button", { class: "btn primary", onclick: () => connectAgent() }, "Conectar un agente"),
-    h("div", { class: "faint wz-p", style: { marginTop: "10px" } }, "Si prefieres hacerlo luego: menú de tu nombre → Conectar un agente.")], null];
-  const pages = [
-    agentPage,
-    () => ["Tus datos", [
+  const order = () => (path === "manual" ? ["datos", "agente", "objetivo", "hevy"] : ["datos", "agente", "listo"]);
+  const finish = async () => { await api("PUT", "/api/notes/bienvenida", { body: "hecho " + todayISO() }).catch(() => {}); done = true; sh.close(); await refresh(); };
+  let done = false;
+  const go = (p) => { page = p; draw(); };
+  const P = {
+    datos: () => ["Tus datos", [
       h("p", { class: "muted wz-p" }, "Para calcular cuánto gastas al día. Solo lo ves tú."),
       h("div", { class: "seg wz-seg" }, [["H", "Hombre"], ["M", "Mujer"]].map(([k, l]) => h("button", { class: sexo.v === k ? "on" : "", onclick: (e) => { sexo.v = k; e.target.parentNode.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === e.target)); } }, l))),
       h("div", { class: "grid3 wz-g" }, h("div", null, h("label", { class: "f" }, "Fecha de nacimiento"), born), h("div", null, h("label", { class: "f" }, "Altura (cm)"), alt), h("div", null, h("label", { class: "f" }, "Peso aproximado (kg)"), kg))],
-      async () => { await api("PUT", "/api/settings", { sexo: sexo.v, fecha_nacimiento: born.value, altura_cm: parseNum(alt.value) == null ? "" : String(parseNum(alt.value)), peso_estimado_kg: parseNum(kg.value) == null ? "" : String(parseNum(kg.value)) }); }],
-    () => ["Tus entrenos de Hevy", [
+      [h("span", { class: "grow" }), h("button", { class: "btn primary", onclick: async () => {
+        if (!sexo.v || !born.value || !(parseNum(alt.value) > 0) || !(parseNum(kg.value) > 0)) return toast("Rellena los cuatro datos", { error: true });
+        try { await api("PUT", "/api/settings", { sexo: sexo.v, fecha_nacimiento: born.value, altura_cm: String(parseNum(alt.value)), peso_estimado_kg: String(parseNum(kg.value)) }); } catch (e) { return toast(e.message, { error: true }); }
+        go("agente"); } }, "Siguiente")]],
+    agente: () => ["Tu agente", [
+      h("p", { class: "muted wz-p" }, "Con tu Claude (u otro agente) apuntas comidas hablando, le mandas capturas de Hevy o de la báscula, y él te configura el objetivo y vuelca tu historial."),
+      agentConnected() ? h("div", { class: "agent-wait soft done", style: { marginBottom: "12px" } }, "✓ Agente conectado.") : null,
+      h("button", { class: "wz-choice main", onclick: () => { path = "agente"; if (agentConnected()) go("listo"); else connectAgent(); } },
+        h("b", null, agentConnected() ? "Seguir con mi agente" : "Conectar mi agente"), h("span", null, "Recomendado: lo demás lo haces hablando con él.")),
+      h("button", { class: "wz-choice", onclick: () => { path = "manual"; go("objetivo"); } }, h("b", null, "Prefiero hacerlo a mano"), h("span", null, "Eliges tu objetivo y subes tu Hevy aquí. Puedes conectar un agente cuando quieras."))],
+      [h("button", { class: "btn ghost", onclick: () => go("datos") }, "Atrás")]],
+    listo: () => ["¡Listo!", [
+      h("div", { class: "wz-big" }, "💬"),
+      h("p", { class: "wz-p", style: { fontSize: "15px" } }, "Abre un chat nuevo con tu agente y dile:"),
+      copyLine("Empezar con Salud", "big"),
+      h("p", { class: "muted wz-p", style: { marginTop: "12px" } }, "Te preguntará qué quieres conseguir, te dejará fijado el objetivo y te ayudará a volcar tu historial de Hevy. Después ya puedes usarlo: «apunta mi desayuno», «cierra el día»…")],
+      [h("button", { class: "btn ghost", onclick: () => go("agente") }, "Atrás"), h("span", { class: "grow" }), h("button", { class: "btn primary", onclick: finish }, "Terminar")]],
+    objetivo: () => ["Tu objetivo", [
+      h("p", { class: "muted wz-p" }, "Recomendado: según tu gasto. Cada día se ajusta a lo que gastas (metabolismo, pasos y entreno) más o menos lo que elijas."),
+      targetCard(data.current_target, async () => { const d2 = await api("GET", "/api/settings"); data.current_target = d2.current_target; draw(); })],
+      [h("button", { class: "btn ghost", onclick: () => go("agente") }, "Atrás"), h("span", { class: "grow" }), h("button", { class: "btn primary", onclick: () => go("hevy") }, "Siguiente")]],
+    hevy: () => ["Tus entrenos de Hevy", [
       h("p", { class: "muted wz-p" }, "Opcional. Si usas Hevy, trae tu historial: récords, niveles y progreso salen de ahí."),
-      h("div", { class: "wz-opt" }, h("b", null, "Con tu agente"), h("span", null, "Dile «quiero volcar mi Hevy»: te explica cómo exportarlo y se lo pasas por el chat.")),
-      h("div", { class: "wz-opt" }, h("b", null, "O aquí"), h("span", null, "En Hevy: Perfil → ⚙ Ajustes → Exportar e importar datos → Exportar entrenos, y sube el .csv:"),
-        h("button", { class: "btn sm", onclick: () => { const fi = h("input", { type: "file", accept: ".csv,.json,text/csv,application/json" });
-          fi.addEventListener("change", async () => { const f = fi.files[0]; if (!f) return; hevyOut.textContent = "Importando…";
-            try { const r = await api("POST", "/api/hevy/import-csv", { csv: await f.text() }); hevyOut.textContent = `✓ ${r.created} entrenos importados` + (r.updated ? ` · ${r.updated} actualizados` : ""); } catch (e) { hevyOut.textContent = e.message; } });
-          fi.click(); } }, "Subir archivo de Hevy"), hevyOut)], null],
-    () => ["Tus pasos", [
-      h("p", { class: "muted wz-p" }, "Los pasos cuentan en lo que gastas. Opcional: conectarlos para que lleguen solos."),
-      h("div", { class: "wz-opt soon" }, h("b", null, "Android · Health Connect"), h("span", null, "Próximamente.")),
-      h("div", { class: "wz-opt soon" }, h("b", null, "iPhone · Salud de Apple"), h("span", null, "Próximamente.")),
-      h("div", { class: "wz-opt" }, h("b", null, "Mientras tanto"), h("span", null, "Apúntalos al final del día en Hoy → Pasos, o díselos a tu agente («hoy 8.000 pasos»)."))], null],
-    () => ["Lo que sueles comer", [
-      h("p", { class: "muted wz-p" }, "Mete primero tus alimentos y comidas de siempre: luego apuntar el día es un toque."),
-      h("div", { class: "wz-opt" }, h("b", null, "Con tu agente"), h("span", null, "Mándale fotos de las etiquetas («créame estos productos») o descríbele tu desayuno de siempre («guárdalo como comida habitual»).")),
-      h("div", { class: "wz-opt" }, h("b", null, "O a mano"), h("span", null, "En Biblioteca: + Producto, + Receta o + Comida habitual."),
-        h("button", { class: "btn sm", onclick: () => { sh.close(); location.hash = "#/biblioteca"; } }, "Ir a la Biblioteca"))], null],
-    () => ["Tu objetivo", [
-      h("p", { class: "muted wz-p" }, "Dile a tu agente ", h("b", null, "«ayúdame a fijar mi objetivo»"), ": te pregunta qué quieres conseguir y lo deja configurado en un minuto."),
-      h("p", { class: "muted wz-p" }, "O elígelo tú:"), h("button", { class: "btn sm", onclick: () => targetSheet(data.current_target, null) }, "Elegir objetivo")], null],
-  ];
-  const sh = sheet("Primeros pasos", null, null, { onClose: () => { S.onAgents = null; api("PUT", "/api/notes/bienvenida", { body: "visto " + todayISO() }).catch(() => {}); } });
+      h("ol", { class: "wz-ol" }, h("li", null, "En Hevy: ", h("b", null, "Perfil → ⚙ Ajustes → Exportar e importar datos → Exportar entrenos"), "."), h("li", null, "Sube aquí el archivo .csv:")),
+      h("button", { class: "btn", onclick: () => { const fi = h("input", { type: "file", accept: ".csv,.json,text/csv,application/json" });
+        fi.addEventListener("change", async () => { const f = fi.files[0]; if (!f) return; hevyOut.textContent = "Importando…";
+          try { const r = await api("POST", "/api/hevy/import-csv", { csv: await f.text() }); hevyOut.textContent = `✓ ${r.created} entrenos importados` + (r.updated ? ` · ${r.updated} actualizados` : ""); } catch (e) { hevyOut.textContent = e.message; } });
+        fi.click(); } }, "Subir archivo de Hevy"), hevyOut],
+      [h("button", { class: "btn ghost", onclick: () => go("objetivo") }, "Atrás"), h("span", { class: "grow" }), h("button", { class: "btn primary", onclick: finish }, "Terminar")]],
+  };
+  const sh = sheet("Primeros pasos", null, null, { onClose: () => { S.onAgents = null; if (!done) setTimeout(() => api("GET", "/api/notes/bienvenida").then((n) => { if (!n.body) toast("Te lo volveré a mostrar hasta que termines los primeros pasos"); }).catch(() => {}), 50); } });
   let wasOn = agentConnected();
-  S.onAgents = () => { if (step === 0 && agentConnected() !== wasOn) { wasOn = agentConnected(); draw(); } };  // al conectar el agente, el paso 1 se marca solo
+  S.onAgents = () => { if (agentConnected() !== wasOn) { wasOn = agentConnected(); if (page === "agente" && wasOn && path === "agente") go("listo"); else if (page === "agente") draw(); } };
   const draw = () => {
-    const [title, body, save] = pages[step]();
-    const last = step === pages.length - 1;
-    sh.set(title, [dots(), ...body], [
-      step ? h("button", { class: "btn ghost", onclick: () => { step--; draw(); } }, "Atrás") : h("button", { class: "btn ghost", onclick: finish }, "Ahora no"), h("span", { class: "grow" }),
-      h("button", { class: "btn primary", onclick: async () => { try { if (save) await save(); } catch (e) { toast(e.message, { error: true }); return; } if (last) { toast("¡Listo! Ya puedes empezar"); finish(); } else { step++; draw(); } } }, last ? "Terminar" : save ? "Guardar y seguir" : "Siguiente")],
-      { sub: `Paso ${step + 1} de ${pages.length}` });
+    const [title, body, foot] = P[page]();
+    const ord = order(), i = ord.indexOf(page);
+    sh.set(title, [h("div", { class: "wz-dots" }, ord.map((_, k) => h("i", { class: k === i ? "on" : k < i ? "done" : "" }))), ...body], foot, { sub: `Paso ${i + 1} de ${ord.length}` });
   };
   draw();
 }
@@ -1544,6 +1615,10 @@ async function settingsSheet() {
     h("div", { class: "sec-t" }, "Objetivo diario"),
     targetCard(tg, () => { sh.close(); settingsSheet(); }),
     h("details", { style: { marginTop: "8px" } }, h("summary", null, "Historial de objetivos"), hist),
+    h("div", { class: "sec-t" }, "Lo que crea tu agente"),
+    h("label", { class: "tg-card", style: { cursor: "pointer" } }, h("input", { type: "checkbox", checked: st.revisar_agente === "1", style: { width: "18px", height: "18px" },
+      onchange: async (e) => { await act(() => api("PUT", "/api/settings", { revisar_agente: e.target.checked ? "1" : "0" }), e.target.checked ? "Lo revisarás en la Biblioteca" : "Se acepta solo"); } }),
+      h("div", { class: "grow" }, h("b", null, "Revisar antes de usarlo"), h("div", { class: "faint" }, "Los productos, recetas y comidas habituales que cree tu agente quedan «por revisar» en la Biblioteca hasta que los aceptes. Si lo desactivas, se pueden usar al momento."))),
     h("div", { class: "sec-t" }, "Perfil para el gasto estimado"),
     h("div", { class: "grid4" }, prof.map(([k, l, inp]) => h("div", null, h("label", { class: "f" }, l), inp))),
     h("div", { class: "row", style: { marginTop: "8px", justifyContent: "flex-end" } }, h("button", { class: "btn", onclick: async () => {
@@ -1595,8 +1670,8 @@ document.addEventListener("keydown", (e) => {
 // En modo servidor, saber quién ha iniciado sesión (en local /api/me no existe y no pasa nada)
 fetch("/api/me").then((r) => (r.ok ? r.json() : null)).then(async (m) => {
   if (!m || !m.usuario) return;
-  S.me = m; drawAccount();
-  const n = await api("GET", "/api/notes/bienvenida").catch(() => null);  // primera vez: primeros pasos
-  if (n && !n.body) setTimeout(() => welcomeSheet().catch(() => {}), 600);
+  S.me = m; drawAccount(); loadPasos();
+  const n = await api("GET", "/api/notes/bienvenida").catch(() => null);  // primeros pasos hasta terminarlos
+  if (n && !/^hecho/.test(n.body || "")) setTimeout(() => welcomeSheet().catch(() => {}), 600);
 }).catch(() => {});
 route();

@@ -155,7 +155,7 @@ class Handler(BaseHTTPRequestHandler):
 
     @staticmethod
     def _agent_info(user):
-        ts = auth.list_tokens(MULTI, user)
+        ts = [t for t in auth.list_tokens(MULTI, user) if t.get("kind") != "pasos"]
         used = [t for t in ts if t["used"]]
         return {"tokens": ts, "connected": bool(used), "agents": used}
 
@@ -215,6 +215,31 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(401, {"error": "Sin sesión"})
             info = auth.list_users(MULTI).get(ctx[2], {})
             return self._send(200, {"usuario": ctx[2], "nombre": info.get("name"), "agente": self._agent_info(ctx[2])})
+        if MULTI and u.path == "/api/hooks/salud" and method == "POST":
+            # Datos del móvil (app «HC Webhook» en Android / «Health Webhook» en iPhone) con el token de pasos
+            bearer = self.headers.get("Authorization") or ""
+            who = auth.token_user(MULTI, bearer[7:].strip(), kinds=("pasos",)) if bearer.startswith("Bearer ") else None
+            if not who:
+                return self._send(401, {"error": "Token de pasos no válido: genéralo en la web (Hoy → Pasos → Conectar)"})
+            conn, lock = user_ctx(who)
+            try:
+                with lock:
+                    return self._send(200, core.ingest_health(conn, body, "movil"))
+            except Exception as e:
+                return self._send(400, {"error": str(e)})
+        if MULTI and u.path == "/api/pasos":
+            user = auth.session_user(MULTI, self._cookie_token())
+            if not user:
+                return self._send(401, {"error": "Inicia sesión", "login": True})
+            if method == "POST":
+                return self._send(200, {"token": auth.new_api_token(MULTI, user, "pasos"), "url": self._base() + "/api/hooks/salud"})
+            if method == "DELETE":
+                for t in auth.list_tokens(MULTI, user):
+                    if t.get("kind") == "pasos":
+                        auth.revoke_api_token(MULTI, user, t["id"])
+                return self._send(200, {"ok": True})
+            t = next((t for t in auth.list_tokens(MULTI, user) if t.get("kind") == "pasos"), None)
+            return self._send(200, {"configurado": bool(t), "conectado": bool(t and t.get("used")), "ultimo": t and t.get("used"), "url": self._base() + "/api/hooks/salud"})
         if MULTI and u.path.startswith("/api/token"):
             # Tokens de agentes (Claude, Codex…): solo con la sesión de la web, nunca con otro token.
             user = auth.session_user(MULTI, self._cookie_token())

@@ -258,6 +258,11 @@ MIGRATIONS = [
     ALTER TABLE targets ADD COLUMN fat_min_pct REAL;
     ALTER TABLE targets ADD COLUMN fat_max_pct REAL;
     """,
+    # v9 — pasos automáticos (Health Connect / Salud de Apple): tramos con su hora local; el día guarda la suma
+    """
+    CREATE TABLE step_buckets(start TEXT PRIMARY KEY, end TEXT, steps INTEGER NOT NULL, received_at TEXT);
+    ALTER TABLE days ADD COLUMN steps_auto INTEGER NOT NULL DEFAULT 0;
+    """,
 ]
 
 
