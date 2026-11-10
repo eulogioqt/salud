@@ -317,7 +317,27 @@ const STD = [
 // Dominada a una mano → Élite desde 1 rep y Leyenda desde lo que hace la mitad de quien la registra; muscle-up → Avanzado;
 // flexión a una mano → Intermedio (según las clasificaciones habituales de calistenia).
 // (min: rango con 1 rep; leg: índice del corte de Strength Level que pasa a ser Leyenda)
-const SKILL_MIN = { "one-arm-pull-ups.reps": { min: 4, leg: 2 }, "muscle-ups.reps": { min: 3 }, "ring-muscle-ups.reps": { min: 3 }, "one-arm-push-ups.reps": { min: 2 } };
+// (min: rango con 1 rep o con cualquier lastre; map: {rango nuestro: corte de Strength Level que se usa})
+const SKILL_MIN = { "one-arm-pull-ups.reps": { min: 4, map: { 5: 2 } }, "muscle-ups.reps": { min: 3 }, "ring-muscle-ups.reps": { min: 3 },
+  "muscle-ups.add": { min: 3, map: { 4: 3, 5: 4 } }, "one-arm-push-ups.reps": { min: 2 } };
+// Habilidades sin tabla de Strength Level: cortes propios (segundos). Front lever completo: Élite al sostenerlo, Leyenda desde 10 s.
+const CUSTOM_SKILLS = [[/^front lever( sostenid[ao])?$/, "tiempo", "secs", { 4: 2, 5: 10 }, 4, "front-lever"]];
+function customModel(cuts, f) {
+  const all = [0, 0, 0, 0, 0, 0];
+  for (let k = f; k < 6; k++) all[k] = cuts[k];
+  for (let k = 0; k < f; k++) all[k] = 0.5 + (all[f] - 0.5) * k / f;
+  const lg = (x) => Math.log(Math.max(0.5, x));
+  return { all, off: 0, slope: (lg(all[5]) - lg(all[4])) / (Z[5] - Z[4]), metric: "secs", skill: f };
+}
+// Series que cuentan como estrictas según la nota («la última con goma», «las últimas dos con goma», «con una pierna»…)
+function strictSets(sets, notes) {
+  const t = norm(notes || "");
+  if (/pierna|tuck|recogid|straddle|abiert/.test(t)) return [];
+  const m = t.match(/(?:la|las) ultimas? ?(dos|tres|cuatro|\d)? ?con (goma|banda)/);
+  if (m) { const n = { dos: 2, tres: 3, cuatro: 4 }[m[1]] || +m[1] || 1; return sets.slice(0, Math.max(0, sets.length - n)); }
+  if (/goma|banda|asistid/.test(t) && !/sin (goma|banda)/.test(t)) return [];
+  return sets;
+}
 // Percentil a partir de los cortes de Strength Level, interpolando en escala normal (z) con la carga en logaritmo.
 // Principiante 5 % · Novato 20 % · Intermedio 50 % · Avanzado 80 % · Élite 95 % · Leyenda 99 % (top 1 %, extrapolado).
 const Z = [-1.645, -0.8416, 0, 0.8416, 1.645, 2.326];
@@ -364,14 +384,15 @@ function slModelSx(slug, metric, bw, sx) {
   const lg = (x) => Math.log(Math.max(0.5, x));
   const slope = (lg(pts[4]) - lg(pts[3])) / (Z[4] - Z[3]);
   const legend = Math.exp(lg(pts[4]) + slope * (Z[5] - Z[4]));
-  const sk = metric === "reps" && SKILL_MIN[slug];
-  if (sk) { // los rangos por debajo del mínimo quedan entre 0 y 1 rep: o la haces o no
-    const all = [...pts, legend], f = sk.min;
-    if (sk.leg != null) all[5] = Math.max(2, pts[sk.leg]);
-    for (let k = 0; k < f; k++) all[k] = 0.5 + 0.5 * k / f;
-    all[f] = 1;
+  const sk = SKILL_MIN[slug];
+  if (sk) { // los rangos por debajo del mínimo quedan antes de «1 rep» (o de «algo de lastre»): o la haces o no
+    const all = [...pts, legend], f = sk.min, one = metric === "add" ? off + 0.5 : 1, low = metric === "add" ? off * 0.9 : 0.5;
+    for (const [k, v] of Object.entries(sk.map || {})) all[+k] = pts[v];
+    for (let k = 0; k < f; k++) all[k] = low + (one - low) * k / f;
+    all[f] = one;
     for (let k = f + 1; k < 6; k++) if (all[k] <= all[k - 1]) all[k] = all[k - 1] + 1;
-    return { all, off, slope, metric, skill: f };
+    const lg2 = (x) => Math.log(Math.max(0.5, x));
+    return { all, off, slope: (lg2(all[5]) - lg2(all[4])) / (Z[5] - Z[4]), metric, skill: f };
   }
   return { all: [...pts, legend], off, slope, metric };
 }
@@ -384,6 +405,8 @@ function exLevel(e, bw) {
     const key = cfg.sl_slug + (metric === "reps" ? ".reps" : metric === "add" ? ".add" : "");
     if (SL_TABLES[key]) sd = [null, metric, key, [e.kind], ["maquina", "discos", "polea", "cable"].includes(cfg.equipment)];
   }
+  const cs = !sd && CUSTOM_SKILLS.find(([rx, k]) => rx.test(n) && k === e.kind);
+  if (cs) sd = [null, cs[2], cs[5], [e.kind], false];
   sd = sd || STD.find(([rx, , , kinds]) => rx.test(n) && kinds.includes(e.kind));
   if (!sd) return null;
   const [, metric, slug, , machine] = sd;
@@ -392,13 +415,14 @@ function exLevel(e, bw) {
   let best = null;
   for (const x of e.sessions) {
     const b = bwFn(x.date); if (!b) continue;
-    const model = slModel(slug, metric, b); if (!model) continue;
+    const model = cs ? customModel(cs[3], cs[4]) : slModel(slug, metric, b); if (!model) continue;
     const mk = machineKg(e.name, x.notes);
-    for (const s_ of workSets(x.sets)) {
+    for (const s_ of cs ? strictSets(workSets(x.sets), x.notes) : workSets(x.sets)) {
       let v = null;
       // Lo apuntado incluye el peso de la máquina: para comparar con los estándares se usa solo lo cargado.
       if (metric === "1rm" || metric === "db") { const w = s_.weight_kg != null ? s_.weight_kg - mk : null; v = w > 0 ? e1rm(w, s_.reps, e.name) : null; if (v != null) v *= ratio; if (v != null && metric === "db") v /= 2; }
       else if (metric === "add") v = s_.reps && s_.weight_kg > 0 ? (b + s_.weight_kg) / HEVY_PCT[Math.min(s_.reps, 30) - 1] - b : null;
+      else if (metric === "secs") v = s_.seconds || null;
       // a una mano: reps de los dos lados → por brazo (salvo «solo derecha/izquierda» en la nota: son las de ese brazo)
       else v = s_.reps && isUni(e.name) && !/solo (con )?(el |la )?(brazo |mano )?(derech|izquierd)/.test(norm(x.notes || "")) ? Math.ceil(s_.reps / 2) : s_.reps;
       if (v == null) continue;
@@ -414,9 +438,9 @@ function exLevel(e, bw) {
   const floor = model.skill || null;  // habilidad rara: rango mínimo con 1 rep (ver SKILL_MIN)
   const lo = idx ? cuts[idx - 1] : 0, hi = cuts[idx];
   const frac = hi == null ? 1 : Math.max(0, Math.min(1, (raw - lo) / (hi - lo)));
-  const need = hi == null ? null : `${metric === "reps" ? "+" + Math.ceil(hi - raw) + " reps" : "+" + fmt(Math.max(1, hi - raw)) + " kg de 1RM" + (metric === "db" ? " por mancuerna" : "")} para ${LVL[idx + 1]}`;
+  const need = hi == null ? null : `${metric === "reps" ? "+" + Math.ceil(hi - raw) + " reps" : metric === "secs" ? "+" + Math.ceil(hi - raw) + " s" : "+" + fmt(Math.max(1, hi - raw)) + " kg de 1RM" + (metric === "db" ? " por mancuerna" : "")} para ${LVL[idx + 1]}`;
   const valTxt = metric === "1rm" ? `1RM ≈ ${fmt(raw)} kg` + (ratio !== 1 ? ` (polea × ${fmt(ratio, 2)})` : "") : metric === "db" ? `1RM ≈ ${fmt(raw)} kg por mancuerna (${fmt(raw * 2)} kg las dos)`
-    : metric === "add" ? `lastre 1RM ≈ +${fmt(raw)} kg` : `${raw} reps seguidas`;
+    : metric === "add" ? `lastre 1RM ≈ +${fmt(raw)} kg` : metric === "secs" ? `${fmt(raw)} s aguantando (estricto)` : `${raw} reps seguidas`;
   const cutsTxt = `Cortes para ${sexWord()} de ${fmt(bwUsed, 1)} kg: ` + cuts.map((x, i) => `${LVL[i + 1]} ${metric === "reps" ? Math.round(x) : (metric === "add" && x > 0 ? "+" : "") + fmt(x)}`).join(" · ");
   return { idx, frac, score: idx + frac, raw, pct, z, metric, need, floor, slug, valTxt, cutsTxt, cuts, rawSet, machine: !!machine, solid: true, model, bw: bwUsed, date: best.date, name: e.name };
 }
@@ -528,12 +552,25 @@ function trainingStats(ws, bw) {
   }
   const list = Object.values(exs);
   for (const e of list) e.level = exLevel(e, bwAt);
+  // Subidas de rango: la sesión en la que el ejercicio pasa a un rango mejor que el mejor que tenía
+  const ups = [];
+  for (const e of list) {
+    if (!e.level) continue;
+    let best = null;
+    for (const x of e.sessions) {
+      const Li = exLevel({ name: e.name, kind: e.kind, sessions: [x] }, bwAt);
+      if (!Li) continue;
+      if (best != null && Li.idx > best) ups.push({ date: x.date, wid: x.wid, name: e.name, kind: e.kind, from: best, to: Li.idx, L: Li });
+      if (best == null || Li.idx > best) best = Li.idx;
+    }
+  }
+  ups.sort((a, b) => b.date.localeCompare(a.date));
   // racha: semanas seguidas (la actual cuenta si ya hay entreno; si no, se mira desde la anterior)
   const weeksWith = new Set(ws.map((w) => mondayOf(w.date)));
   let streak = 0, wk = mondayOf(todayISO());
   if (!weeksWith.has(wk)) wk = addDays(wk, -7);
   while (weeksWith.has(wk)) { streak++; wk = addDays(wk, -7); }
-  return { list, prs: prs.reverse(), streak, first: asc.length ? asc[0].date : todayISO(),
+  return { list, prs: prs.reverse(), ups, streak, first: asc.length ? asc[0].date : todayISO(),
     byDate: ws.reduce((m, w) => { (m[w.date] = m[w.date] || []).push(w); return m; }, {}) };
 }
 
@@ -589,7 +626,7 @@ function periodStats(st, ws, R) {
   for (const w of L) { const b = buckets[bi[keyOf(w.date)]]; if (b) { b.n++; b.vol += w.volume_kg || 0; b.min += w.duration_min || 0; b.sets += w.sets_count; } }
   const bLabel = (b) => (gran === "day" ? dateLabel(b.k, { weekday: "short", day: "numeric", month: "short" }) : gran === "week" ? "Semana del " + dateLabel(b.k, { day: "numeric", month: "short" }) : dateLabel(b.k, { month: "long", year: "numeric" }));
   const weeks = Math.max(1, R.days / 7);
-  return { L, cur, prev, groups, top, buckets, gran, bLabel, perWeek: cur.n / weeks, prs: st.prs.filter((p) => inR(p.date) && TROPHY.includes(p.type)) };
+  return { L, cur, prev, groups, top, buckets, gran, bLabel, perWeek: cur.n / weeks, prs: st.prs.filter((p) => inR(p.date) && TROPHY.includes(p.type)), ups: (st.ups || []).filter((u) => inR(u.date)) };
 }
 
 // --------------------------------------------------------------- gráficas
@@ -777,7 +814,20 @@ function tResumen(st, ws) {
         P.top.length ? h("div", { class: "exlist" }, P.top.slice(0, 6).map(({ e, n }) => exRow(e, null, `${n} ${n === 1 ? "sesión" : "sesiones"} en el periodo`))) : h("div", { class: "muted" }, "Nada en este periodo."))),
     P.prs.length ? h("div", { class: "card panel" }, h("div", { class: "row", style: { marginBottom: "6px" } }, h("h3", { style: { margin: 0 } }, "Récords del periodo", h("span", { class: "faint", style: { fontWeight: 400 } }, ` · ${P.prs.length} · los más recientes`)), h("span", { class: "grow" }),
       P.prs.length > 6 ? h("button", { class: "btn sm ghost", onclick: () => sheet(`Récords · ${R.label}`, h("div", { class: "exlist" }, P.prs.map((p) => prRow(p))), null, { sub: `${P.prs.length} récords, del más reciente al más antiguo` }) }, `Ver todos (${P.prs.length})`) : null),
-      h("div", { class: "exlist" }, P.prs.slice(0, 6).map((p) => prRow(p)))) : null);
+      h("div", { class: "exlist" }, P.prs.slice(0, 6).map((p) => prRow(p)))) : null,
+    P.ups.length ? h("div", { class: "card panel" }, h("div", { class: "row", style: { marginBottom: "6px" } }, h("h3", { style: { margin: 0 } }, "Subidas de rango", h("span", { class: "faint", style: { fontWeight: 400 } }, ` · ${P.ups.length}`)), h("span", { class: "grow" }),
+      P.ups.length > 6 ? h("button", { class: "btn sm ghost", onclick: () => sheet(`Subidas de rango · ${R.label}`, h("div", { class: "exlist" }, P.ups.map((u) => upRow(u))), null, { sub: `${P.ups.length} subidas, de la más reciente a la más antigua` }) }, `Ver todas (${P.ups.length})`) : null),
+      h("div", { class: "exlist" }, P.ups.slice(0, 6).map((u) => upRow(u)))) : null);
+}
+// Una subida de rango: de qué rango a cuál, con el escudo nuevo
+function upRow(u) {
+  return h("button", { class: "exrow", onclick: () => exerciseSheet(u.name) }, exIcon(u.name, 34),
+    h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, h("span", null, dispName(u.name))),
+      h("div", { class: "exr-s" }, dateLabel(u.date, { weekday: "short", day: "numeric", month: "short" }) + " · " + u.L.valTxt)),
+    h("div", { class: "exr-v up" }, h("span", { class: "upfromto" }, h("span", { class: "lvname sm l" + u.from }, LVL[u.from]), " → ", lvlShield(u.L, 18), h("b", { class: "lvname l" + u.to }, LVL[u.to]))));
+}
+function upChip(u) {
+  return tip(h("span", { class: "upchip l" + u.to }, "▲ ", LVL[u.to]), `Sube de rango: ${LVL[u.from]} → ${LVL[u.to]}`);
 }
 
 const EQ_LABEL = { barra: "Barra", mancuerna: "Mancuernas", maquina: "Máquina", discos: "Máquina de discos", cable: "Cable", polea: "Polea ×0,5", corporal: "Corporal", otro: "Otro" };
@@ -1079,7 +1129,7 @@ function lvlInline(L, size = 20, ex) {
 }
 // Curva de niveles: percentil frente a tu marca, con los cortes de cada rango.
 function levelSheet(name, L) {
-  const M = L.model, unit = L.metric === "reps" ? "reps" : "kg";
+  const M = L.model, unit = L.metric === "reps" ? "reps" : L.metric === "secs" ? "s" : "kg";
   const val = (x) => x - M.off; // en las unidades del ejercicio (lastre: kg añadidos)
   const cuts = M.all.map(val); // princ., novato, int., avanzado, élite, leyenda
   const xmin = M.skill ? 0 : Math.max(0, Math.min(cuts[0], L.raw) * 0.75), xmax = Math.max(cuts[5], L.raw) * 1.12;
@@ -1090,7 +1140,8 @@ function levelSheet(name, L) {
   // bandas de rango
   const edges = [xmin, ...cuts.slice(1), xmax];
   // habilidad rara: los rangos empiezan en el mínimo (con 1 rep); antes, «sin rango»
-  if (M.skill) { svg.append(svgEl("rect", { x: X(0), y: PT, width: X(1) - X(0), height: H - PT - PB, class: "norank" })); edges[M.skill] = 1; }
+  const c0 = M.skill ? cuts[M.skill] : null;  // donde empieza el primer rango de una habilidad
+  if (M.skill) { svg.append(svgEl("rect", { x: X(0), y: PT, width: X(c0) - X(0), height: H - PT - PB, class: "norank" })); edges[M.skill] = c0; }
   for (let i = M.skill || 0; i < 6; i++) {
     const a = Math.max(xmin, edges[i]), b = Math.min(xmax, edges[i + 1]);
     if (b <= a) continue;
@@ -1108,7 +1159,7 @@ function levelSheet(name, L) {
   for (const p of [20, 50, 80, 95]) { svg.append(svgEl("line", { x1: PL, x2: W - PR, y1: Y(p), y2: Y(p), class: "grid" })); const t = svgEl("text", { x: PL - 5, y: Y(p) + 4, "text-anchor": "end", class: "axis" }); t.textContent = p + "%"; svg.append(t); }
   // curva
   let d = "";
-  for (let i = 0; i <= 120; i++) { const v = (M.skill ? 1 : xmin) + (xmax - (M.skill ? 1 : xmin)) * i / 120; const p = PHI(zOf(M, Math.max(v, 0.01))) * 100; d += (i ? "L" : "M") + X(v).toFixed(1) + " " + Y(p).toFixed(1); }
+  for (let i = 0; i <= 120; i++) { const v = (M.skill ? c0 : xmin) + (xmax - (M.skill ? c0 : xmin)) * i / 120; const p = PHI(zOf(M, Math.max(v, 0.01))) * 100; d += (i ? "L" : "M") + X(v).toFixed(1) + " " + Y(p).toFixed(1); }
   svg.append(svgEl("path", { d, class: "ln" }));
   // cortes
   cuts.slice(1).forEach((c, i) => { if (c < xmin || c > xmax || (M.skill && i + 1 < M.skill)) return; svg.append(svgEl("line", { x1: X(c), x2: X(c), y1: PT, y2: H - PB, class: "cut t" + (i + 1) }));
@@ -1143,6 +1194,7 @@ function levelSheet(name, L) {
     return h("tr", { class: i === L.idx ? "cur" : "" }, h("td", null, h("span", { class: "lvr" }, lvlBadge(i, 18), h("span", { class: "tn t" + i }, n))),
       h("td", { class: "r num" }, (() => { const sg = (x) => (L.metric === "add" && x > 0 ? "+" : "") + fmt(x); const to = i < 5 ? cuts[i + 1] : null;
         if (M.skill && i < M.skill) return i === 0 ? "aún no sale" : "—";
+        if (M.skill && i === M.skill) return (L.metric === "add" ? "con lastre" : L.metric === "secs" ? "sostenerlo" : "1 rep") + ` – ${sg(to)} ${unit}`;
         return i === 0 ? `menos de ${sg(to)} ${unit}` : i === 5 ? `${sg(from)} ${unit} o más` : `${sg(from)} – ${sg(to)} ${unit}`; })()),
       h("td", { class: "r num faint" }, i ? "más que el " + ["", "20 %", "50 %", "80 %", "95 %", "99 %"][i] : "—"),
       h("td", { class: "r num" }, falta != null ? "+" + fmt(falta, falta < 10 ? 1 : 0) + " " + unit : i <= L.idx ? "✓" : ""));
@@ -1150,10 +1202,10 @@ function levelSheet(name, L) {
   sheet("Nivel · " + name, [
     h("div", { class: "lvhero mini" }, h("div", { class: "lvh-b" }, lvlBadge(L.idx, 54)), h("div", { class: "lvh-t" }, h("b", { class: "tn t" + L.idx }, LVL[L.idx]),
       h("span", { class: "muted" }, `${topTxt(L.pct)} · más fuerte que el ${fmt(L.pct)} % de los ${sexWord()} de ${fmt(L.bw, 1)} kg` + (L.date ? ` (tu peso el ${dateLabel(L.date, { day: "numeric", month: "short" })})` : "")), h("span", { class: "faint" }, L.valTxt + (L.need ? " · " + L.need : "")))),
-    h("div", { class: "card panel flat" }, h("h3", null, L.metric === "reps" ? "Reps máximas → percentil" : L.metric === "add" ? "Lastre (1RM) → percentil" : "1RM → percentil"), svg),
-    h("table", { class: "t lvtable" }, h("tr", null, h("th", null, "Rango"), h("th", { class: "r" }, L.metric === "reps" ? "Reps" : "1RM"), h("th", { class: "r" }, "Percentil"), h("th", { class: "r" }, "Te falta")), rows),
-    L.floor ? h("div", { class: "note" }, `Habilidad: con 1 repetición estricta ya es ${LVL[L.floor]}. Strength Level compara solo con quien registra este ejercicio (casi nadie lo registra si no lo hace), así que sus rangos bajos no tienen sentido para la gente que entrena en general.`) : null,
-    h("div", { class: "note" }, "Strength Level publica los cortes de principiante a élite para " + sexWord() + " de cada peso corporal; la curva entre ellos y el corte de Leyenda (top 1 %) están interpolados. "),
+    h("div", { class: "card panel flat" }, h("h3", null, L.metric === "reps" ? "Reps máximas → percentil" : L.metric === "secs" ? "Segundos → percentil" : L.metric === "add" ? "Lastre (1RM) → percentil" : "1RM → percentil"), svg),
+    h("table", { class: "t lvtable" }, h("tr", null, h("th", null, "Rango"), h("th", { class: "r" }, L.metric === "reps" ? "Reps" : L.metric === "secs" ? "Segundos" : "1RM"), h("th", { class: "r" }, "Percentil"), h("th", { class: "r" }, "Te falta")), rows),
+    L.floor ? h("div", { class: "note" }, `Habilidad: ${L.metric === "add" ? "con cualquier lastre" : L.metric === "secs" ? "con sostenerlo en estricto (sin goma ni pierna)" : "con 1 repetición estricta"} ya es ${LVL[L.floor]}. ${L.model.metric === "secs" ? "No hay tabla de Strength Level: cortes propios." : "Strength Level compara solo con quien registra este ejercicio (casi nadie lo registra si no lo hace), así que sus rangos bajos no tienen sentido para la gente que entrena en general."}`) : null,
+    L.model.metric === "secs" ? null : h("div", { class: "note" }, "Strength Level publica los cortes de principiante a élite para " + sexWord() + " de cada peso corporal; la curva entre ellos y el corte de Leyenda (top 1 %) están interpolados. "),
   ], null, { wide: true });
 }
 
@@ -1163,6 +1215,8 @@ async function workoutSheet_(id) {
   let w;
   try { [w] = await Promise.all([api("GET", "/api/workouts/" + id), ensureTrainingMeta()]); } catch (e) { toast(e.message, { error: true }); sh.close(); return; }
   // Cada ejercicio como tarjeta: series en filas sencillas (sin «anterior»)
+  if (!S.tStats && S.training && S.training.workouts && S.training.workouts.length) S.tStats = Object.assign(trainingStats(S.training.workouts, S.bw), { _src: S.training.workouts, _bw: S.weights, _set: S.exSet });
+  const wUps = ((S.tStats && S.tStats.ups) || []).filter((u) => u.wid === w.id);
   const exBlocks = w.exercises.map((ex) => {
     let n = 0;
     const rows_ = ex.sets.map((st) => {
@@ -1178,7 +1232,8 @@ async function workoutSheet_(id) {
     return h("div", { class: "exb card2" },
       h("div", { class: "exb-h v2" }, exIcon(ex.name, 40),
         h("div", { class: "exb-tt" },
-          h("div", { class: "exb-r1" }, tip(h("button", { class: "exn", onclick: () => exerciseSheet(ex.name) }, dispName(ex.name)), dispName(ex.name) !== ex.name ? "En Hevy: " + ex.name : null), prChips(ex.prs)),
+          h("div", { class: "exb-r1" }, tip(h("button", { class: "exn", onclick: () => exerciseSheet(ex.name) }, dispName(ex.name)), dispName(ex.name) !== ex.name ? "En Hevy: " + ex.name : null), prChips(ex.prs),
+            (() => { const u = wUps.find((x) => exKeyName(x.name) === exKeyName(ex.name)); return u ? upChip(u) : null; })()),
           h("div", { class: "exb-r2" }, L ? lvlShield(L, 16) : null, L ? h("span", { class: "lvname sm l" + L.idx }, LVL[L.idx]) : null, eqTag(ex.name),
             e1 ? tip(h("span", { class: "faint" }, "· 1RM ≈ " + fmt(e1) + " kg"), "1RM estimado de la mejor serie (tabla de Hevy: peso ÷ % según reps)" + (isUni(ex.name) ? "\nA un brazo: se usan la mitad de las reps" : "")) : null))),
       ex.notes ? h("div", { class: "exnote" }, ex.notes) : null,
@@ -1204,6 +1259,7 @@ async function workoutSheet_(id) {
     h("span", { class: "grow" }), w.activity_id ? h("button", { class: "btn", onclick: () => { sh.close(); goDay(w.date); } }, "Ver día") : null],
   { big: true, desc: w.notes || "", titleExtra: [
     nPR ? tip(h("span", { class: "prc lg" }, icon("trophy"), `${nPR} ${nPR === 1 ? "récord" : "récords"}`), w.exercises.filter((ex) => ex.prs && ex.prs.length).map((ex) => `${ex.name}: ${ex.prs.map((t) => PR_SHORT[t]).join(", ")}`).join("\n")) : null,
+    wUps.length ? tip(h("span", { class: "upchip lg l" + Math.max(...wUps.map((u) => u.to)) }, `▲ ${wUps.length} ${wUps.length === 1 ? "subida" : "subidas"} de rango`), wUps.map((u) => `${dispName(u.name)}: ${LVL[u.from]} → ${LVL[u.to]}`).join("\n")) : null,
     h("span", { class: "datec" }, dateLabel(w.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) + (w.start_time ? " · " + w.start_time : "")),
     bwAt(w.date) ? tip(h("span", { class: "datec" }, `${fmt(bwAt(w.date), 1)} kg`), bwExact(w.date) ? "Tu peso ese día (pesaje)" : "Tu peso ese día (interpolado entre pesajes)") : null] });
 }
