@@ -430,8 +430,12 @@ function lvlPill(L) {
   lines.push("Pulsa para ver la curva");
   return tip(h("span", { class: "lvl l" + L.idx + (L.machine ? " soft" : "") + " click", onclick: (ev) => { ev.stopPropagation(); levelSheet(L.name, L); } }, LVL[L.idx]), lines.join("\n"));
 }
-function lvlBar(L) {
-  return h("div", { class: "lbar" }, LVL.map((_, i) => h("i", { class: (i < L.idx ? "on" : i === L.idx ? "cur" : "") + " t" + i }, i === L.idx ? h("b", { style: { width: (L.idx === 5 ? 100 : L.frac * 100) + "%" } }) : null)));
+// Una sola barra del color del rango: cuánto llevas hacia el siguiente
+function lvlBar(L, withText) {
+  const top = L.idx === 5, w = top ? 100 : Math.max(3, Math.min(100, (L.frac || 0) * 100));
+  const bar = h("div", { class: "lbar1" }, h("i", { style: { width: w + "%", background: `linear-gradient(90deg, ${TIER[L.idx][2][0]}, ${TIER[L.idx][2][1]})` } }));
+  if (!withText) return bar;
+  return h("div", { class: "lbar1w" }, bar, h("span", null, top ? "Rango máximo" : `${fmt(w)} % hacia ${LVL[L.idx + 1]}`));
 }
 
 // ------------------------------------------------------------- estadísticas
@@ -1110,33 +1114,27 @@ async function workoutSheet(id) {
   const sh = sheet("Entreno", h("div", { class: "muted" }, "Cargando…"), null, { wide: true });
   let w;
   try { [w] = await Promise.all([api("GET", "/api/workouts/" + id), ensureTrainingMeta()]); } catch (e) { toast(e.message, { error: true }); sh.close(); return; }
+  // Cada ejercicio como tarjeta: series en filas sencillas (sin «anterior»)
   const exBlocks = w.exercises.map((ex) => {
-    const prev = ex.previous ? ex.previous.sets.filter((s_) => s_.type !== "calentamiento") : [];
-    const has = (f) => ex.sets.some((s_) => s_[f] != null && s_[f] !== 0);
-    const cols = [];
-    if (["peso", "lastre", "asistido"].includes(ex.kind) || has("weight_kg")) cols.push(["Kg", (s_) => (s_.weight_kg ? (ex.kind === "lastre" ? "+" : ex.kind === "asistido" ? "−" : "") + fmt(Math.abs(s_.weight_kg), 1) : ex.kind === "lastre" ? "corporal" : "—")]);
-    if (has("distance_m")) cols.push(["Distancia", (s_) => (s_.distance_m ? fmtDist(s_.distance_m) : "—")]);
-    if (has("seconds")) cols.push(["Tiempo", (s_) => (s_.seconds ? fmtSecs(s_.seconds) : "—")]);
-    if (has("reps") || !cols.length) cols.push(["Reps", (s_) => (s_.reps ?? "—")]);
-    const hasRpe = has("rpe");
-    let wi = 0, n = 0;
+    let n = 0;
     const rows_ = ex.sets.map((st) => {
       const work = st.type !== "calentamiento"; if (work) n++;
-      const pv = work ? prev[wi++] : null;
-      return h("tr", { class: st.type === "calentamiento" ? "warm" : "" }, h("td", null, setBadge(st, n)),
-        h("td", { class: "prevc" }, pv ? setShort(ex.kind, pv) : "—"),
-        cols.map(([, f]) => h("td", { class: "r num" }, f(st))), hasRpe ? h("td", { class: "r num faint" }, st.rpe ? "RPE " + fmt(st.rpe, 1) : "") : null);
+      const e1s = ex.kind === "peso" && work && st.weight_kg && st.reps ? e1rm(st.weight_kg, st.reps, ex.name) : null;
+      return h("div", { class: "srow" + (work ? "" : " warm") }, setBadge(st, n),
+        h("b", { class: "num" }, setShort(ex.kind, st)),
+        h("span", { class: "grow faint" }, [st.type === "fallo" ? "al fallo" : st.type === "drop" ? "drop set" : null, st.rpe ? "RPE " + fmt(st.rpe, 1) : null].filter(Boolean).join(" · ")),
+        e1s ? h("span", { class: "s-e1 num faint" }, "1RM " + fmt(e1s)) : null);
     });
     const e1 = ex.kind === "peso" ? Math.max(0, ...workSets(ex.sets).map((s_) => e1rm(s_.weight_kg, s_.reps, ex.name) || 0)) : 0;
     const L = exLevel({ name: ex.name, kind: ex.kind, sessions: [{ date: w.date, sets: ex.sets, notes: ex.notes }] }, bwAt);
-    return h("div", { class: "exb" },
+    return h("div", { class: "exb card2" },
       h("div", { class: "exb-h v2" }, exIcon(ex.name, 40),
         h("div", { class: "exb-tt" },
           h("div", { class: "exb-r1" }, h("button", { class: "exn", onclick: () => exerciseSheet(ex.name) }, ex.name), prChips(ex.prs)),
-          L ? h("div", { class: "exb-r2" }, lvlInline(L, 18, { name: ex.name, kind: ex.kind })) : null),
-        e1 ? tip(h("span", { class: "e1r faint" }, "1RM ≈ " + fmt(e1) + " kg"), "1RM estimado de la mejor serie (tabla de Hevy: peso ÷ % según reps)" + (isUni(ex.name) ? "\nA un brazo: se usan la mitad de las reps" : "")) : null),
+          h("div", { class: "exb-r2" }, L ? lvlShield(L, 16) : null, L ? h("span", { class: "lvname sm l" + L.idx }, LVL[L.idx]) : null, eqTag(ex.name),
+            e1 ? tip(h("span", { class: "faint" }, "· 1RM ≈ " + fmt(e1) + " kg"), "1RM estimado de la mejor serie (tabla de Hevy: peso ÷ % según reps)" + (isUni(ex.name) ? "\nA un brazo: se usan la mitad de las reps" : "")) : null))),
       ex.notes ? h("div", { class: "exnote" }, ex.notes) : null,
-      h("table", { class: "t sets" }, h("tr", null, h("th", null, "Serie"), h("th", null, "Anterior"), cols.map(([l]) => h("th", { class: "r" }, l)), hasRpe ? h("th", null, "") : null), rows_));
+      h("div", { class: "srows" }, rows_));
   });
   const nPR = w.exercises.reduce((a, ex) => a + (ex.prs || []).length, 0);
   const inten = h("div", { class: "seg" });
@@ -1240,18 +1238,21 @@ async function exerciseSheet(name) {
   const main = rec[types[0]];
   S._exSh = sheet(name, [
     h("div", { class: "exhero" }, exIcon(name, 64), h("div", { class: "grow" }, h("div", { class: "faint" }, exGroup(name) + " · " + ({ peso: "con peso", lastre: "con lastre", corporal: "peso corporal", asistido: "asistido", tiempo: "isométrico", cardio: "cardio / carga" }[kind] || kind) + (isUni(name) ? " · a un brazo (reps de los dos lados)" : "") + (/mancuerna/.test(norm(name)) ? " · peso de las dos mancuernas" : "")),
-      h("div", { class: "exhero-v" }, h("b", { class: "num" }, main ? recTxt(types[0], main.v, kind) : "—"), h("span", null, REC_LABEL[types[0]] + " · récord")),
-      L ? h("div", { class: "exhero-l click", onclick: () => levelSheet(name, L) }, lvlBadge(L.idx, 22), lvlPill(L), h("span", { class: "faint" }, `≈ top ${fmt(Math.max(0.5, 100 - L.pct))} % · ` + (L.need || "por encima de élite")), lvlBar(L)) : null)),
-    exSettingsPanel(name, kind, rec),
-    h("div", { class: "card panel flat" }, h("h3", null, "Récords personales"),
-      h("div", { class: "recgrid" }, types.map((t) => { const r = rec[t]; return h("div", { class: "rec" }, h("span", null, REC_LABEL[t]), h("b", { class: "num" }, r ? recTxt(t, r.v, kind) : "—"),
-        h("em", null, r ? (r.set && ["w", "e1", "sv"].includes(t) ? setShort(kind, r.set) + " · " : "") + dateLabel(r.date, { day: "numeric", month: "short", year: "2-digit" }) : "")); }))),
+      h("div", { class: "exhero-v" }, h("b", { class: "num" }, main ? recTxt(types[0], main.v, kind) : "—"), h("span", null, REC_LABEL[types[0]] + " · tu récord")),
+      L ? h("div", { class: "exhero-next click", onclick: () => levelSheet(name, L) },
+        h("div", { class: "exn-t" }, L.idx === 5 ? h("b", null, "Rango máximo") : [h("span", null, "Siguiente: "), h("b", { class: "lvname l" + (L.idx + 1) }, LVL[L.idx + 1]), h("span", { class: "faint" }, L.need ? " · " + L.need.replace(/ para .*/, "") : "")],
+          h("span", { class: "grow" }), h("span", { class: "faint" }, `top ${fmt(Math.max(0.5, 100 - L.pct))} %`)),
+        lvlBar(L)) : null)),
+    h("div", { class: "kpis three tight recs" }, types.map((t) => { const r = rec[t];
+      return h("div", { class: "kpi" }, h("div", { class: "l" }, h("span", { class: "sic c" }, "🏆"), REC_LABEL[t]), h("div", { class: "v num" }, r ? recTxt(t, r.v, kind) : "—"),
+        h("div", { class: "s" }, r ? (r.set && ["w", "e1", "sv"].includes(t) ? setShort(kind, r.set) + " · " : "") + dateLabel(r.date, { day: "numeric", month: "short", year: "2-digit" }) : "")); })),
     h("div", { class: "kpis five tight" },
       kpi("Sesiones", String(hist.length), "desde " + dateLabel(asc[0].date, { month: "short", year: "2-digit" })),
       kpi("Última", dateLabel(hist[0].date, { day: "numeric", month: "short" }), workSets(hist[0].sets).map((s_) => setShort(kind, s_)).slice(0, 2).join(", ")),
       kpi("Series", fmt(allSets.length), "efectivas en total"),
       kpi("Reps totales", fmt(totalReps), ""),
       isW ? kpi("Volumen total", fmt(totalVol / 1000, 1) + " t", "", null, fmt(totalVol) + " kg (todas las series)") : kpi("Media reps", allSets.length ? fmt(totalReps / allSets.length, 1) : "—", "por serie")),
+    exSettingsPanel(name, kind, rec),
     h("div", { class: "card panel flat" }, h("div", { class: "row wrap", style: { marginBottom: "6px" } }, h("h3", { style: { margin: 0 } }, "Progreso"), h("span", { class: "grow" }), chips), chartBox),
     rmRows.length ? h("div", { class: "card panel flat" }, h("h3", null, "Mejor peso por repeticiones"), h("div", { class: "rmgrid" }, rmRows.map(([r, x]) =>
       tip(h("div", { class: "rm" }, h("span", null, r + " rep" + (r > 1 ? "s" : "")), h("b", { class: "num" }, (kind === "lastre" ? "+" : "") + fmt(x.w, 1)), h("em", null, dateLabel(x.date, { day: "numeric", month: "short" }))),
@@ -1262,5 +1263,5 @@ async function exerciseSheet(name) {
       h("div", { class: "hs" }, e2.sets.map((s_) => h("span", { class: "hset " + s_.type }, setShort(e2.kind, s_)))),
       h("div", { class: "hv num" }, (() => { const r = recsOf(e2.kind, e2.sets, e2.name)[types[0]]; return r ? recTxt(types[0], r.v, kind) : "—"; })())); })),
     h("div", { class: "note" }, "1RM estimado igual que Hevy: peso ÷ % según las reps (10 reps = 75 %, 16 reps = 65 %, 30 o más = 50 %). Con muchas repeticiones es menos fiable." + (isUni(name) ? " A un brazo: se usan la mitad de las reps." : "")),
-  ], null, { wide: true, sub: "Estadísticas del ejercicio" });
+  ], null, { wide: true, sub: "Estadísticas del ejercicio", titleExtra: L ? h("span", { class: "exh-rank click", onclick: () => levelSheet(name, L) }, lvlBadge(L.idx, 22), h("b", { class: "lvname l" + L.idx }, LVL[L.idx])) : null });
 }

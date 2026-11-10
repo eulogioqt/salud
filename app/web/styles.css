@@ -1202,3 +1202,27 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .bd-pl { display: flex; flex-direction: column; min-width: 0; } .bd-pl span { font-size: 13.5px; font-weight: 600; } .bd-pl small { font-size: 12px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bd-pv { display: flex; flex-direction: row; align-items: baseline; gap: 8px; text-align: right; } .bd-pv b { font-size: 15px; } .bd-pv span { font-size: 11.5px; color: var(--faint); width: 34px; text-align: right; }
 .bd-hero { margin-bottom: 4px; }
+/* Barra de rango única (color del rango) y ficha del ejercicio */
+.lbar1 { height: 6px; border-radius: 99px; background: var(--surface-2); overflow: hidden; margin-top: 6px; max-width: 240px; }
+.lbar1 i { display: block; height: 100%; border-radius: 99px; }
+.lbar1w { display: flex; align-items: center; gap: 8px; } .lbar1w .lbar1 { flex: 1; margin: 0; } .lbar1w span { font-size: 11.5px; color: var(--faint); white-space: nowrap; }
+.exhero { background: var(--surface-2); }
+.exhero .lbar1 { max-width: none; height: 8px; background: color-mix(in srgb, var(--surface) 70%, var(--surface-2)); }
+.exhero-next { margin-top: 8px; font-size: 13px; }
+.exn-t { display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }
+.exh-rank { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.exh-rank .lvname { font-size: 14px; }
+.title-row { align-items: center; }
+.kpis.three { grid-template-columns: repeat(3, 1fr); }
+.kpis.recs { margin-bottom: 10px; }
+.lvrow .exr-t .lbar1 { max-width: 200px; }
+@media (max-width: 640px) { .kpis.three { grid-template-columns: 1fr 1fr; } }
+/* Entreno: cada ejercicio como tarjeta con sus series */
+.exb.card2 { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; margin-bottom: 10px; }
+.exb.card2 .exb-h { margin-bottom: 8px; }
+.exb-r2 { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; margin-top: 2px; }
+.lvname.sm { font-size: 12px; }
+.srows { display: flex; flex-direction: column; }
+.srow { display: flex; align-items: center; gap: 10px; padding: 7px 4px; border-top: 1px solid var(--line); font-size: 14px; }
+.srow b { font-weight: 650; } .srow.warm { opacity: .6; } .srow .grow { font-size: 12px; }
+.s-e1 { font-size: 12px; }
