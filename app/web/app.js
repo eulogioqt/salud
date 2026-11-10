@@ -1242,13 +1242,21 @@ const AGENTS = [
 ];
 // Agente declarado por el propio agente al conectarse (puede no coincidir con el elegido en la web).
 const agentOf = (name) => AGENTS.find((a) => name && (a.k === name || name.startsWith(a.k) || a.n.toLowerCase() === name)) || { k: name || "otro", n: name ? name[0].toUpperCase() + name.slice(1) : "Agente", logo: null, c: "#8a8f98" };
+// Paso previo: el entorno del agente tiene que poder salir a la web y a GitHub.
+const NET_STEP = {
+  claude: "En Claude: Ajustes → Capacidades → acceso a la red de la ejecución de código. Añade salud.eulogioqt.com y github.com a los dominios permitidos (o elige «Todos los dominios»). En cuentas de empresa lo cambia el administrador.",
+  "claude-code": "Claude Code en tu ordenador ya tiene internet. En Claude Code en la web, permite salud.eulogioqt.com y github.com en la red del entorno.",
+  chatgpt: "En el modo agente de ChatGPT, permite el acceso a internet.",
+  codex: "En Codex, activa el acceso a internet del entorno (en Codex web: Ajustes del entorno → Internet access) y permite salud.eulogioqt.com y github.com.",
+  antigravity: "Antigravity CLI en tu ordenador ya tiene internet.",
+  otro: "Tu agente necesita salir a internet a salud.eulogioqt.com y github.com.",
+};
 function agentPrompt(ag, tok) {
   const doc = ["claude", "claude-code"].includes(ag.k) ? "CLAUDE.md" : "AGENTS.md";
-  const env = ag.k === "claude"
-    ? "Trabaja en tu entorno en la nube (no hace falta mi ordenador). Si no puedes salir a internet, dime que active en Ajustes → Capacidades el acceso a salud.eulogioqt.com y github.com.\n" : "";
   const me = ag.k === "otro" ? "<tu nombre: claude, chatgpt, codex…>" : ag.k;
-  return `Usa mi sistema de salud (comida, peso y entrenos): ${location.origin}\n${env}` +
-    `Cuando te pida algo de salud: clona https://github.com/eulogioqt/salud (o git pull) y sigue ${doc}.\n` +
+  return `Usa mi sistema de salud (comida, peso y entrenos): ${location.origin}\n` +
+    `Antes de nada comprueba que tu entorno llega a github.com y a ${location.host}. Si no llegas, NO es un error: dime exactamente qué tengo que activar (${NET_STEP[ag.k]}) y espera a que te avise para seguir.\n` +
+    `Cuando te pida algo de salud: clona https://github.com/eulogioqt/salud (o git pull), ejecuta «python3 app/salud_remoto.py comprobar» y sigue ${doc}.\n` +
     `Mi token: ${tok} — guárdalo con «python3 app/salud_remoto.py login ${tok} --agente ${me}» (si no eres ${ag.k === "otro" ? "ninguno de esos" : ag.n}, pon tu nombre real) y no lo repitas.\n` +
     `Después lee mi contexto con «python3 app/salud_remoto.py contexto» (si está vacío, pregúntame mis objetivos).`;
 }
@@ -1295,11 +1303,12 @@ function connectAgent() {
     sh.set("Conectar " + ag.n, [
       h("div", { class: "ag-head", style: { "--ac": ag.c } }, agentLogo(ag, 44), h("div", null, h("b", null, ag.n), h("div", { class: "muted" }, ag.sub))),
       h("div", { class: "agent-steps" },
-        h("div", { class: "ast" }, h("span", { class: "n" }, "1"), h("div", null, h("b", null, "Copia el mensaje"), h("div", { class: "muted" }, "Lleva tu token personal (solo se muestra ahora)."),
+        h("div", { class: "ast" }, h("span", { class: "n" }, "1"), h("div", null, h("b", null, "Dale acceso a internet"), h("div", { class: "muted" }, NET_STEP[ag.k]))),
+        h("div", { class: "ast" }, h("span", { class: "n" }, "2"), h("div", null, h("b", null, "Copia el mensaje"), h("div", { class: "muted" }, "Lleva tu token personal (solo se muestra ahora)."),
           h("div", { class: "row", style: { marginTop: "8px", gap: "8px" } }, h("button", { class: "btn primary", onclick: async () => { try { await navigator.clipboard.writeText(msg); copied.textContent = "✓ Copiado"; } catch (e) { copied.textContent = "Cópialo a mano de abajo"; } } }, "Copiar mensaje"), copied),
           h("details", { style: { marginTop: "6px" } }, h("summary", { class: "faint" }, "Ver mensaje"), h("textarea", { class: "input mono-ta", rows: 6, readonly: true, onclick: (e) => e.target.select() }, msg)))),
-        h("div", { class: "ast" }, h("span", { class: "n" }, "2"), h("div", null, h("b", null, "Pégalo en " + ag.n), h("div", { class: "muted" }, ag.where))),
-        h("div", { class: "ast" }, h("span", { class: "n" }, "3"), h("div", null, h("b", null, "Listo"), status)))],
+        h("div", { class: "ast" }, h("span", { class: "n" }, "3"), h("div", null, h("b", null, "Pégalo en " + ag.n), h("div", { class: "muted" }, ag.where))),
+        h("div", { class: "ast" }, h("span", { class: "n" }, "4"), h("div", null, h("b", null, "Listo"), status)))],
       null, { back: step1 });
     clearInterval(timer);
     timer = setInterval(async () => {

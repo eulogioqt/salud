@@ -2,6 +2,7 @@
 
 Solo biblioteca estándar. Cada token da acceso únicamente a la cuenta de su dueño.
 
+    python3 app/salud_remoto.py comprobar                # ¿este entorno llega a la web? (si no, explica qué activar)
     python3 app/salud_remoto.py login sal_xxxxx --agente codex   # guarda el token (~/.salud_token) y quién eres (claude, chatgpt, codex…)
     python3 app/salud_remoto.py yo                     # comprobar de quién es el token
     python3 app/salud_remoto.py contexto               # notas personales para Claude (leer al empezar)
@@ -54,6 +55,29 @@ def req(method, path, body=None, tok=None):
         sys.exit("HTTP %s: %s" % (e.code, e.read().decode(errors="replace")))
 
 
+SETUP = """PASO DE CONFIGURACIÓN PENDIENTE (no es un error):
+Tu entorno no tiene permiso para conectarse a {host}.
+Dile al usuario, tal cual, que lo active y te avise:
+  · Claude (app o web): Ajustes → Capacidades → «Acceso a la red» (o «Ejecución de código y archivos»):
+    añade {host} y github.com a los dominios permitidos, o elige «Todos los dominios».
+    Si es una cuenta de empresa/equipo, lo cambia el administrador de la organización.
+  · Otros agentes (Codex, Antigravity…): permite el acceso a internet a {host} en su configuración.
+Después, en este mismo chat, vuelve a ejecutar: python3 app/salud_remoto.py comprobar"""
+
+
+def check():
+    """¿Llega este entorno a la web? (ruta pública, sin token). Devuelve None si sí, o el motivo."""
+    r = urllib.request.Request(URL + "/api/cuentas", headers={"User-Agent": "salud-remoto/1.0"})
+    try:
+        with urllib.request.urlopen(r, timeout=20) as resp:
+            json.loads(resp.read().decode())
+            return None
+    except urllib.error.HTTPError as e:
+        return "HTTP %s" % e.code
+    except Exception as e:  # sin red, DNS o proxy que corta la conexión
+        return str(e)
+
+
 def main(args):
     if not args or args[0] in ("-h", "--help", "ayuda"):
         print(__doc__)
@@ -61,7 +85,17 @@ def main(args):
             args = ["--help"]
         else:
             return
+    if args[0] == "comprobar":
+        why = check()
+        if why:
+            host = URL.split("//")[-1]
+            sys.exit(SETUP.format(host=host) + "\n(detalle técnico: %s)" % why)
+        print("Conexión con %s: OK" % URL)
+        return
     if args[0] == "login" and len(args) in (2, 4):
+        why = check()
+        if why:
+            sys.exit(SETUP.format(host=URL.split("//")[-1]) + "\n(detalle técnico: %s)" % why)
         if len(args) == 4 and args[2] == "--agente":
             with open(AGENT_FILE, "w", encoding="utf-8") as f:
                 f.write(args[3].strip().lower())
