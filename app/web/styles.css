@@ -959,3 +959,7 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .agent-btn.on:hover { transform: none; box-shadow: none; }
 /* Peso: el «kg» pegado al número, no al otro extremo */
 .stat .v input { width: 5.2ch; flex: 0 0 auto; }
+
+.chips-l { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chips-l .chip { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; padding: 4px 10px; font-size: 12.5px; cursor: pointer; color: var(--text); }
+.chips-l .chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }

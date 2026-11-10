@@ -12,12 +12,13 @@ Seguimiento de nutrición, peso y entrenamiento (estilo Hevy) para uso personal,
 2. Pégalo en Claude (Cowork, Claude Code…) o, mejor, en tus instrucciones personales de Claude para que valga en todas las conversaciones. Claude clona este repo, guarda el token, lee tu contexto y, la primera vez, te pregunta tus objetivos.
 3. Funciona con cualquier agente que pueda ejecutar Python con acceso a internet (`AGENTS.md`). El token solo da acceso a tu cuenta; si lo pierdes, genera otro en la web (el anterior deja de valer).
 
-## Niveles de fuerza: datos de Strength Level
+## Niveles: datos de Strength Level y sus webs de cardio
 
 Los niveles (principiante → élite) usan los estándares públicos de **[Strength Level](https://strengthlevel.com)**, creados con los levantamientos que envía su comunidad. Todo el mérito de esos datos es suyo.
 
 - El servidor descarga sus tablas (todas las de su web, ~290 ejercicios, por peso corporal y edad, hombres y mujeres) despacio y una sola vez, las guarda en su caché (se refrescan cada 90 días) y la web las pide a nuestra API. No están en este repositorio: son datos de Strength Level.
 - Cada ejercicio de Hevy se enlaza solo con su página por el nombre; si no acierta, se elige a mano en la ficha del ejercicio («Material, peso real y nivel»).
+- Cardio: **[Swimming Level](https://swimminglevel.com)**, **[Running Level](https://runninglevel.com)**, **[Rowing Level](https://rowinglevel.com)** y **[Cycling Level](https://cyclinglevel.com)** (de los mismos autores): tiempos por edad y sexo de cada prueba, guardados igual en la caché del servidor (`/api/levels`).
 - Descarga inicial en el servidor: `salud niveles-descargar` (una página cada 3 s).
 
 ## Añadir una persona (administrador)

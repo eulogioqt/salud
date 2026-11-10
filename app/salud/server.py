@@ -236,6 +236,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, SL.get(datadir, slug))
             except SL.SLError as e:
                 return self._send(404, {"error": str(e)})
+        if u.path.startswith("/api/levels/") and method == "GET":
+            # Estándares de cardio (Swimming/Running/Rowing/Cycling Level) desde la caché del servidor
+            from . import xlevel as XL
+            datadir = MULTI or os.path.dirname(os.path.abspath(conn.execute("PRAGMA database_list").fetchone()[2] or DEFAULT_DB))
+            rest = [x for x in u.path[len("/api/levels/"):].split("/") if x]
+            try:
+                if not rest:
+                    return self._send(200, XL.index(datadir))
+                if len(rest) == 2:
+                    return self._send(200, XL.get(datadir, rest[0], rest[1]))
+            except Exception as e:
+                return self._send(404, {"error": str(e)})
+            return self._send(404, {"error": "Ruta no encontrada"})
         if u.path == "/api/cli" and method == "POST":
             return self._cli(body, lock, _user)
         if u.path == "/api/export.zip":

@@ -221,7 +221,9 @@ def main(argv=None):
     if a.cmd == "niveles-descargar":
         from . import strengthlevel as SL
         datadir = a.datos or os.path.dirname(os.path.abspath(a.db or DEFAULT_DB))
-        return SL.download_all(datadir, a.pausa)
+        from . import xlevel as XL
+        SL.download_all(datadir, a.pausa)
+        return XL.download_all(datadir, a.pausa)
     if a.usuario:
         if not a.datos:
             raise SystemExit("Falta --datos (o SALUD_DATOS) con el directorio de datos del servidor")

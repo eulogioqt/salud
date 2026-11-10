@@ -817,13 +817,12 @@ function tNivel(st) {
 }
 
 // Información general de los niveles: cómo se calculan y las tablas de cada ejercicio (por peso corporal y sexo).
-function levelsInfoSheet(st) {
+function strengthInfo(st, body) {
   let cur = S.lvInfo || "bench-press";
   let opts = Object.keys(SL_TABLES).map((k) => [k, SL_NAMES[k]]);
   const mine = (st && st.list) || [];
   const without = mine.filter((e) => !e.level && ["peso", "lastre", "corporal"].includes(e.kind)).map((e) => e.name);
   const unitOf = (k) => (k.endsWith(".reps") ? "reps" : k.endsWith(".add") ? "kg de lastre" : "kg (1RM)");
-  const body = h("div");
   api("GET", "/api/strength/").then((idx) => { // todos los ejercicios con tabla en el servidor
     const all = idx.flatMap((x) => x.types.includes("w") ? [[x.slug, x.name]] : [[x.slug + ".reps", x.name + " (reps)"], ...(x.types.includes("add") ? [[x.slug + ".add", x.name + " (lastre)"]] : [])]);
     if (all.length) { opts = all; draw(); }
@@ -870,10 +869,46 @@ function levelsInfoSheet(st) {
       h("div", { class: "lv-legend" }, LVL.map((l, i) => h("span", { class: "lg t" + i }, l + (i === 5 ? " (extrapolada)" : ""))), h("span", { class: "lg solid" }, "— hombres"), h("span", { class: "lg dash" }, "- - mujeres"), e && e.level ? h("span", { class: "lg me" }, "● tú") : null),
       h("div", { class: "chart-scroll" }, svg),
       h("div", { class: "faint", style: { fontSize: "12.5px", margin: "4px 0 10px" } }, `Eje vertical: ${unit}. Eje horizontal: peso corporal.`),
-      h("div", { class: "sec-t" }, `Valores para ${sx === "M" ? "mujeres" : "hombres"} (${unit})`), tbl);
+      h("div", { class: "sec-t" }, `Valores para ${sx === "M" ? "mujeres" : "hombres"} (${unit})`), tbl,
+      h("details", { style: { marginTop: "12px" } }, h("summary", null, `Todos los ejercicios de Strength Level (${opts.length})`),
+        h("div", { class: "chips-l" }, [...opts].sort((a, b) => a[1].localeCompare(b[1])).map(([k, n]) => h("button", { class: "chip" + (k === cur ? " on" : ""), onclick: () => { cur = k; draw(); } }, n)))));
   };
   draw();
-  sheet("Niveles de fuerza", body, null, { wide: true });
+}
+// Info de niveles: fuerza (Strength Level) y cardio (Swimming, Running, Rowing y Cycling Level), con todas sus pruebas.
+const XL_TABS = [["strength", "Fuerza"], ["swimming", "Natación"], ["running", "Carrera"], ["rowing", "Remo"], ["cycling", "Bici"]];
+const fmtT = (sec) => { if (sec == null) return "—"; const h_ = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s_ = sec % 60;
+  const ss = (s_ % 1 ? s_.toFixed(1) : String(Math.round(s_))).padStart(s_ % 1 ? 4 : 2, "0"); return (h_ ? h_ + ":" + String(m).padStart(2, "0") : m) + ":" + ss; };
+function levelsInfoSheet(st) {
+  const body = h("div"), seg = h("div", { class: "seg", style: { flexWrap: "wrap", marginBottom: "12px" } });
+  let tab = S.lvInfoTab || "strength", xl = null;
+  const show = async () => {
+    S.lvInfoTab = tab;
+    seg.replaceChildren(...XL_TABS.map(([k, l]) => h("button", { class: tab === k ? "on" : "", onclick: () => { tab = k; show(); } }, l)));
+    if (tab === "strength") return strengthInfo(st, body);
+    if (!xl) xl = await api("GET", "/api/levels/").catch(() => ({}));
+    const site = xl[tab];
+    if (!site || !site.items.length) { body.replaceChildren(h("div", { class: "muted" }, "Aún no hay datos de esta web en el servidor.")); return; }
+    let cur = S["lvx_" + tab] || site.items[0].slug, sx = S.sex === "M" ? "M" : "H";
+    const draw = async () => {
+      S["lvx_" + tab] = cur;
+      const d = await api("GET", `/api/levels/${tab}/${cur}`).catch(() => null);
+      const byTime = d && !/distanc/i.test(d.name || "");
+      const tbl = d ? h("div", { class: "tbl-wrap" }, h("table", { class: "t" }, h("tr", null, h("th", null, "Edad"), LVL.slice(0, 5).map((l) => h("th", { class: "r" }, l)), h("th", { class: "r faint" }, "Récord")),
+        d[sx][0].map((r) => h("tr", null, h("td", null, r[0] + " años"), r.slice(1, 7).map((v, i) => h("td", { class: "r num" + (i === 5 ? " faint" : "") }, byTime ? fmtT(v) : v == null ? "—" : fmt(v) + " m")))))) : h("div", { class: "muted" }, "No disponible");
+      body.replaceChildren(
+        h("p", { class: "muted", style: { marginTop: 0 } }, `Datos de `, h("a", { href: site.url, target: "_blank", rel: "noopener" }, site.name), `: tiempos de su comunidad por edad y sexo, con los mismos niveles por percentil que la fuerza (principiante 5 %, novato 20 %, intermedio 50 %, avanzado 80 %, élite 95 %). Más rápido = mejor nivel.` + (tab === "swimming" ? " No separa por estilos (braza, mariposa…)." : "")),
+        h("div", { class: "row wrap", style: { gap: "8px" } }, h("select", { class: "input", style: { flex: 1, minWidth: "200px" }, onchange: (e) => { cur = e.target.value; draw(); } },
+          site.items.map((x) => h("option", { value: x.slug, selected: x.slug === cur }, x.name))),
+          h("div", { class: "seg" }, [["H", "Hombres"], ["M", "Mujeres"]].map(([k, l]) => h("button", { class: sx === k ? "on" : "", onclick: () => { sx = k; draw(); } }, l)))),
+        h("div", { class: "sec-t" }, (d ? d.name : "") + (sx === "M" ? " · mujeres" : " · hombres")), tbl,
+        h("details", { style: { marginTop: "12px" } }, h("summary", null, `Todas las pruebas de ${site.name} (${site.items.length})`),
+          h("div", { class: "chips-l" }, site.items.map((x) => h("button", { class: "chip" + (x.slug === cur ? " on" : ""), onclick: () => { cur = x.slug; draw(); } }, x.name)))));
+    };
+    draw();
+  };
+  show();
+  sheet("Niveles", [seg, body], null, { wide: true });
 }
 
 // ------------------------------------------------------------- hojas
