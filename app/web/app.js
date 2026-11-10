@@ -288,8 +288,8 @@ function energySheet(st) {
     const diff = !kc || !top ? null : val - top;
     const dTxt = diff == null || k === "c" ? "" : Math.abs(diff) < 1 ? "✓" : signed(diff);
     return h("div", { class: "bd-m " + k },
-      h("div", { class: "bd-mh" }, h("span", { class: "bd-chip " + k }, name[0]), h("span", { class: "bd-mn" }, name),
-        h("span", { class: "bd-mv num" }, h("b", null, v(t, f)), " g"),
+      h("div", { class: "bd-mh" }, h("span", { class: "bd-chip " + k }, name[0]),
+        h("span", { class: "bd-mn" }, h("b", { class: "num" }, v(t, f) + " g"), " ", h("span", null, name.toLowerCase())),
         h("span", { class: "bd-d num " + (!dTxt ? "" : (k === "p" && diff < -0.5) || (k === "g" && Math.abs(diff) > 0.15 * top) ? "off" : "ok") }, dTxt)),
       h("div", { class: "bd-bar" }, h("i", { style: { width: pct(val, scale) + "%" } }),
         top ? h("span", { class: "mark", style: { left: pct(top, scale) + "%" } }) : null),
@@ -303,7 +303,8 @@ function energySheet(st) {
       tg.dynamic ? ` · objetivo según tu gasto (${goalName(tg.kcal_offset)})` : tg.provisional ? " · objetivo provisional" : "") : null,
     h("div", { class: "bd-macros" },
       macroRow("p", "Proteína", "protein_g", tg.protein_g), macroRow("c", "Carbohidratos", "carbs_g", tg.carbs_g), macroRow("g", "Grasas", "fat_g", tg.fat_mid_g)),
-    meals.length > 1 ? h("div", { class: "bd-meals-t" }, meals.map(([l, k]) => h("span", null, l + " ", h("b", { class: "num" }, fmt(k))))) : null,
+    meals.length > 1 ? h("div", { class: "bd-meals" }, h("div", { class: "bd-sub" }, "Por comidas"), h("div", { class: "bd-stack" }, meals.map(([l, k], i) => h("i", { class: "m" + i, style: { flex: k }, title: `${l}: ${fmt(k)} kcal` }))),
+      h("div", { class: "bd-leg" }, meals.map(([l, k], i) => h("span", null, h("i", { class: "m" + i }), l + " ", h("b", { class: "num" }, fmt(k)))))) : null,
     (t.missing || []).length ? h("div", { class: "note warn" }, "Hay valores desconocidos: los totales son un mínimo.") : null);
   // Lo gastado
   const parts = [

@@ -1238,16 +1238,20 @@ async function exerciseSheet(name) {
   const isW = ["peso", "lastre"].includes(kind);
   const main = rec[types[0]];
   S._exSh = sheet(name, [
-    h("div", { class: "exhero" + (L ? " tinted" : ""), style: L ? { "--tc": TIER[L.idx][2][1] } : null }, exIcon(name, 64), h("div", { class: "grow" }, h("div", { class: "faint" }, exGroup(name) + " · " + ({ peso: "con peso", lastre: "con lastre", corporal: "peso corporal", asistido: "asistido", tiempo: "isométrico", cardio: "cardio / carga" }[kind] || kind) + (isUni(name) ? " · a un brazo (reps de los dos lados)" : "") + (/mancuerna/.test(norm(name)) ? " · peso de las dos mancuernas" : "")),
+    h("div", { class: "exhero" + (L ? " tinted" : ""), style: L ? { "--tc": TIER[L.idx][2][1] } : null },
+      h("div", { class: "exh-ic" }, exIcon(name, 64), h("span", null, exGroup(name))),
+      h("div", { class: "grow" }, [isUni(name) ? "a un brazo (reps de los dos lados)" : null, /mancuerna/.test(norm(name)) ? "peso de las dos mancuernas" : null].filter(Boolean).length
+        ? h("div", { class: "faint exh-x" }, [isUni(name) ? "a un brazo (reps de los dos lados)" : null, /mancuerna/.test(norm(name)) ? "peso de las dos mancuernas" : null].filter(Boolean).join(" · ")) : null,
       h("div", { class: "exhero-v" }, h("b", { class: "num" }, main ? recTxt(types[0], main.v, kind) : "—"), h("span", null, REC_LABEL[types[0]] + " · tu récord")),
       L ? (() => {
-        const u = (x) => (L.metric === "reps" ? fmt(Math.round(x)) + " reps" : (L.metric === "add" && x > 0 ? "+" : "") + fmt(x) + " kg");
+        const u = (x) => (L.metric === "reps" ? fmt(Math.round(x)) + " reps" : "1RM " + (L.metric === "add" && x > 0 ? "+" : "") + fmt(x) + " kg");
         const lo = L.idx ? L.cuts[L.idx - 1] : 0, hi = L.cuts[L.idx];
         return h("div", { class: "exhero-next" },
           h("div", { class: "exn-t" }, L.idx === 5 ? h("b", null, "Rango máximo") : [h("span", null, "Siguiente: "), h("b", { class: "lvname l" + (L.idx + 1) }, LVL[L.idx + 1]), h("span", { class: "faint" }, L.need ? " · " + L.need.replace(/ para .*/, "") : "")],
             h("span", { class: "grow" }), h("span", { class: "faint" }, `top ${fmt(Math.max(0.5, 100 - L.pct))} %`)),
           tip(h("div", { class: "click", onclick: () => levelSheet(name, L) }, lvlBar(L)), "Pulsa para ver la curva de niveles"),
-          L.idx < 5 ? h("div", { class: "exn-ends" }, h("span", null, `${LVL[L.idx]} · ${u(lo)}`), h("span", null, `${LVL[L.idx + 1]} · ${u(hi)}`)) : null);
+          L.idx < 5 ? h("div", { class: "exn-ends" }, h("span", null, `${LVL[L.idx]} · ${u(lo)}`), h("span", null, `${LVL[L.idx + 1]} · ${u(hi)}`)) : null,
+          h("div", { class: "exn-v" }, "Tu nivel se mide con tu ", h("b", null, L.valTxt.replace("lastre 1RM", "1RM con lastre")), L.machine ? " · máquina: orientativo" : ""));
       })() : null)),
     h("div", { class: "kpis three tight recs" }, types.map((t) => { const r = rec[t];
       return h("div", { class: "kpi" }, h("div", { class: "l" }, h("span", { class: "sic c" }, "🏆"), REC_LABEL[t]), h("div", { class: "v num" }, r ? recTxt(t, r.v, kind) : "—"),
