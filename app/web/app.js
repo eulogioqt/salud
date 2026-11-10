@@ -1216,21 +1216,23 @@ function hevyBox() {
 }
 
 // ---- Conectar un agente (Claude, Codex, Gemini…): token personal + mensaje de arranque; la web detecta cuándo se conecta.
-// Colores de cada marca para el botón (sin logotipos).
+// Cada agente con su logotipo (web/logos, ver LEEME allí) y su color de marca.
 const AGENTS = [
-  { k: "claude", n: "Claude", sub: "app, móvil o Cowork", c1: "#d97757", c2: "#b85a3c", fg: "#fff", ini: "C",
-    where: "Abre Claude → Ajustes → Perfil → «Instrucciones personales» y pégalo ahí (así vale en todas las conversaciones). Luego escribe en un chat nuevo: «conecta mi salud»." },
-  { k: "claude-code", n: "Claude Code", sub: "terminal", c1: "#2b2a27", c2: "#d97757", fg: "#fff", ini: ">_",
+  { k: "claude", n: "Claude", sub: "App, móvil o Cowork", logo: "claude.png", c: "#d97757",
+    where: "Abre Claude → Ajustes → Perfil → «Instrucciones personales» y pégalo ahí (así vale en todas las conversaciones). Luego, en un chat nuevo: «conecta mi salud»." },
+  { k: "claude-code", n: "Claude Code", sub: "Terminal", logo: "claude-code.svg", c: "#d97757",
     where: "Abre Claude Code en una carpeta vacía y pega el mensaje." },
-  { k: "codex", n: "ChatGPT Codex", sub: "CLI o web", c1: "#0d0d0d", c2: "#10a37f", fg: "#fff", ini: "◎",
+  { k: "chatgpt", n: "ChatGPT", sub: "Modo agente", logo: "chatgpt.png", c: "#10a37f",
+    where: "Pégalo en ChatGPT con el modo agente activado (el chat normal no puede ejecutar código con internet)." },
+  { k: "codex", n: "Codex", sub: "OpenAI · CLI o web", logo: "codex.svg", c: "#7b6cf6",
     where: "Abre Codex con acceso a internet y pega el mensaje." },
-  { k: "gemini", n: "Gemini CLI", sub: "terminal", c1: "#4285f4", c2: "#9b72cb", fg: "#fff", ini: "✦",
+  { k: "gemini", n: "Gemini CLI", sub: "Terminal", logo: "gemini-cli.svg", c: "#4285f4",
     where: "Abre Gemini CLI en una carpeta vacía y pega el mensaje." },
-  { k: "otro", n: "Otro agente", sub: "que ejecute código", c1: "#8a8f98", c2: "#5b6068", fg: "#fff", ini: "…",
+  { k: "otro", n: "Otro agente", sub: "Que ejecute código", logo: null, c: "#8a8f98",
     where: "Pégalo en tu agente. Necesita poder ejecutar Python con internet." },
 ];
 function agentPrompt(ag, tok) {
-  const doc = ag.k === "codex" || ag.k === "otro" ? "AGENTS.md" : ag.k === "gemini" ? "GEMINI.md" : "CLAUDE.md";
+  const doc = ["codex", "chatgpt", "otro"].includes(ag.k) ? "AGENTS.md" : ag.k === "gemini" ? "GEMINI.md" : "CLAUDE.md";
   const env = ag.k === "claude"
     ? "Trabaja en tu entorno en la nube (no hace falta mi ordenador). Si no puedes salir a internet, dime que active en Ajustes → Capacidades el acceso a salud.eulogioqt.com y github.com.\n" : "";
   return `Usa mi sistema de salud (comida, peso y entrenos): ${location.origin}\n${env}` +
@@ -1239,9 +1241,13 @@ function agentPrompt(ag, tok) {
     `Después lee mi contexto con «python3 app/salud_remoto.py contexto» (si está vacío, pregúntame mis objetivos).`;
 }
 const agentConnected = () => !!(S.me && S.me.agente && S.me.agente.connected);
-function agentBtn(ag, onclick, big) {
-  return h("button", { class: "agent-btn" + (big ? " big" : ""), style: { "--a1": ag.c1, "--a2": ag.c2, "--af": ag.fg }, onclick },
-    h("span", { class: "ag-ic" }, ag.ini), h("span", { class: "ag-t" }, h("b", null, ag.n), h("span", null, ag.sub)));
+function agentLogo(ag, size = 36) {
+  return h("span", { class: "ag-logo", style: { width: size + "px", height: size + "px" } },
+    ag.logo ? h("img", { src: "/logos/" + ag.logo, alt: "", width: size, height: size, class: ag.logo.endsWith(".png") ? "full" : "" }) : h("span", { class: "ag-dots" }, "…"));
+}
+function agentBtn(ag, onclick) {
+  return h("button", { class: "agent-btn", style: { "--ac": ag.c }, onclick }, agentLogo(ag),
+    h("span", { class: "ag-t" }, h("b", null, ag.n), h("span", null, ag.sub)), h("span", { class: "ag-go" }, icon("right")));
 }
 function connectAgent() {
   let timer = null;
@@ -1257,6 +1263,7 @@ function connectAgent() {
     const copied = h("span", { class: "faint" });
     const status = h("div", { class: "agent-wait" }, h("span", { class: "spin" }), "Esperando a que tu agente se conecte…");
     sh.set("Conectar " + ag.n, [
+      h("div", { class: "ag-head", style: { "--ac": ag.c } }, agentLogo(ag, 44), h("div", null, h("b", null, ag.n), h("div", { class: "muted" }, ag.sub))),
       h("div", { class: "agent-steps" },
         h("div", { class: "ast" }, h("span", { class: "n" }, "1"), h("div", null, h("b", null, "Copia el mensaje"), h("div", { class: "muted" }, "Lleva tu token personal (solo se muestra ahora)."),
           h("div", { class: "row", style: { marginTop: "8px", gap: "8px" } }, h("button", { class: "btn primary", onclick: async () => { try { await navigator.clipboard.writeText(msg); copied.textContent = "✓ Copiado"; } catch (e) { copied.textContent = "Cópialo a mano de abajo"; } } }, "Copiar mensaje"), copied),

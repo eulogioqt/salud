@@ -317,8 +317,8 @@ function bwExact(d) { return (S.weights || []).some((w) => w.date === d); }
 const sexKey = () => (S.sex === "M" ? "M" : "H");
 const sexWord = () => (S.sex === "M" ? "mujeres" : "hombres");
 // Cortes [principiante…élite] para un peso corporal, interpolando entre filas de la tabla (fuera del rango, la fila extrema).
-function slCuts(slug, bw) {
-  const T = SL_TABLES[slug] && SL_TABLES[slug][sexKey()];
+function slCuts(slug, bw, sx) {
+  const T = SL_TABLES[slug] && SL_TABLES[slug][sx || sexKey()];
   if (!T || !bw) return null;
   if (bw <= T[0][0]) return T[0].slice(1);
   if (bw >= T[T.length - 1][0]) return T[T.length - 1].slice(1);
@@ -326,8 +326,9 @@ function slCuts(slug, bw) {
   const t = (bw - T[i][0]) / (T[i + 1][0] - T[i][0]);
   return T[i].slice(1).map((v, k) => v + (T[i + 1][k + 1] - v) * t);
 }
-function slModel(slug, metric, bw) {
-  const base = slCuts(slug, bw); if (!base) return null;
+function slModel(slug, metric, bw) { return slModelSx(slug, metric, bw, sexKey()); }
+function slModelSx(slug, metric, bw, sx) {
+  const base = slCuts(slug, bw, sx); if (!base) return null;
   // Para «lastre» se trabaja con carga total (peso corporal + lastre); para el resto, con el valor tal cual.
   const off = metric === "add" ? bw : 0;
   const pts = base.map((x) => Math.max(0.5, x + off));
@@ -817,7 +818,10 @@ function levelsInfoSheet(st) {
   const body = h("div");
   const draw = () => {
     S.lvInfo = cur;
-    const T = SL_TABLES[cur], unit = unitOf(cur);
+    const metric = cur.endsWith(".reps") ? "reps" : cur.endsWith(".add") ? "add" : "1rm";
+    // Filas con Leyenda (top 1 %): no la publica Strength Level, se extrapola igual que en el cálculo del nivel.
+    const withLeg = (sx) => SL_TABLES[cur][sx].map((r) => { const m = slModelSx(cur, metric, r[0], sx); return [...r, m ? m.all[5] - m.off : null]; });
+    const T = { H: withLeg("H"), M: withLeg("M") }, unit = unitOf(cur);
     const W = Math.max(300, Math.min(760, window.innerWidth - 60)), H = 260, L = 40, R = 12, Tp = 10, B = 26;
     const all = ["H", "M"].flatMap((sx) => T[sx].flatMap((r) => r.slice(1)));
     let lo = Math.min(0, ...all), hi = Math.max(...all) * 1.05;
@@ -826,7 +830,7 @@ function levelsInfoSheet(st) {
     const step = hi - lo > 200 ? 50 : hi - lo > 80 ? 20 : hi - lo > 30 ? 10 : 5;
     for (let g = Math.ceil(lo / step) * step; g <= hi; g += step) { svg.append(svgEl("line", { x1: L, x2: W - R, y1: y(g), y2: y(g), class: "grid" })); const t = svgEl("text", { x: L - 6, y: y(g) + 4, "text-anchor": "end", class: "axis" }); t.textContent = fmt(g); svg.append(t); }
     for (let bw = 40; bw <= 140; bw += 20) { const t = svgEl("text", { x: x(bw), y: H - 8, "text-anchor": "middle", class: "axis" }); t.textContent = bw + " kg"; svg.append(t); }
-    ["H", "M"].forEach((sx) => [0, 1, 2, 3, 4].forEach((lv) => {
+    ["H", "M"].forEach((sx) => [0, 1, 2, 3, 4, 5].forEach((lv) => {
       const d = T[sx].map((r, i) => (i ? "L" : "M") + x(r[0]).toFixed(1) + " " + y(r[lv + 1]).toFixed(1)).join("");
       const pth = svgEl("path", { d, class: "lvl-line t" + lv + (sx === "M" ? " fem" : ""), fill: "none" });
       const tt = svgEl("title", {}); tt.textContent = `${sx === "H" ? "Hombres" : "Mujeres"} · ${LVL[lv]}`; pth.append(tt); svg.append(pth);
@@ -834,8 +838,8 @@ function levelsInfoSheet(st) {
     const e = mine.find((x_) => x_.level && STD.some(([rx, , sl]) => sl === cur && rx.test(exKeyName(x_.name))));
     if (e && e.level) { const c = svgEl("circle", { cx: x(Math.min(140, Math.max(40, e.level.bw))), cy: y(e.level.raw), r: 5.5, class: "me-pt" }); const tt = svgEl("title", {}); tt.textContent = `Tú: ${e.level.valTxt} con ${fmt(e.level.bw, 1)} kg`; c.append(tt); svg.append(c); }
     const sx = S.sex === "M" ? "M" : "H";
-    const tbl = h("div", { class: "tbl-wrap" }, h("table", { class: "t" }, h("tr", null, h("th", null, "Peso corporal"), LVL.slice(0, 5).map((l) => h("th", { class: "r" }, l))),
-      T[sx].map((r) => h("tr", { class: S.bw && Math.abs(r[0] - S.bw) < 2.5 ? "hl" : "" }, h("td", null, r[0] + " kg"), r.slice(1).map((v) => h("td", { class: "r num" }, v === 0.5 ? "<1" : fmt(v)))))));
+    const tbl = h("div", { class: "tbl-wrap" }, h("table", { class: "t" }, h("tr", null, h("th", null, "Peso corporal"), LVL.map((l) => h("th", { class: "r" }, l))),
+      T[sx].map((r) => h("tr", { class: S.bw && Math.abs(r[0] - S.bw) < 2.5 ? "rowhl" : "" }, h("td", null, r[0] + " kg"), r.slice(1).map((v, i) => h("td", { class: "r num" + (i === 5 ? " faint" : "") }, v == null ? "—" : v === 0.5 ? "<1" : (i === 5 ? "≈" : "") + fmt(v, metric === "reps" ? 0 : 0)))))));
     body.replaceChildren(
       h("p", { class: "muted", style: { marginTop: 0 } }, "Los niveles comparan tu mejor marca con la de miles de personas de tu mismo sexo y peso corporal (datos públicos de Strength Level). Cada nivel es un percentil: Principiante 5 %, Novato 20 %, Intermedio 50 %, Avanzado 80 %, Élite 95 % y Leyenda 99 % (este último lo extrapolamos)."),
       h("ul", { class: "info-l" },
@@ -846,7 +850,7 @@ function levelsInfoSheet(st) {
         h("li", null, h("b", null, "Ejercicios sin tabla: "), `${Object.keys(SL_TABLES).length} tablas cargadas. Los que no tienen tabla no muestran nivel, pero sí récords, 1RM y progreso.` + (without.length ? ` Tuyos sin nivel: ${without.join(", ")}.` : ""))),
       h("div", { class: "sec-t" }, "Tabla por ejercicio"),
       h("select", { class: "input", onchange: (ev) => { cur = ev.target.value; draw(); } }, slugs.map((k) => h("option", { value: k, selected: k === cur }, SL_NAMES[k]))),
-      h("div", { class: "lv-legend" }, LVL.slice(0, 5).map((l, i) => h("span", { class: "lg t" + i }, l)), h("span", { class: "lg solid" }, "— hombres"), h("span", { class: "lg dash" }, "- - mujeres"), e && e.level ? h("span", { class: "lg me" }, "● tú") : null),
+      h("div", { class: "lv-legend" }, LVL.map((l, i) => h("span", { class: "lg t" + i }, l + (i === 5 ? " (extrapolada)" : ""))), h("span", { class: "lg solid" }, "— hombres"), h("span", { class: "lg dash" }, "- - mujeres"), e && e.level ? h("span", { class: "lg me" }, "● tú") : null),
       h("div", { class: "chart-scroll" }, svg),
       h("div", { class: "faint", style: { fontSize: "12.5px", margin: "4px 0 10px" } }, `Eje vertical: ${unit}. Eje horizontal: peso corporal.`),
       h("div", { class: "sec-t" }, `Valores para ${sx === "M" ? "mujeres" : "hombres"} (${unit})`), tbl);
