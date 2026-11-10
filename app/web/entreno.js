@@ -1382,8 +1382,8 @@ async function exerciseSheet_(name) {
   S._exSh = sheet(name, [
     h("div", { class: "exhero" + (L ? " tinted" : ""), style: L ? { "--tc": TIER[L.idx][2][1] } : null },
       h("div", { class: "exh-ic" }, exIcon(name, 64), h("span", null, exGroup(name))),
-      h("div", { class: "grow" }, [isUni(name) ? "a un brazo (reps de los dos lados)" : null, /mancuerna/.test(norm(name)) ? "peso de las dos mancuernas" : null].filter(Boolean).length
-        ? h("div", { class: "faint exh-x" }, [isUni(name) ? "a un brazo (reps de los dos lados)" : null, /mancuerna/.test(norm(name)) ? "peso de las dos mancuernas" : null].filter(Boolean).join(" · ")) : null,
+      h("div", { class: "grow" }, [isUni(name) ? "a un brazo (reps de los dos lados)" : null, /mancuerna/.test(norm(name)) && (!exSet(name).equipment || exSet(name).equipment === "mancuerna") ? "peso de las dos mancuernas" : null].filter(Boolean).length
+        ? h("div", { class: "faint exh-x" }, [isUni(name) ? "a un brazo (reps de los dos lados)" : null, /mancuerna/.test(norm(name)) && (!exSet(name).equipment || exSet(name).equipment === "mancuerna") ? "peso de las dos mancuernas" : null].filter(Boolean).join(" · ")) : null,
       h("div", { class: "exhero-v" }, h("b", { class: "num" }, main ? recTxt(types[0], main.v, kind) : "—"), h("span", null, REC_LABEL[types[0]] + " · tu récord")),
       L ? (() => {
         const u = (x) => (L.metric === "reps" ? fmt(Math.round(x)) + " reps" : (L.metric === "add" && x > 0 ? "+" : "") + fmt(x) + " kg");

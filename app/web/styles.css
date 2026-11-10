@@ -1408,6 +1408,4 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
   .lvgroups { display: flex !important; overflow-x: auto; gap: 8px; scroll-snap-type: x mandatory; padding-bottom: 6px; margin: 0 -4px; padding-left: 4px; }
   .lvgroups .lvg { flex: 0 0 64%; scroll-snap-align: start; }
   .lvgroups .lvg-f { display: none; }
-  .lvhero .dleg { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
-  .lvhero .dleg .chip { flex: none; }
 }
