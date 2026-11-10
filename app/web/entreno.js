@@ -307,11 +307,16 @@ const STD = [
   [/curl de muneca palmas arriba|^curl de muneca \((barra|mancuerna)\)|wrist curl/, "1rm", "wrist-curl", ["peso"]],
   [/flexiones diamante|diamond push/, "reps", "diamond-push-ups.reps", ["corporal"]],
   [/flexion a una mano|one arm push/, "reps", "one-arm-push-ups.reps", ["corporal"]],
+  [/^dominadas? a una mano$|^one arm pull ?ups?$/, "reps", "one-arm-pull-ups.reps", ["corporal"]],
   [/^sit ?ups?$/, "reps", "sit-ups.reps", ["corporal"]],
   [/^abdominal corto$|^crunch/, "reps", "crunches.reps", ["corporal"]],
   [/remo en t/, "1rm", "t-bar-row", ["peso"], true],
   [/^fondos? de triceps$|^fondos? en banco|bench dip/, "reps", "bench-dips.reps", ["corporal"]],
 ];
+// Rango mínimo con 1 repetición estricta (por brazo) en habilidades raras: Strength Level solo compara con quien ya las registra.
+// Dominada a una mano → Élite desde 1 rep y Leyenda desde lo que hace la mitad de quien la registra; muscle-up y flexión a una mano → Intermedio.
+// (min: rango con 1 rep; leg: índice del corte de Strength Level que pasa a ser Leyenda)
+const SKILL_MIN = { "one-arm-pull-ups.reps": { min: 4, leg: 2 }, "muscle-ups.reps": { min: 2 }, "ring-muscle-ups.reps": { min: 2 }, "one-arm-push-ups.reps": { min: 2 } };
 // Percentil a partir de los cortes de Strength Level, interpolando en escala normal (z) con la carga en logaritmo.
 // Principiante 5 % · Novato 20 % · Intermedio 50 % · Avanzado 80 % · Élite 95 % · Leyenda 99 % (top 1 %, extrapolado).
 const Z = [-1.645, -0.8416, 0, 0.8416, 1.645, 2.326];
@@ -358,6 +363,15 @@ function slModelSx(slug, metric, bw, sx) {
   const lg = (x) => Math.log(Math.max(0.5, x));
   const slope = (lg(pts[4]) - lg(pts[3])) / (Z[4] - Z[3]);
   const legend = Math.exp(lg(pts[4]) + slope * (Z[5] - Z[4]));
+  const sk = metric === "reps" && SKILL_MIN[slug];
+  if (sk) { // los rangos por debajo del mínimo quedan entre 0 y 1 rep: o la haces o no
+    const all = [...pts, legend], f = sk.min;
+    if (sk.leg != null) all[5] = Math.max(2, pts[sk.leg]);
+    for (let k = 0; k < f; k++) all[k] = 0.5 + 0.5 * k / f;
+    all[f] = 1;
+    for (let k = f + 1; k < 6; k++) if (all[k] <= all[k - 1]) all[k] = all[k - 1] + 1;
+    return { all, off, slope, metric, skill: f };
+  }
   return { all: [...pts, legend], off, slope, metric };
 }
 // bw: número (peso fijo) o función fecha → peso (cada sesión con el peso de ese día).
@@ -384,7 +398,7 @@ function exLevel(e, bw) {
       // Lo apuntado incluye el peso de la máquina: para comparar con los estándares se usa solo lo cargado.
       if (metric === "1rm" || metric === "db") { const w = s_.weight_kg != null ? s_.weight_kg - mk : null; v = w > 0 ? e1rm(w, s_.reps, e.name) : null; if (v != null) v *= ratio; if (v != null && metric === "db") v /= 2; }
       else if (metric === "add") v = s_.reps && s_.weight_kg > 0 ? (b + s_.weight_kg) / HEVY_PCT[Math.min(s_.reps, 30) - 1] - b : null;
-      else v = s_.reps;
+      else v = s_.reps && isUni(e.name) ? Math.ceil(s_.reps / 2) : s_.reps;  // a una mano: reps de los dos lados → por brazo
       if (v == null) continue;
       const z = zOf(model, v);
       if (!best || z > best.z) best = { z, v, s_, b, model, date: x.date };
@@ -392,16 +406,17 @@ function exLevel(e, bw) {
   }
   if (!best) return null;
   const { z, v: raw, s_: rawSet, b: bwUsed, model } = best;
-  const pct = Math.min(99.9, Math.max(0.1, PHI(z) * 100));
+  let pct = Math.min(99.9, Math.max(0.1, PHI(z) * 100));
   const cuts = model.all.slice(1).map((x) => x - model.off); // novato, intermedio, avanzado, élite, leyenda (en las unidades del valor)
   let idx = 0; while (idx < cuts.length && raw >= cuts[idx]) idx++;
+  const floor = model.skill || null;  // habilidad rara: rango mínimo con 1 rep (ver SKILL_MIN)
   const lo = idx ? cuts[idx - 1] : 0, hi = cuts[idx];
   const frac = hi == null ? 1 : Math.max(0, Math.min(1, (raw - lo) / (hi - lo)));
   const need = hi == null ? null : `${metric === "reps" ? "+" + Math.ceil(hi - raw) + " reps" : "+" + fmt(Math.max(1, hi - raw)) + " kg de 1RM" + (metric === "db" ? " por mancuerna" : "")} para ${LVL[idx + 1]}`;
   const valTxt = metric === "1rm" ? `1RM ≈ ${fmt(raw)} kg` + (ratio !== 1 ? ` (polea × ${fmt(ratio, 2)})` : "") : metric === "db" ? `1RM ≈ ${fmt(raw)} kg por mancuerna (${fmt(raw * 2)} kg las dos)`
     : metric === "add" ? `lastre 1RM ≈ +${fmt(raw)} kg` : `${raw} reps seguidas`;
   const cutsTxt = `Cortes para ${sexWord()} de ${fmt(bwUsed, 1)} kg: ` + cuts.map((x, i) => `${LVL[i + 1]} ${metric === "reps" ? Math.round(x) : (metric === "add" && x > 0 ? "+" : "") + fmt(x)}`).join(" · ");
-  return { idx, frac, score: idx + frac, raw, pct, z, metric, need, valTxt, cutsTxt, cuts, rawSet, machine: !!machine, solid: true, model, bw: bwUsed, date: best.date, name: e.name };
+  return { idx, frac, score: idx + frac, raw, pct, z, metric, need, floor, valTxt, cutsTxt, cuts, rawSet, machine: !!machine, solid: true, model, bw: bwUsed, date: best.date, name: e.name };
 }
 // Paleta de rangos: cobre → plata → oro → esmeralda → diamante → mítico
 const TIER = [["Principiante", "Cobre", ["#e0a070", "#9c5a2c", "#6e3a17"]], ["Novato", "Plata", ["#f1f4f8", "#aab4bf", "#6f7a86"]],
@@ -1066,7 +1081,7 @@ function levelSheet(name, L) {
   const val = (x) => x - M.off; // en las unidades del ejercicio (lastre: kg añadidos)
   const cuts = M.all.map(val); // princ., novato, int., avanzado, élite, leyenda
   const xmin = Math.max(0, Math.min(cuts[0], L.raw) * 0.75), xmax = Math.max(cuts[5], L.raw) * 1.12;
-  const W = Math.max(300, Math.min(700, window.innerWidth - 72)), H = 250, PL = 34, PR = 14, PT = 12, PB = 30;
+  const W = Math.max(300, Math.min(700, window.innerWidth - 72)), H = 268, PL = 34, PR = 14, PT = 30, PB = 30;
   const X = (v) => PL + (v - xmin) / (xmax - xmin) * (W - PL - PR), Y = (p) => PT + (1 - p / 100) * (H - PT - PB);
   const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, class: "mchart line lvcurve" });
   ensureTierDefs();
@@ -1076,6 +1091,7 @@ function levelSheet(name, L) {
     const a = Math.max(xmin, edges[i]), b = Math.min(xmax, edges[i + 1]);
     if (b <= a) continue;
     svg.append(svgEl("rect", { x: X(a), y: PT, width: X(b) - X(a), height: H - PT - PB, fill: `url(#tg${i})`, opacity: 0.16 }));
+    if (X(b) - X(a) < 44) continue;  // banda demasiado estrecha para el nombre
     const t = svgEl("text", { x: (X(a) + X(b)) / 2, y: H - PB - 7, "text-anchor": "middle", class: "axis tierlbl t" + i }); t.textContent = LVL[i]; svg.append(t);
   }
   // eje X con kg/reps
@@ -1091,11 +1107,14 @@ function levelSheet(name, L) {
   for (let i = 0; i <= 120; i++) { const v = xmin + (xmax - xmin) * i / 120; const p = PHI(zOf(M, Math.max(v, 0.01))) * 100; d += (i ? "L" : "M") + X(v).toFixed(1) + " " + Y(p).toFixed(1); }
   svg.append(svgEl("path", { d, class: "ln" }));
   // cortes
-  cuts.slice(1).forEach((c, i) => { if (c < xmin || c > xmax) return; svg.append(svgEl("line", { x1: X(c), x2: X(c), y1: PT, y2: H - PB, class: "cut t" + (i + 1) }));
-    const t = svgEl("text", { x: X(c) + 3, y: PT + 10 + (i % 2) * 12, class: "axis" }); t.textContent = (L.metric === "add" && c > 0 ? "+" : "") + fmt(c) + (unit === "kg" ? "" : ""); svg.append(t); });
+  cuts.slice(1).forEach((c, i) => { if (c < xmin || c > xmax || (M.skill && i + 1 < M.skill)) return; svg.append(svgEl("line", { x1: X(c), x2: X(c), y1: PT, y2: H - PB, class: "cut t" + (i + 1) }));
+    // eje de arriba: dónde empieza cada rango
+    svg.append(svgEl("line", { x1: X(c), x2: X(c), y1: PT - 5, y2: PT, class: "cut t" + (i + 1) }));
+    const t = svgEl("text", { x: X(c), y: PT - 9, "text-anchor": "middle", class: "axis cutl" }); t.textContent = (L.metric === "add" && c > 0 ? "+" : "") + fmt(c) + (unit === "kg" ? "" : ""); svg.append(t); });
+  svg.append(svgEl("line", { x1: PL, x2: W - PR, y1: PT, y2: PT, class: "axisln" }));
   // tú
   svg.append(svgEl("line", { x1: X(L.raw), x2: X(L.raw), y1: Y(L.pct), y2: H - PB, class: "you-l" }), svgEl("circle", { cx: X(L.raw), cy: Y(L.pct), r: 6, class: "you" }));
-  const ty = svgEl("text", { x: X(L.raw), y: Y(L.pct) - 10, "text-anchor": "middle", class: "you-t" }); ty.textContent = "Tú"; svg.append(ty);
+  const hiY = Y(L.pct) - 10 < PT + 6, ty = svgEl("text", hiY ? { x: X(L.raw) + (X(L.raw) > W - PR - 40 ? -10 : 10), y: Y(L.pct) + 16, "text-anchor": X(L.raw) > W - PR - 40 ? "end" : "start", class: "you-t" } : { x: X(L.raw), y: Y(L.pct) - 10, "text-anchor": "middle", class: "you-t" }); ty.textContent = "Tú"; svg.append(ty);
   // al pasar el ratón: qué percentil y rango tendrías con esa marca y cuánto te separa
   const gl = svgEl("line", { y1: PT, y2: H - PB, class: "guide", style: "display:none" }), gd = svgEl("circle", { r: 5, class: "hov", style: "display:none" });
   const hit = svgEl("rect", { x: PL, y: 0, width: W - PL - PR, height: H, fill: "transparent" });
@@ -1119,6 +1138,7 @@ function levelSheet(name, L) {
     const from = i ? cuts[i] : null, falta = from != null && L.raw < from ? from - L.raw : null;
     return h("tr", { class: i === L.idx ? "cur" : "" }, h("td", null, h("span", { class: "lvr" }, lvlBadge(i, 18), h("span", { class: "tn t" + i }, n))),
       h("td", { class: "r num" }, (() => { const sg = (x) => (L.metric === "add" && x > 0 ? "+" : "") + fmt(x); const to = i < 5 ? cuts[i + 1] : null;
+        if (M.skill && i < M.skill) return i === 0 ? "aún no sale" : "—";
         return i === 0 ? `menos de ${sg(to)} ${unit}` : i === 5 ? `${sg(from)} ${unit} o más` : `${sg(from)} – ${sg(to)} ${unit}`; })()),
       h("td", { class: "r num faint" }, i ? "más que el " + ["", "20 %", "50 %", "80 %", "95 %", "99 %"][i] : "—"),
       h("td", { class: "r num" }, falta != null ? "+" + fmt(falta, falta < 10 ? 1 : 0) + " " + unit : i <= L.idx ? "✓" : ""));
@@ -1128,6 +1148,7 @@ function levelSheet(name, L) {
       h("span", { class: "muted" }, `${topTxt(L.pct)} · más fuerte que el ${fmt(L.pct)} % de los ${sexWord()} de ${fmt(L.bw, 1)} kg` + (L.date ? ` (tu peso el ${dateLabel(L.date, { day: "numeric", month: "short" })})` : "")), h("span", { class: "faint" }, L.valTxt + (L.need ? " · " + L.need : "")))),
     h("div", { class: "card panel flat" }, h("h3", null, L.metric === "reps" ? "Reps máximas → percentil" : L.metric === "add" ? "Lastre (1RM) → percentil" : "1RM → percentil"), svg),
     h("table", { class: "t lvtable" }, h("tr", null, h("th", null, "Rango"), h("th", { class: "r" }, L.metric === "reps" ? "Reps" : "1RM"), h("th", { class: "r" }, "Percentil"), h("th", { class: "r" }, "Te falta")), rows),
+    L.floor ? h("div", { class: "note" }, `Con 1 repetición estricta ya cuenta como mínimo ${LVL[L.floor]}: Strength Level compara solo con quien registra este ejercicio (y casi nadie lo registra si no lo hace), así que su tabla se queda corta por abajo. A partir de ahí sube con su tabla.`) : null,
     h("div", { class: "note" }, "Strength Level publica los cortes de principiante a élite para " + sexWord() + " de cada peso corporal; la curva entre ellos y el corte de Leyenda (top 1 %) están interpolados. "),
   ], null, { wide: true });
 }

@@ -119,6 +119,25 @@ def ex_key(conn, name, canon=None):
     return c.get(k, k)
 
 
+# Variantes que en Hevy se apuntan en un ejercicio normal y se indican en la nota (p. ej. «Dominada» + «a una mano con goma»):
+# se guardan como su propio ejercicio para no mezclarlas. Así vale también al reimportar de Hevy.
+_ONE = re.compile(r"\b(a |con )?(una mano|un brazo)\b")
+_ASSIST = re.compile(r"goma|banda|el[aá]stic|asistid|apoyando|ayuda")
+
+
+def note_variant(name, notes):
+    n, t = core._norm(name or ""), core._norm(notes or "")
+    if not t or not _ONE.search(t):
+        return name
+    if n in ("dominada", "dominadas", "pull up", "pull ups"):
+        base = "Dominada a una mano"
+    elif n in ("flexiones", "flexion", "push up", "push ups", "flexiones de brazos"):
+        base = "Flexión a Una Mano"
+    else:
+        return name
+    return base + (" (asistida)" if _ASSIST.search(t) and not re.search(r"sin (goma|banda|ayuda)", t) else "")
+
+
 def _write_exercises(conn, wid, exercises):
     conn.execute("DELETE FROM workout_sets WHERE exercise_id IN (SELECT id FROM workout_exercises WHERE workout_id=?)", (wid,))
     conn.execute("DELETE FROM workout_exercises WHERE workout_id=?", (wid,))
@@ -126,6 +145,7 @@ def _write_exercises(conn, wid, exercises):
         name = (ex.get("name") or "").strip()
         if not name:
             raise ValidationError("Ejercicio %d sin nombre" % (i + 1))
+        name = note_variant(name, ex.get("notes"))
         kind = ex.get("kind") or "peso"
         if kind not in EX_KINDS:
             raise ValidationError("Tipo de ejercicio no válido: %s (%s)" % (kind, ", ".join(EX_KINDS)))

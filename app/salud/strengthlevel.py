@@ -150,7 +150,7 @@ BASES = [  # (expresión en el nombre normalizado, página base en inglés)
     (r"remo sentado", "seated-cable-row"), (r"remo", "row"), (r"elevacion(es)? lateral(es)?", "lateral-raise"),
     (r"elevacion(es)? frontal(es)?", "front-raise"), (r"pajaros|aperturas invertidas|vuelos posteriores", "reverse-fly"),
     (r"aperturas|mariposa|cruce de poleas", "chest-fly"), (r"encogimiento", "shrug"), (r"face pull", "face-pull"),
-    (r"dominadas? supinas?|chin up", "chin-ups"), (r"dominada", "pull-ups"), (r"muscle up", "muscle-ups"),
+    (r"dominadas? supinas?|chin up", "chin-ups"), (r"dominadas? a una mano$", "one-arm-pull-ups"), (r"dominada", "pull-ups"), (r"muscle up", "muscle-ups"),
     (r"fondos? en banco|fondo de triceps", "bench-dips"), (r"fondos?", "dips"), (r"flexion(es)? diamante", "diamond-push-ups"),
     (r"flexion(es)? declinada", "decline-push-up"), (r"flexion(es)? (arquero|de arquero)", "archer-push-ups"),
     (r"flexion(es)? (con agarre cerrado|cerradas?)", "close-grip-push-up"), (r"flexion(es)? inclinada", "incline-push-up"), (r"flexion(es)? en pica", "pike-push-up"), (r"flexion(es)? a una mano", "one-arm-push-ups"),
