@@ -403,7 +403,7 @@ function blockBars(hrs, today) {
   return h("div", { class: "bbars" }, B.map((b) => {
     const fut = today && b.a > now, cur = today && now >= b.a && now < b.a + 4;
     return h("div", { class: "bb" + (fut ? " fut" : "") + (cur ? " now" : ""), title: `${b.a}:00–${b.a + 4}:00 · ${fmt(b.v)} pasos` },
-      h("i", { style: { height: (fut ? 6 : Math.max(b.v ? 10 : 4, (100 * b.v) / mx)) + "%" } }), h("em", null, String(b.a)));
+      h("i", { style: { height: (fut ? 6 : Math.max(b.v ? 10 : 4, (100 * b.v) / mx)) + "%" } }));
   }));
 }
 // Pasos: datos comunes de las fichas (rachas, semanas, récords) a partir de /api/pasos/stats
@@ -419,7 +419,7 @@ async function stepsData(st) {
 const agoTxt = (ts) => { if (!ts) return "—"; const m = Math.round((Date.now() - new Date(ts.replace(" ", "T"))) / 60000); return m < 1 ? "ahora" : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : dateLabel(ts.slice(0, 10), { day: "numeric", month: "short" }); };
 function stepsFooter(d, sh) {
   return [h("span", { class: "faint sm" }, `Último envío del móvil: ${agoTxt(d.last_received)}`), h("span", { class: "grow" }),
-    h("button", { class: "btn ghost sm", onclick: () => { sh.close(); phoneConnSheet(); } }, "Administrar conexión")];
+    h("button", { class: "btn ghost sm", onclick: () => { sh.close(); connectionsSheet(); } }, "Conexiones")];
 }
 // Ficha de pasos del día (desde Hoy): objetivo, gasto, distancia, racha y el día por horas frente a tu media
 async function stepsStatsSheet(st) {
@@ -429,10 +429,10 @@ async function stepsStatsSheet(st) {
   const en = st.energy, steps = st.day.steps || 0, today = st.date === st.today, now = new Date().getHours(), goal = d.goal;
   const hrs = d.hours || Array(24).fill(0), avg = d.avg_hours;
   const km = en.stride_m ? (Math.max(0, steps - (en.steps_in_activities || 0)) * en.stride_m) / 1000 : null;
-  const C = 2 * Math.PI * 62, frac = Math.min(1, steps / goal);
-  const ring = svgE("svg", { width: 150, height: 150, viewBox: "-75 -75 150 150", class: "sring" + (steps >= goal ? " done" : "") });
-  ring.append(svgE("circle", { r: 62, fill: "none", "stroke-width": 12, class: "rg-bg" }));
-  if (frac > 0) ring.append(svgE("circle", { r: 62, fill: "none", "stroke-width": 12, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${C * frac} ${C}`, transform: "rotate(-90)" }));
+  const C = 2 * Math.PI * 80, frac = Math.min(1, steps / goal);
+  const ring = svgE("svg", { width: 180, height: 180, viewBox: "-90 -90 180 180", class: "sring" + (steps >= goal ? " done" : "") });
+  ring.append(svgE("circle", { r: 80, fill: "none", "stroke-width": 10, class: "rg-bg" }));
+  if (frac > 0) ring.append(svgE("circle", { r: 80, fill: "none", "stroke-width": 10, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${C * frac} ${C}`, transform: "rotate(-90)" }));
   const accNow = hrs.slice(0, today ? now + 1 : 24).reduce((a, x) => a + x, 0), accAvg = avg ? avg.slice(0, today ? now + 1 : 24).reduce((a, x) => a + x, 0) : null;
   const diff = accAvg != null ? accNow - accAvg : null;
   const kv = (ic, l, v) => h("div", { class: "sh2-kv" }, h("span", null, h("span", { class: "kvi" }, icon(ic)), l), h("b", null, v));
@@ -444,13 +444,12 @@ async function stepsStatsSheet(st) {
         await act(() => api("PUT", "/api/settings", { objetivo_pasos: String(Math.round(n)) }), "Objetivo guardado"); g.close(); sh.close(); stepsStatsSheet(st); } }, "Guardar")]);
     setTimeout(() => { inp.focus(); inp.select(); }, 60);
   };
-  const mx = Math.max(1, ...hrs, ...(avg || [0]));
+  const mx = Math.max(1, ...hrs);
   const hchart = h("div", { class: "sch" }, hrs.map((v, i) => {
     const fut = today && i > now;
     return tip(h("div", { class: "sc" + (fut ? " fut" : "") + (!fut && !v ? " zero" : "") + (today && i === now ? " now" : "") },
-      h("i", { style: { height: (fut || !v ? 0 : Math.max(3, (100 * v) / mx)) + "%" } }),
-      avg ? h("span", { class: "avg", style: { bottom: (100 * avg[i]) / mx + "%" } }) : null),
-      `${String(i).padStart(2, "0")}:00–${String(i + 1).padStart(2, "0")}:00\n${fut ? "—" : fmt(v) + " pasos"}${avg ? `\nTu media: ${fmt(avg[i])}` : ""}`);
+      h("i", { style: { height: (fut || !v ? 0 : Math.max(3, (100 * v) / mx)) + "%" } })),
+      `${String(i).padStart(2, "0")}:00–${String(i + 1).padStart(2, "0")}:00\n${fut ? "—" : fmt(v) + " pasos"}`);
   }));
   const peak = hrs.reduce((b, v, i) => (v > hrs[b] ? i : b), 0);
   sh.set("Pasos", [
@@ -462,12 +461,10 @@ async function stepsStatsSheet(st) {
         kv("bolt", "Gasto", en.steps_kcal != null ? `≈ ${fmt(en.steps_kcal)} kcal` : "—"),
         kv("route", "Distancia", km != null ? `${fmt(km, 1)} km` : "—"),
         kv("flame", "Racha", d.streak ? `${d.streak} ${d.streak === 1 ? "día" : "días"}` : "—"),
-        diff != null ? h("div", { class: "sh-vs " + (diff >= 0 ? "up" : "down") }, `${diff >= 0 ? "+" : "−"}${fmt(Math.abs(diff))} frente a tu media ${today ? "a esta hora" : "de ese día"}`) : null)),
-    h("div", { class: "card panel flat" }, h("div", { class: "row" }, h("h3", { style: { margin: 0 } }, "Por horas"), h("span", { class: "grow" }),
-      avg ? h("span", { class: "faint sm" }, h("span", { class: "lg-avg" }), ` tu media (${d.avg_days} ${d.avg_days === 1 ? "día" : "días"})`) : null), hchart,
+        h("button", { class: "more-lnk", onclick: () => { sh.close(); stepsMoreSheet(st); } }, icon("cal"), "Semana, rachas y récords", h("span", { class: "grow" }), "›"))),
+    h("div", { class: "card panel flat" }, h("h3", { style: { margin: 0 } }, "Por horas"), hchart,
       h("div", { class: "sch-x" }, [0, 6, 12, 18, 24].map((x) => h("span", null, x + " h"))),
       hrs[peak] ? h("div", { class: "faint sm", style: { marginTop: "6px" } }, `Hora más activa: ${peak}:00 · ${fmt(hrs[peak])} pasos`) : null),
-    h("button", { class: "btn more-st", onclick: () => { sh.close(); stepsMoreSheet(st); } }, "Más estadísticas: semana, rachas y récords", h("span", null, " ›")),
   ], stepsFooter(d, sh), { wide: true, sub });
 }
 // Más estadísticas de pasos: semana L–D, rachas y récords, últimos 30 días y media por día de la semana
@@ -571,28 +568,43 @@ async function stepsConnectSheet(mode = "pasos") {
   draw();
   tm = setInterval(async () => { const r = await api("GET", "/api/pasos").catch(() => null); if (r && (r.conectado !== info.conectado || r.bascula !== info.bascula)) { info = r; draw(); refresh(); } }, 4000);
 }
-// Administrar la conexión del móvil: estado, qué llega, clave nueva, desconectar y los tutoriales
-async function phoneConnSheet() {
-  let info = await api("GET", "/api/pasos").catch(() => ({})), tok = null;
-  const ago = (ts) => { if (!ts) return null; const m = Math.round((Date.now() - new Date(ts.replace(" ", "T"))) / 60000); return m < 1 ? "ahora" : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : dateLabel(ts.slice(0, 10), { day: "numeric", month: "short" }); };
-  const sh = sheet("Conexión del móvil", null, null, { onClose: () => loadPasos() });
+// Conexiones (menú de tu nombre): agente, pasos, báscula y Hevy en un solo sitio.
+// Pasos «conectados» si el móvil ha mandado tramos en las últimas 48 h; báscula, si ya ha llegado algún pesaje del móvil.
+async function connectionsSheet() {
+  const [info0, ws] = await Promise.all([S.me ? api("GET", "/api/pasos").catch(() => ({})) : {}, api("GET", "/api/workouts?limit=1").catch(() => ({ workouts: [] }))]);
+  let info = info0, tok = null;
+  const lastW = (ws.workouts || [])[0];
+  const fresh = (ts, h_) => ts && Date.now() - new Date(ts.replace(" ", "T")) < h_ * 3600e3;
+  const sh = sheet("Conexiones", null, null, { onClose: () => loadPasos() });
   const draw = () => {
-    const row_ = (ic, t, ok, sub_, btn) => h("div", { class: "pc-row" }, h("span", { class: "pc-i " + (ok ? "ok" : "") }, ic), h("div", { class: "grow" }, h("b", null, t), h("div", { class: "faint sm" }, sub_)), btn);
-    sh.set("Conexión del móvil", [
-      h("div", { class: "pc-st " + (info.conectado ? "on" : "") }, h("span", { class: "pc-dot" }), info.conectado ? `Conectado · último envío ${ago(info.ultimo) || "—"}` : info.configurado ? "Clave creada, aún no ha llegado nada" : "Sin conectar"),
+    const pasosOk = fresh(info.pasos_ultimo, 48);
+    const row_ = (ic, t, state, sub_, btn) => h("div", { class: "pc-row" }, h("span", { class: "pc-i " + state }, ic),
+      h("div", { class: "grow" }, h("div", { class: "pc-t" }, h("b", null, t), h("span", { class: "pc-badge " + state }, { ok: "Conectado", warn: "Sin datos recientes", off: "Sin conectar", man: "A mano" }[state])),
+        h("div", { class: "faint sm" }, sub_)), btn);
+    sh.set("Conexiones", [
       h("div", { class: "pc-list" },
-        row_("👟", "Pasos", !!info.pasos_ultimo, info.pasos_ultimo ? `Último tramo recibido ${ago(info.pasos_ultimo)}` : "Aún no han llegado", h("button", { class: "btn sm ghost", onclick: () => { sh.close(); stepsConnectSheet("pasos"); } }, "Cómo se configura")),
-        row_("⚖", "Báscula", !!info.bascula, info.bascula ? `Último pesaje ${info.bascula}` : "Aún no ha llegado ningún pesaje", h("button", { class: "btn sm ghost", onclick: () => { sh.close(); stepsConnectSheet("bascula"); } }, "Cómo se configura"))),
-      tok ? h("div", { class: "field" }, h("label", { class: "f" }, "Clave nueva: ponla en la app (encabezado «Authorization»). Solo se ve ahora."), copyLine("Bearer " + tok)) : null,
-      h("div", { class: "note" }, "Una sola clave sirve para todo lo que mande el móvil. Si la cambias, la anterior deja de funcionar y hay que ponerla en la app."),
-    ], [
-      info.configurado ? h("button", { class: "btn ghost sm danger", onclick: async () => { if (!confirm("¿Desconectar el móvil? La clave dejará de funcionar y los datos dejarán de llegar.")) return; await api("DELETE", "/api/pasos"); info = await api("GET", "/api/pasos").catch(() => ({})); tok = null; draw(); } }, "Desconectar") : null,
+        S.me ? row_("✦", "Agente (Claude, ChatGPT…)", agentConnected() ? "ok" : "off",
+          agentConnected() ? S.me.agente.agents.map((t) => agentOf(t.agent || t.kind).n).join(", ") : "Para apuntar por chat, mandar capturas de Hevy o de la báscula",
+          h("button", { class: "btn sm ghost", onclick: () => { sh.close(); connectAgent(); } }, agentConnected() ? "Gestionar" : "Conectar")) : null,
+        S.me ? row_("👟", "Pasos del móvil", pasosOk ? "ok" : info.pasos_ultimo ? "warn" : "off",
+          info.pasos_ultimo ? `Último envío ${agoTxt(info.pasos_ultimo)}` : "Que lleguen solos desde Health Connect o Salud de Apple",
+          h("button", { class: "btn sm ghost", onclick: () => { sh.close(); stepsConnectSheet("pasos"); } }, info.pasos_ultimo ? "Cómo se configura" : "Conectar")) : null,
+        S.me ? row_("⚖", "Báscula", info.bascula ? "ok" : "off", info.bascula ? `Último pesaje ${info.bascula}` : "Que cada pesaje llegue solo (peso, % de grasa…)",
+          h("button", { class: "btn sm ghost", onclick: () => { sh.close(); stepsConnectSheet("bascula"); } }, info.bascula ? "Cómo se configura" : "Conectar")) : null,
+        row_("🏋", "Hevy", "man", lastW ? `Último entreno: ${lastW.title} · ${dateLabel(lastW.date, { day: "numeric", month: "short" })}` : "Aún no hay entrenos",
+          h("button", { class: "btn sm ghost", onclick: () => { sh.close(); importCsv(); } }, "Subir CSV"))),
+      h("div", { class: "note" }, "Hevy no deja conectarse sin su plan de pago: los entrenos llegan con capturas o ChatGPT a tu agente, o subiendo el CSV (no duplica)."),
+      S.me && info.configurado ? h("div", { class: "pc-key" }, h("div", null, h("b", null, "Clave del móvil"), h("div", { class: "faint sm" }, "Una sola clave para todo lo que manda el móvil (pasos y báscula). Si la cambias, hay que ponerla en la app.")),
+        tok ? copyLine("Bearer " + tok) : null) : null,
+    ], S.me && info.configurado ? [
+      h("button", { class: "btn ghost sm danger", onclick: async () => { if (!confirm("¿Desconectar el móvil? La clave dejará de funcionar y dejarán de llegar pasos y pesajes.")) return; await api("DELETE", "/api/pasos"); info = await api("GET", "/api/pasos").catch(() => ({})); tok = null; draw(); } }, "Desconectar el móvil"),
       h("span", { class: "grow" }),
-      h("button", { class: "btn sm", onclick: async () => { if (info.configurado && !confirm("¿Generar una clave nueva? La actual dejará de funcionar.")) return; tok = (await api("POST", "/api/pasos", {})).token; info = await api("GET", "/api/pasos").catch(() => info); draw(); } }, info.configurado ? "Generar clave nueva" : "Generar clave"),
-    ]);
+      h("button", { class: "btn sm", onclick: async () => { if (!confirm("¿Generar una clave nueva? La actual dejará de funcionar.")) return; tok = (await api("POST", "/api/pasos", {})).token; draw(); } }, "Generar clave nueva"),
+    ] : null);
   };
   draw();
 }
+const phoneConnSheet = connectionsSheet;
 async function loadPasos() { if (!S.me) return; S.pasos = await api("GET", "/api/pasos").catch(() => ({})); if (S.view === "hoy") render(); }
 function stepsSheet(st) {
   const en = st.energy;
@@ -1816,8 +1828,8 @@ function accountMenu() {
   const menu = h("div", { class: "acct-menu" },
     h("div", { class: "am-h" }, h("span", { class: "av big" + (S.me ? "" : " local") }, S.me ? name[0].toUpperCase() : icon("lock")),
       h("div", null, h("b", null, name), h("span", null, S.me ? "Sesión iniciada · @" + S.me.usuario : "Versión local (sin cuentas)"))),
-    S.me ? h("button", { class: agentConnected() ? "" : "warn", onclick: () => { menu.remove(); connectAgent(); } }, h("span", { class: "ag-mini" }, "✦"),
-      agentConnected() ? "Agentes" : "Conectar un agente", agentConnected() ? h("span", { class: "ag-mini-list" }, S.me.agente.agents.slice(0, 3).map((t) => agentLogo(agentOf(t.agent || t.kind), 18))) : h("span", { class: "alert-dot" }, "!")) : null,
+    S.me ? h("button", { class: agentConnected() ? "" : "warn", onclick: () => { menu.remove(); connectionsSheet().catch((e) => toast(e.message, { error: true })); } }, h("span", { class: "ag-mini" }, "✦"),
+      "Conexiones", agentConnected() ? h("span", { class: "ag-mini-list" }, S.me.agente.agents.slice(0, 3).map((t) => agentLogo(agentOf(t.agent || t.kind), 18))) : h("span", { class: "alert-dot" }, "!")) : null,
     h("button", { onclick: () => { menu.remove(); settingsSheet().catch((e) => toast(e.message, { error: true })); } }, icon("gear"), "Ajustes"),
     S.me ? h("button", { onclick: () => { menu.remove(); welcomeSheet().catch((e) => toast(e.message, { error: true })); } }, h("span", { class: "ag-mini" }, "★"), "Primeros pasos") : null,
     S.me ? h("button", { class: "danger", onclick: async () => { await api("POST", "/api/logout", {}); location.href = "/login"; } }, icon("out"), "Cerrar sesión") : null);

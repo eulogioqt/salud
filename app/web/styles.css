@@ -1409,3 +1409,14 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
   .lvgroups .lvg { flex: 0 0 64%; scroll-snap-align: start; }
   .lvgroups .lvg-f { display: none; }
 }
+/* Pasos: anillo más holgado y enlace a las estadísticas */
+.sh2-ring { width: 180px; height: 180px; } .sh2-in b { font-size: 28px; }
+.more-lnk { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.more-lnk:hover { border-color: var(--line-2, #ccc); background: var(--surface-2); } .more-lnk svg { width: 15px; height: 15px; color: var(--muted); }
+.bb em { display: none; } .bbars { height: 30px; }
+/* Conexiones */
+.pc-t { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pc-badge { font-size: 11px; font-weight: 650; padding: 1px 8px; border-radius: 99px; background: var(--surface-2); color: var(--muted); }
+.pc-badge.ok { background: var(--accent-soft); color: var(--accent); } .pc-badge.warn { background: #fdf2dc; color: #9a6c00; }
+.pc-i.warn { filter: none; opacity: .9; background: #fdf2dc; } .pc-i.man { filter: none; opacity: 1; }
+.pc-key { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); margin-top: 10px; }
