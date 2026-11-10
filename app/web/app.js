@@ -1254,31 +1254,20 @@ function hevyBox() {
 const MCP_URL = () => location.origin + "/mcp";
 const AGENTS = [
   { k: "claude", n: "Claude", sub: "Web, escritorio, móvil y Cowork", logo: "claude.png", c: "#d97757",
-    steps: () => [
-      ["Añade el conector", "En claude.ai (navegador) o en la app de escritorio: Ajustes → Conectores → «Añadir conector personalizado». Nombre: Salud · URL: la de arriba → Añadir. (En el plan gratis cabe 1 conector personalizado.)"],
-      ["Conéctalo", "Pulsa «Conectar»: se abre esta web, inicias sesión si hace falta y pulsas «Permitir»."],
-      ["Úsalo en cualquier chat", "También en la app del móvil. Pídele, por ejemplo, «apunta mi desayuno». Si no lo usa, actívalo en el botón «+» del chat → Conectores → Salud."]] },
+    steps: () => [["Añádelo en Claude", "«+ Añadir» → «Añadir conector personalizado» → pega la dirección.", { href: "https://claude.ai/customize/connectors", t: "Abrir conectores de Claude" }],
+      ["Pulsa «Conectar» y luego «Permitir»", ""]] },
   { k: "claude-code", n: "Claude Code", sub: "Terminal", logo: "claude-code.png", c: "#d97757",
-    steps: (u) => [
-      ["Añade el servidor", "En una terminal:", `claude mcp add --transport http --scope user salud ${u}`],
-      ["Conéctalo", "Abre Claude Code, escribe /mcp → salud → «Authenticate». Se abre esta web: inicia sesión y pulsa «Permitir»."]] },
-  { k: "chatgpt", n: "ChatGPT", sub: "Modo desarrollador (planes de pago)", logo: "chatgpt.png", c: "#10a37f",
-    steps: () => [
-      ["Activa el modo desarrollador", "En chatgpt.com (navegador): Ajustes → Aplicaciones y conectores → Configuración avanzada → «Modo de desarrollador»."],
-      ["Crea el conector", "«Crear»: nombre Salud, URL la de arriba, autenticación OAuth → Crear. Se abre esta web: inicia sesión y pulsa «Permitir»."],
-      ["Úsalo", "En un chat nuevo, elige el modo desarrollador y activa Salud en las herramientas."]] },
+    steps: (u) => [["Ejecuta en una terminal", "", `claude mcp add --transport http --scope user salud ${u}`],
+      ["En Claude Code: /mcp → salud → Authenticate", "y pulsa «Permitir»."]] },
+  { k: "chatgpt", n: "ChatGPT", sub: "Modo desarrollador (de pago)", logo: "chatgpt.png", c: "#10a37f",
+    steps: () => [["Añádelo en ChatGPT", "Ajustes → Aplicaciones → Avanzado → «Modo de desarrollador» → «Crear» → pega la dirección."],
+      ["Pulsa «Crear» y luego «Permitir»", ""]] },
   { k: "codex", n: "Codex", sub: "OpenAI · app o CLI", logo: "codex.svg", c: "#7b6cf6",
-    steps: (u) => [
-      ["Añade el servidor", "En una terminal:", `codex mcp add salud --url ${u}`],
-      ["Conéctalo", "Después:", "codex mcp login salud", "Se abre esta web: inicia sesión y pulsa «Permitir»."]] },
+    steps: (u) => [["Ejecuta en una terminal", "", `codex mcp add salud --url ${u}`, "codex mcp login salud"], ["Pulsa «Permitir»", ""]] },
   { k: "antigravity", n: "Antigravity", sub: "Google · IDE o CLI", logo: "antigravity.svg", c: "#4285f4",
-    steps: (u) => [
-      ["Añade el servidor MCP", "Panel del agente → ⋯ → Servidores MCP → Gestionar → «Ver configuración». Añade:", `{"mcpServers": {"salud": {"serverUrl": "${u}"}}}`],
-      ["Conéctalo", "Al usarlo por primera vez se abre esta web: inicia sesión y pulsa «Permitir»."]] },
+    steps: (u) => [["Añádelo a su configuración MCP", "", `{"mcpServers": {"salud": {"serverUrl": "${u}"}}}`], ["Pulsa «Permitir» cuando se abra esta web", ""]] },
   { k: "otro", n: "Otro agente", sub: "Que admita MCP", logo: null, c: "#8a8f98",
-    steps: () => [
-      ["Añade un servidor MCP remoto", "Tipo «Streamable HTTP» con la URL de arriba y autenticación OAuth."],
-      ["Conéctalo", "Se abre esta web: inicia sesión y pulsa «Permitir». Si tu agente no admite OAuth, usa un token (abajo)."]] },
+    steps: () => [["Añade un servidor MCP remoto", "Con la dirección de arriba (HTTP + OAuth)."], ["Pulsa «Permitir» cuando se abra esta web", ""]] },
 ];
 // Agente declarado por el propio agente al conectarse (puede no coincidir con el elegido en la web).
 const agentOf = (name) => AGENTS.find((a) => name && (a.k === name || name.startsWith(a.k) || a.n.toLowerCase() === name)) || { k: name || "otro", n: name ? name[0].toUpperCase() + name.slice(1) : "Agente", logo: null, c: "#8a8f98" };
@@ -1344,23 +1333,23 @@ function connectAgent() {
   };
   const step2 = (ag) => {
     const u = MCP_URL();
-    const status = h("div", { class: "agent-wait" }, h("span", { class: "spin" }), "Esperando a que des permiso…");
+    const status = h("div", { class: "agent-wait" }, h("span", { class: "spin" }), "Esperando a que pulses «Permitir»…");
     const tokBox = h("div");
     const steps = ag.steps(u);
+    const extra = (x) => (typeof x === "object" ? h("a", { class: "btn sm ext", href: x.href, target: "_blank", rel: "noopener" }, x.t, " ↗")
+      : /^(claude|codex|\{)/.test(x) ? copyLine(x) : h("div", { class: "muted" }, x));
     sh.set("Conectar " + ag.n, [
-      h("div", { class: "ag-head", style: { "--ac": ag.c } }, agentLogo(ag, 44), h("div", null, h("b", null, ag.n), h("div", { class: "muted" }, ag.sub))),
-      h("div", { class: "sec-t", style: { marginTop: "4px" } }, "Dirección del conector"), copyLine(u, "big"),
-      h("div", { class: "agent-steps", style: { marginTop: "14px" } },
-        steps.map(([t, d, ...rest], i) => h("div", { class: "ast" }, h("span", { class: "n" }, String(i + 1)), h("div", null, h("b", null, t), h("div", { class: "muted" }, d),
-          rest.map((x) => (/^(claude|codex|\{)/.test(x) ? copyLine(x) : h("div", { class: "muted" }, x)))))),
-        h("div", { class: "ast" }, h("span", { class: "n" }, String(steps.length + 1)), h("div", null, h("b", null, "Listo"), status))),
-      h("details", { class: "tok-alt" }, h("summary", { class: "faint" }, "¿Tu agente no admite conectores (MCP) ni inicio de sesión? Usar un token"),
-        h("p", { class: "faint" }, "Genera un token personal y pégale el mensaje a tu agente. Solo se muestra una vez."),
-        h("button", { class: "btn sm", onclick: async () => {
+      copyLine(u, "big"),
+      h("div", { class: "agent-steps simple" },
+        steps.map(([t, d, ...rest], i) => h("div", { class: "ast" }, h("span", { class: "n" }, String(i + 1)),
+          h("div", null, h("b", null, t), d ? h("div", { class: "muted" }, d) : null, rest.map(extra)))),
+        h("div", { class: "ast" }, h("span", { class: "n ok" }, "✓"), h("div", null, h("b", null, "Listo: escríbele en cualquier chat"), h("div", { class: "muted" }, "«Apunta mi desayuno», «¿cuánto llevo hoy?», «cierra el día»…"), status))),
+      h("details", { class: "tok-alt" }, h("summary", { class: "faint" }, "Usar un token (agentes sin conectores)"),
+        h("button", { class: "btn sm", style: { marginTop: "8px" }, onclick: async () => {
           let tok; try { tok = (await api("POST", "/api/token", { kind: ag.k })).token; } catch (e) { toast(e.message, { error: true }); return; }
-          tokBox.replaceChildren(h("textarea", { class: "input mono-ta", rows: 7, readonly: true, onclick: (e) => e.target.select() }, agentPrompt(ag, tok)), copyLine(agentPrompt(ag, tok).split("\n")[1] ? "Authorization: Bearer " + tok : tok));
+          tokBox.replaceChildren(h("p", { class: "faint" }, "Pégale este mensaje a tu agente. El token solo se muestra ahora."), h("textarea", { class: "input mono-ta", rows: 7, readonly: true, onclick: (e) => e.target.select() }, agentPrompt(ag, tok)));
         } }, "Generar token"), tokBox)],
-      null, { back: step1 });
+      null, { back: step1, titleExtra: agentLogo(ag, 26) });
     watch(status, ag);
   };
   step1();

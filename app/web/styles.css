@@ -1037,3 +1037,8 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .kpis.tight .kpi .v { font-size: 17px; }
 @media (prefers-color-scheme: dark) { .kpi, .hli, .stat { box-shadow: none; } }
 @media (max-width: 640px) { .panel { padding: 14px 14px; } .kpi .v { font-size: 19px; } }
+.agent-steps.simple { margin-top: 16px; gap: 14px; }
+.agent-steps.simple .ast b { display: block; line-height: 1.35; }
+.agent-steps .n.ok { background: var(--surface-2); color: var(--accent); }
+.btn.ext { margin-top: 8px; display: inline-flex; gap: 4px; text-decoration: none; }
+.tok-alt summary { font-size: 12.5px; }
