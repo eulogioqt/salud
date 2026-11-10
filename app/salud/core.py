@@ -63,6 +63,14 @@ def neat_label(kcal):
     return None
 
 
+def accept_all_review(conn, source="web"):
+    """Acepta de golpe todo lo que esté «por revisar» (productos, recetas y comidas habituales)."""
+    with tx(conn, "accept_all_review", source):
+        n = conn.execute("UPDATE foods SET reviewed=1, updated_at=? WHERE reviewed=0", (ts(),)).rowcount
+        n += conn.execute("UPDATE templates SET reviewed=1, updated_at=? WHERE reviewed=0", (ts(),)).rowcount
+    return {"ok": True, "aceptados": n}
+
+
 def _auto_reviewed(conn, data, source):
     """Lo creado en la web ya está aceptado; lo del agente solo queda por revisar si la persona lo pidió en Ajustes."""
     if "reviewed" in data:

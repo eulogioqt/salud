@@ -1420,3 +1420,4 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .pc-badge.ok { background: var(--accent-soft); color: var(--accent); } .pc-badge.warn { background: #fdf2dc; color: #9a6c00; }
 .pc-i.warn { filter: none; opacity: .9; background: #fdf2dc; } .pc-i.man { filter: none; opacity: 1; }
 .pc-key { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); margin-top: 10px; }
+.rev-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); margin: 10px 0; font-size: 13px; }

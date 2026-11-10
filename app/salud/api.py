@@ -137,6 +137,11 @@ def _entry_restore(c, q, b, s, eid):
     return core.restore_entry(c, int(eid), s)
 
 
+@route("POST", r"/api/revisar/aceptar-todo")
+def _accept_all(c, q, b, s):
+    return core.accept_all_review(c, s)
+
+
 @route("GET", r"/api/pasos/stats")
 def _steps_stats(c, q, b, s):
     return core.steps_stats(c, q.get("date"))

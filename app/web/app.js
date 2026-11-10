@@ -204,7 +204,7 @@ function icon(name) {
     star: "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z", chev: "M6 9l6 6 6-6",
     minus: "M5 12h14", camera: "M4 8h3l2-3h6l2 3h3v11H4zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", out: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6",
     gear: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z",
-    swap: "M7 7h13l-3-3M17 17H4l3 3", up: "M12 19V5M6 11l6-6 6 6", flame: "M12 3c1 3 4 5 4 9a4 4 0 0 1-8 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 0-8z", bolt: "M13 2L4 14h7l-1 8 9-12h-7z", cal: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
+    swap: "M7 7h13l-3-3M17 17H4l3 3", up: "M12 19V5M6 11l6-6 6 6", plug: "M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5", flag: "M5 21V4M5 4h12l-2.5 4L17 12H5", flame: "M12 3c1 3 4 5 4 9a4 4 0 0 1-8 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 0-8z", bolt: "M13 2L4 14h7l-1 8 9-12h-7z", cal: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
     target: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", medal: "M12 21a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM8.5 9.5L6 3h4l2 5M15.5 9.5L18 3h-4l-2 5", check: "M5 12l5 5 9-10", route: "M6 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM6 15V9a4 4 0 0 1 4-4h6M18 9v6a4 4 0 0 1-4 4H8", dumbbell: "M6 7v10M3 9v6M18 7v10M21 9v6M6 12h12", trophy: "M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8M10 17h4v3h-4z", scale: "M5 4h14v16H5zM9 9a3 3 0 0 1 6 0M12 9l1-2",
   };
   const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -263,8 +263,7 @@ function summaryCard(st) {
   const kcalT = tg.kcal || 0, rest = kcalT && t.kcal != null ? kcalT - t.kcal : null, over = rest != null && rest < 0;
   const open = () => energySheet(st);
   const big = ringSvg(232, 98, 16, kcalT ? (t.kcal || 0) / kcalT : 0, "big" + (over ? " over" : ""), [
-    [-34, "Consumido", "rg-l"], [14, v(t, "kcal"), "rg-v"], [40, kcalT ? "/ " + fmt(kcalT) + " kcal" : "kcal · sin objetivo", "rg-o"],
-    [68, rest == null ? "" : rest >= 0 ? `quedan ${fmt(rest)}` : `exceso ${fmt(-rest)}`, "rg-r"]]);
+    [-26, "Consumido", "rg-l"], [22, v(t, "kcal"), "rg-v"], [50, kcalT ? "/ " + fmt(kcalT) + " kcal" : "kcal · sin objetivo", "rg-o"]]);
   const macro = (cls, label, f, target, unitT) => {
     const miss = (t.missing || []).includes(f);
     return h("div", { class: "mring " + cls }, ringSvg(96, 38, 9, target ? (t[f] || 0) / target : 0, cls, [[3, v(t, f) + (miss ? "+" : ""), "rg-mv"], [20, "/ " + unitT + " g", "rg-mo"]]),
@@ -1063,7 +1062,11 @@ function summaryView(s, extra) {
       sub("Metabolismo basal", fmt(en.bmr), ""), sub("Efecto térmico (TEF)", fmt(en.tef), ""), sub("NEAT sin pasos", fmt(en.neat), ""),
       sub("Pasos", en.steps_kcal == null ? "?" : fmt(en.steps_kcal), ""), sub("Ejercicio neto", fmt(en.exercise_kcal), ""),
       gap(),
-      h("tr", { class: "main bal " + (bal == null ? "" : bal < 0 ? "neg" : "pos") }, h("td", null, "Balance estimado"), h("td", { class: "r num" }, signed(bal) + " kcal"), h("td", { class: "r faint" }, bal == null ? "" : bal < 0 ? "déficit" : "superávit")),
+      (() => { // el balance frente al que buscabas: según el gasto, la diferencia elegida; fijo, objetivo − gasto
+        const objB = tg.dynamic ? tg.kcal_offset : tg.kcal && en.total != null ? tg.kcal - en.total : null;
+        return h("tr", { class: "main bal " + (bal == null ? "" : bal < 0 ? "neg" : "pos") }, h("td", null, "Balance estimado"), h("td", { class: "r num" }, signed(bal) + " kcal"),
+          h("td", { class: "r num faint" }, bal == null ? "" : objB != null ? `${signed(Math.round(objB))} · ${signed(Math.round(bal - objB))}` : bal < 0 ? "déficit" : "superávit"));
+      })(),
       gap(),
       main("Peso", s.weight_kg != null ? fmt(s.weight_kg, 1) + " kg" : "—", s.avg7 != null ? "media 7 d " + fmt(s.avg7, 1) : ""),
       main("Pasos", s.steps != null ? fmt(s.steps) : "—", ""),
@@ -1164,7 +1167,10 @@ function viewLibrary() {
       h("button", { class: "btn", onclick: () => foodEditor(null) }, "+ Producto"),
       h("button", { class: "btn", onclick: () => recipeEditor(null) }, "+ Receta"),
       h("button", { class: "btn", onclick: () => templateEditor(null) }, "+ Comida habitual")),
-    chips, grid);
+    chips,
+    S.libFilter === "revisar" && nRev ? h("div", { class: "rev-bar" }, h("span", { class: "faint" }, "Lo que ha creado tu agente. Al aceptarlo aparece al añadir comida."), h("span", { class: "grow" }),
+      h("button", { class: "btn sm", onclick: async () => { if (!confirm(`¿Aceptar las ${nRev} cosas por revisar?`)) return; await act(() => api("POST", "/api/revisar/aceptar-todo", {}), "Aceptado"); S.libFilter = "todo"; refresh(); } }, "Aceptar todo")) : null,
+    grid);
 }
 
 const numIn = (val, ph = "?") => h("input", { class: "input num", inputMode: "decimal", value: val == null ? "" : String(val).replace(".", ","), placeholder: ph });
@@ -1828,10 +1834,10 @@ function accountMenu() {
   const menu = h("div", { class: "acct-menu" },
     h("div", { class: "am-h" }, h("span", { class: "av big" + (S.me ? "" : " local") }, S.me ? name[0].toUpperCase() : icon("lock")),
       h("div", null, h("b", null, name), h("span", null, S.me ? "Sesión iniciada · @" + S.me.usuario : "Versión local (sin cuentas)"))),
-    S.me ? h("button", { class: agentConnected() ? "" : "warn", onclick: () => { menu.remove(); connectionsSheet().catch((e) => toast(e.message, { error: true })); } }, h("span", { class: "ag-mini" }, "✦"),
+    S.me ? h("button", { class: agentConnected() ? "" : "warn", onclick: () => { menu.remove(); connectionsSheet().catch((e) => toast(e.message, { error: true })); } }, icon("plug"),
       "Conexiones", agentConnected() ? h("span", { class: "ag-mini-list" }, S.me.agente.agents.slice(0, 3).map((t) => agentLogo(agentOf(t.agent || t.kind), 18))) : h("span", { class: "alert-dot" }, "!")) : null,
     h("button", { onclick: () => { menu.remove(); settingsSheet().catch((e) => toast(e.message, { error: true })); } }, icon("gear"), "Ajustes"),
-    S.me ? h("button", { onclick: () => { menu.remove(); welcomeSheet().catch((e) => toast(e.message, { error: true })); } }, h("span", { class: "ag-mini" }, "★"), "Primeros pasos") : null,
+    S.me ? h("button", { onclick: () => { menu.remove(); welcomeSheet().catch((e) => toast(e.message, { error: true })); } }, icon("flag"), "Primeros pasos") : null,
     S.me ? h("button", { class: "danger", onclick: async () => { await api("POST", "/api/logout", {}); location.href = "/login"; } }, icon("out"), "Cerrar sesión") : null);
   document.body.append(menu);
   const r = $("#btn-acct").getBoundingClientRect();

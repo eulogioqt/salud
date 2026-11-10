@@ -231,6 +231,8 @@ def main(argv=None):
         if a.usuario not in auth.list_users(a.datos):
             raise SystemExit("No existe la cuenta «%s»" % a.usuario)
         a.db = auth.user_db(a.datos, a.usuario)
+        from . import training as _T
+        _T.GLOBAL_SL = os.path.join(os.path.abspath(a.datos), "sl_asociaciones.json")
     conn = connect(a.db)
     if a.cmd == "init":
         print("Importados: %d" % init_db(conn)); return

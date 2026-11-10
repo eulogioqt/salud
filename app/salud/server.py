@@ -624,6 +624,8 @@ def main(argv=None):
     a = ap.parse_args(argv)
     if a.multiusuario:
         MULTI = os.path.abspath(a.multiusuario)
+        from . import training as _T
+        _T.GLOBAL_SL = os.path.join(MULTI, "sl_asociaciones.json")
         users = auth.list_users(MULTI)
         if not users:
             print("No hay cuentas. Crea una con: python3 app/salud_cli.py usuario-crear <usuario> --datos %s" % MULTI)

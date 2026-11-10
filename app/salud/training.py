@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import os
 import re
 
@@ -48,8 +49,44 @@ def e1rm(weight, reps):
 EQUIPMENT = ("barra", "mancuerna", "maquina", "discos", "polea", "cable", "corporal", "otro")
 
 
+# Tabla de Strength Level de cada ejercicio, COMÚN a todas las cuentas (lo que se asocia una vez vale para todos).
+# Lo propio de cada persona (máquina de su gimnasio, peso de la máquina, poleas, ejercicios unidos) sigue en su base de datos.
+GLOBAL_SL = None  # ruta del fichero; la pone el servidor (multiusuario)
+
+
+def global_sl():
+    if not GLOBAL_SL or not os.path.exists(GLOBAL_SL):
+        return {}
+    try:
+        with open(GLOBAL_SL, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def set_global_sl(key, slug):
+    if not GLOBAL_SL:
+        return
+    m = global_sl()
+    if slug:
+        m[key] = slug
+    else:
+        m.pop(key, None)
+    tmp = GLOBAL_SL + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(m, f, ensure_ascii=False, indent=0, sort_keys=True)
+    os.replace(tmp, GLOBAL_SL)
+
+
 def exercise_settings(conn):
-    return {r["name_key"]: dict(r) for r in conn.execute("SELECT * FROM exercise_settings")}
+    out = {r["name_key"]: dict(r) for r in conn.execute("SELECT * FROM exercise_settings")}
+    for k, slug in global_sl().items():  # la tabla común, si la persona no tiene una propia
+        cur = out.get(k)
+        if cur is None:
+            out[k] = {"name_key": k, "name": k, "sl_slug": slug, "global": True}
+        elif not cur.get("sl_slug"):
+            cur["sl_slug"], cur["global"] = slug, True
+    return out
 
 
 def set_exercise_settings(conn, data, source="web"):
@@ -93,6 +130,9 @@ def set_exercise_settings(conn, data, source="web"):
                      "VALUES(?,?,?,?,?,?,?,?,?,?)", (key, vals.get("name") or name, vals.get("equipment"), vals.get("machine_kg"),
                                                      vals.get("load_ratio"), vals.get("unilateral"), vals.get("notes"), vals.get("sl_slug"),
                                                      vals.get("same_as"), ts()))
+    # una asociación «pura» (sin material propio: p. ej. la que adivina el servidor o fija el administrador) vale para todos
+    if "sl_slug" in data and not any(k in data for k in ("equipment", "machine_kg", "load_ratio", "unilateral")) and not vals.get("equipment"):
+        set_global_sl(key, vals["sl_slug"])
     return exercise_settings(conn).get(key)
 
 
