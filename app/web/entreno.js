@@ -321,8 +321,8 @@ const STD = [
 // (min: rango con 1 rep o con cualquier lastre; map: {rango nuestro: corte de Strength Level que se usa})
 const SKILL_MIN = { "one-arm-pull-ups.reps": { min: 4, map: { 5: 2 } }, "muscle-ups.reps": { min: 3 }, "ring-muscle-ups.reps": { min: 3 },
   "muscle-ups.add": { min: 3, map: { 4: 3, 5: 4 } }, "one-arm-push-ups.reps": { min: 2 } };
-// Habilidades sin tabla de Strength Level: cortes propios (segundos, estimación). Front lever completo: Élite al sostenerlo, Leyenda desde 15 s.
-const CUSTOM_SKILLS = [[/^front lever( sostenid[ao])?$/, "tiempo", "secs", { 4: 2, 5: 15 }, 4, "front-lever"]];
+// Habilidades sin tabla de Strength Level: cortes propios (segundos, estimación). Front lever completo: Élite al sostenerlo (desde 1 s), Leyenda desde 15 s.
+const CUSTOM_SKILLS = [[/^front lever( sostenid[ao])?$/, "tiempo", "secs", { 4: 1, 5: 15 }, 4, "front-lever"]];
 function customModel(cuts, f) {
   const all = [0, 0, 0, 0, 0, 0];
   for (let k = f; k < 6; k++) all[k] = cuts[k];
@@ -828,7 +828,7 @@ function upRow(u) {
     h("div", { class: "exr-v up" }, h("span", { class: "upfromto" }, h("span", { class: "upfrom" }, lvlBadge(u.from, 14), h("span", { class: "lvname sm l" + u.from }, LVL[u.from])), h("span", { class: "uparr" }, icon("up")), lvlShield(u.L, 18), h("b", { class: "lvname l" + u.to }, LVL[u.to]))));
 }
 function upChip(u) {
-  return tip(h("span", { class: "upchip l" + u.to }, icon("up"), LVL[u.to]), `Nuevo rango: ${LVL[u.from]} → ${LVL[u.to]}`);
+  return tip(h("span", { class: "upchip" }, icon("up"), LVL[u.to]), `Nuevo rango: ${LVL[u.from]} → ${LVL[u.to]}`);
 }
 
 const EQ_LABEL = { barra: "Barra", mancuerna: "Mancuernas", maquina: "Máquina", discos: "Máquina de discos", cable: "Cable", polea: "Polea ×0,5", corporal: "Corporal", otro: "Otro" };
@@ -1120,9 +1120,9 @@ function addSL(d) {
   put(d.slug + ".reps", "reps", d.name + " (reps)");
   put(d.slug + ".add", "add", d.name + " (lastre)");
 }
-function prChips(prs) {
-  if (!prs || !prs.length) return null;
-  return h("div", { class: "prchips" }, prs.map((t) => tip(h("span", { class: "prchip" }, icon("trophy"), PR_SHORT[t] || t), `Récord: ${REC_LABEL[t] || t}`)));
+function prChips(prs, lead) {
+  if ((!prs || !prs.length) && !lead) return null;
+  return h("div", { class: "prchips" }, lead || null, (prs || []).map((t) => tip(h("span", { class: "prchip" }, icon("trophy"), PR_SHORT[t] || t), `Récord: ${REC_LABEL[t] || t}`)));
 }
 function lvlInline(L, size = 20, ex) {
   if (!L) return null;
@@ -1235,8 +1235,8 @@ async function workoutSheet_(id) {
     return h("div", { class: "exb card2" },
       h("div", { class: "exb-h v2" }, exIcon(ex.name, 40),
         h("div", { class: "exb-tt" },
-          h("div", { class: "exb-r1" }, tip(h("button", { class: "exn", onclick: () => exerciseSheet(ex.name) }, dispName(ex.name)), dispName(ex.name) !== ex.name ? "En Hevy: " + ex.name : null), prChips(ex.prs),
-            (() => { const u = wUps.find((x) => exKeyName(x.name) === exKeyName(ex.name)); return u ? upChip(u) : null; })()),
+          h("div", { class: "exb-r1" }, tip(h("button", { class: "exn", onclick: () => exerciseSheet(ex.name) }, dispName(ex.name)), dispName(ex.name) !== ex.name ? "En Hevy: " + ex.name : null),
+            prChips(ex.prs, (() => { const u = wUps.find((x) => exKeyName(x.name) === exKeyName(ex.name)); return u ? upChip(u) : null; })())),
           h("div", { class: "exb-r2" }, L ? lvlShield(L, 16) : null, L ? h("span", { class: "lvname sm l" + L.idx }, LVL[L.idx]) : null, eqTag(ex.name),
             e1 ? tip(h("span", { class: "faint" }, "· 1RM ≈ " + fmt(e1) + " kg"), "1RM estimado de la mejor serie (tabla de Hevy: peso ÷ % según reps)" + (isUni(ex.name) ? "\nA un brazo: se usan la mitad de las reps" : "")) : null))),
       ex.notes ? h("div", { class: "exnote" }, ex.notes) : null,
@@ -1261,8 +1261,8 @@ async function workoutSheet_(id) {
   ], [h("button", { class: "btn ghost danger", onclick: (e) => confirmDel(e, async () => { await act(() => api("DELETE", "/api/workouts/" + w.id), "Entreno eliminado"); sh.close(); }) }, "Eliminar"),
     h("span", { class: "grow" }), w.activity_id ? h("button", { class: "btn", onclick: () => { sh.close(); goDay(w.date); } }, "Ver día") : null],
   { big: true, desc: w.notes || "", titleExtra: [
+    wUps.length ? tip(h("span", { class: "upchip lg" }, icon("up"), `${wUps.length} ${wUps.length === 1 ? "rango nuevo" : "rangos nuevos"}`), wUps.map((u) => `${dispName(u.name)}: ${LVL[u.from]} → ${LVL[u.to]}`).join("\n")) : null,
     nPR ? tip(h("span", { class: "prc lg" }, icon("trophy"), `${nPR} ${nPR === 1 ? "récord" : "récords"}`), w.exercises.filter((ex) => ex.prs && ex.prs.length).map((ex) => `${ex.name}: ${ex.prs.map((t) => PR_SHORT[t]).join(", ")}`).join("\n")) : null,
-    wUps.length ? tip(h("span", { class: "upchip lg l" + Math.max(...wUps.map((u) => u.to)) }, icon("up"), `${wUps.length} ${wUps.length === 1 ? "rango nuevo" : "rangos nuevos"}`), wUps.map((u) => `${dispName(u.name)}: ${LVL[u.from]} → ${LVL[u.to]}`).join("\n")) : null,
     h("span", { class: "datec" }, dateLabel(w.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) + (w.start_time ? " · " + w.start_time : "")),
     bwAt(w.date) ? tip(h("span", { class: "datec" }, `${fmt(bwAt(w.date), 1)} kg`), bwExact(w.date) ? "Tu peso ese día (pesaje)" : "Tu peso ese día (interpolado entre pesajes)") : null] });
 }

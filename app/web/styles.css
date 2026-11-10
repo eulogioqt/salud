@@ -1304,3 +1304,7 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 /* nombre del ejercicio en la ficha del entreno: negro (ya se sabe que se puede pulsar) */
 .exb-r1 .exn { color: var(--text); }
 .exb-r1 .exn:hover { text-decoration: underline; }
+/* rango nuevo: un color propio (naranja), sea cual sea el rango */
+.upchip, .upchip.l1, .upchip.l2, .upchip.l4, .upchip.l5 { background: #ffe8d4; color: #c4560a; line-height: 1; height: 20px; padding: 0 8px 0 6px; gap: 3px; }
+.upchip.lg { height: auto; padding: 4px 10px; }
+@media (prefers-color-scheme: dark) { .upchip, .upchip.l1, .upchip.l2, .upchip.l4, .upchip.l5 { background: rgba(255,140,50,.18); color: #ffad66; } }
