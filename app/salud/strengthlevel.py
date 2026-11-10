@@ -142,7 +142,7 @@ BASES = [  # (expresión en el nombre normalizado, página base en inglés)
     (r"hip thrust|empuje de cadera", "hip-thrust"), (r"zancada", "lunge"), (r"prensa|press de piernas", "leg-press"),
     (r"extension de (pierna|cuadriceps)", "leg-extension"), (r"curl de pierna tumbado|curl femoral tumbado", "lying-leg-curl"),
     (r"curl de pierna|curl femoral", "seated-leg-curl"), (r"gemelos? sentado", "seated-calf-raise"), (r"gemelos?|pantorrilla", "calf-raise"),
-    (r"curl martillo", "hammer-curl"), (r"curl predicador", "preacher-curl"), (r"curl concentrado", "concentration-curl"),
+    (r"curl martillo", "hammer-curl"), (r"curl predicador \(maquina\)", "machine-bicep-curl"), (r"curl predicador", "preacher-curl"), (r"curl concentrado", "concentration-curl"),
     (r"curl invertido", "reverse-curl"), (r"curl de muneca|curl de extension de muneca", "wrist-curl"), (r"curl de biceps|curl", "bicep-curl"),
     (r"extension de triceps por encima|press frances|extension de triceps tumbado", "lying-tricep-extension"),
     (r"extension de triceps|jalon de triceps|triceps con polea|triceps en polea", "tricep-pushdown"),

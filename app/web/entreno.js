@@ -281,6 +281,7 @@ const STD = [
   [/curl de biceps \(cable\)/, "1rm", "cable-bicep-curl", ["peso"], true],
   [/curl de biceps \(mancuerna\)/, "db", "dumbbell-curl", ["peso"]],
   [/curl martillo \(mancuerna\)/, "db", "dumbbell-hammer-curl", ["peso"]],
+  [/curl predicador \(maquina\)|curl de biceps \(maquina\)|curl en maquina/, "1rm", "machine-bicep-curl", ["peso"], true],
   [/curl predicador/, "1rm", "preacher-curl", ["peso"], true],
   [/curl con barra/, "1rm", "barbell-curl", ["peso"]],
   [/triceps con polea|jalon de triceps/, "1rm", "tricep-pushdown", ["peso"], true],
@@ -320,8 +321,8 @@ const STD = [
 // (min: rango con 1 rep o con cualquier lastre; map: {rango nuestro: corte de Strength Level que se usa})
 const SKILL_MIN = { "one-arm-pull-ups.reps": { min: 4, map: { 5: 2 } }, "muscle-ups.reps": { min: 3 }, "ring-muscle-ups.reps": { min: 3 },
   "muscle-ups.add": { min: 3, map: { 4: 3, 5: 4 } }, "one-arm-push-ups.reps": { min: 2 } };
-// Habilidades sin tabla de Strength Level: cortes propios (segundos). Front lever completo: Élite al sostenerlo, Leyenda desde 10 s.
-const CUSTOM_SKILLS = [[/^front lever( sostenid[ao])?$/, "tiempo", "secs", { 4: 2, 5: 10 }, 4, "front-lever"]];
+// Habilidades sin tabla de Strength Level: cortes propios (segundos, estimación). Front lever completo: Élite al sostenerlo, Leyenda desde 15 s.
+const CUSTOM_SKILLS = [[/^front lever( sostenid[ao])?$/, "tiempo", "secs", { 4: 2, 5: 15 }, 4, "front-lever"]];
 function customModel(cuts, f) {
   const all = [0, 0, 0, 0, 0, 0];
   for (let k = f; k < 6; k++) all[k] = cuts[k];
@@ -815,8 +816,8 @@ function tResumen(st, ws) {
     P.prs.length ? h("div", { class: "card panel" }, h("div", { class: "row", style: { marginBottom: "6px" } }, h("h3", { style: { margin: 0 } }, "Récords del periodo", h("span", { class: "faint", style: { fontWeight: 400 } }, ` · ${P.prs.length} · los más recientes`)), h("span", { class: "grow" }),
       P.prs.length > 6 ? h("button", { class: "btn sm ghost", onclick: () => sheet(`Récords · ${R.label}`, h("div", { class: "exlist" }, P.prs.map((p) => prRow(p))), null, { sub: `${P.prs.length} récords, del más reciente al más antiguo` }) }, `Ver todos (${P.prs.length})`) : null),
       h("div", { class: "exlist" }, P.prs.slice(0, 6).map((p) => prRow(p)))) : null,
-    P.ups.length ? h("div", { class: "card panel" }, h("div", { class: "row", style: { marginBottom: "6px" } }, h("h3", { style: { margin: 0 } }, "Subidas de rango", h("span", { class: "faint", style: { fontWeight: 400 } }, ` · ${P.ups.length}`)), h("span", { class: "grow" }),
-      P.ups.length > 6 ? h("button", { class: "btn sm ghost", onclick: () => sheet(`Subidas de rango · ${R.label}`, h("div", { class: "exlist" }, P.ups.map((u) => upRow(u))), null, { sub: `${P.ups.length} subidas, de la más reciente a la más antigua` }) }, `Ver todas (${P.ups.length})`) : null),
+    P.ups.length ? h("div", { class: "card panel" }, h("div", { class: "row", style: { marginBottom: "6px" } }, h("h3", { style: { margin: 0 } }, "Nuevos rangos", h("span", { class: "faint", style: { fontWeight: 400 } }, ` · ${P.ups.length}`)), h("span", { class: "grow" }),
+      P.ups.length > 6 ? h("button", { class: "btn sm ghost", onclick: () => sheet(`Nuevos rangos · ${R.label}`, h("div", { class: "exlist" }, P.ups.map((u) => upRow(u))), null, { sub: `${P.ups.length} rangos nuevos, del más reciente al más antiguo` }) }, `Ver todos (${P.ups.length})`) : null),
       h("div", { class: "exlist" }, P.ups.slice(0, 6).map((u) => upRow(u)))) : null);
 }
 // Una subida de rango: de qué rango a cuál, con el escudo nuevo
@@ -824,10 +825,10 @@ function upRow(u) {
   return h("button", { class: "exrow", onclick: () => exerciseSheet(u.name) }, exIcon(u.name, 34),
     h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, h("span", null, dispName(u.name))),
       h("div", { class: "exr-s" }, dateLabel(u.date, { weekday: "short", day: "numeric", month: "short" }) + " · " + u.L.valTxt)),
-    h("div", { class: "exr-v up" }, h("span", { class: "upfromto" }, h("span", { class: "lvname sm l" + u.from }, LVL[u.from]), " → ", lvlShield(u.L, 18), h("b", { class: "lvname l" + u.to }, LVL[u.to]))));
+    h("div", { class: "exr-v up" }, h("span", { class: "upfromto" }, h("span", { class: "upfrom" }, lvlBadge(u.from, 14), h("span", { class: "lvname sm l" + u.from }, LVL[u.from])), h("span", { class: "uparr" }, icon("up")), lvlShield(u.L, 18), h("b", { class: "lvname l" + u.to }, LVL[u.to]))));
 }
 function upChip(u) {
-  return tip(h("span", { class: "upchip l" + u.to }, "▲ ", LVL[u.to]), `Sube de rango: ${LVL[u.from]} → ${LVL[u.to]}`);
+  return tip(h("span", { class: "upchip l" + u.to }, icon("up"), LVL[u.to]), `Nuevo rango: ${LVL[u.from]} → ${LVL[u.to]}`);
 }
 
 const EQ_LABEL = { barra: "Barra", mancuerna: "Mancuernas", maquina: "Máquina", discos: "Máquina de discos", cable: "Cable", polea: "Polea ×0,5", corporal: "Corporal", otro: "Otro" };
@@ -1174,16 +1175,18 @@ function levelSheet(name, L) {
   const gl = svgEl("line", { y1: PT, y2: H - PB, class: "guide", style: "display:none" }), gd = svgEl("circle", { r: 5, class: "hov", style: "display:none" });
   const hit = svgEl("rect", { x: PL, y: 0, width: W - PL - PR, height: H, fill: "transparent" });
   svg.append(gl, gd, hit);
-  const fmtv = (v) => (L.metric === "add" && v > 0 ? "+" : "") + fmt(v, L.metric === "reps" ? 0 : v < 20 ? 1 : 0) + " " + unit;
+  const fmtv = (v) => (L.metric === "add" && v > 0 ? "+" : "") + fmt(v, L.metric === "reps" || L.metric === "secs" ? 0 : v < 20 ? 1 : 0) + " " + unit;
   const mv = (ev) => {
     const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
     const q = pt.matrixTransform(svg.getScreenCTM().inverse());
     const v = Math.max(xmin, Math.min(xmax, xmin + (q.x - PL) / (W - PL - PR) * (xmax - xmin)));
     const p = PHI(zOf(M, Math.max(v, 0.01))) * 100;
     let i = 0; while (i < 5 && v >= cuts[i + 1]) i++;
-    gl.setAttribute("x1", X(v)); gl.setAttribute("x2", X(v)); gl.style.display = ""; gd.setAttribute("cx", X(v)); gd.setAttribute("cy", Y(p)); gd.style.display = "";
+    gl.setAttribute("x1", X(v)); gl.setAttribute("x2", X(v)); gl.style.display = "";
+    if (M.skill && v < c0) { gd.style.display = "none"; showTip([`${fmtv(v)}`, `Rango | sin rango (aún no sale)`, `Primer rango | ${LVL[M.skill]} en ${fmtv(c0)}`].join("\n"), ev.clientX, ev.clientY); return; }
+    gd.setAttribute("cx", X(v)); gd.setAttribute("cy", Y(p)); gd.style.display = "";
     const diff = v - L.raw;
-    showTip([`${L.metric === "reps" ? "Con " : "1RM de "}${fmtv(v)}`, `Rango | ${LVL[i]}`, `Percentil | ${fmt(p, p > 99 ? 1 : 0)} % (${topTxt(p)})`,
+    showTip([`${L.metric === "reps" ? "Con " : L.metric === "secs" ? "Aguantando " : "1RM de "}${fmtv(v)}`, `Rango | ${LVL[i]}`, `Percentil | ${fmt(p, p > 99 ? 1 : 0)} % (${topTxt(p)})`,
       `Frente a ti | ${Math.abs(diff) < 0.5 ? "es tu marca" : (diff > 0 ? "+" : "−") + fmt(Math.abs(diff), Math.abs(diff) < 10 ? 1 : 0) + " " + unit}`,
       i < 5 ? `Siguiente rango | ${LVL[i + 1]} en ${fmtv(cuts[i + 1])}` : "Rango máximo"].join("\n"), ev.clientX, ev.clientY);
   };
@@ -1259,7 +1262,7 @@ async function workoutSheet_(id) {
     h("span", { class: "grow" }), w.activity_id ? h("button", { class: "btn", onclick: () => { sh.close(); goDay(w.date); } }, "Ver día") : null],
   { big: true, desc: w.notes || "", titleExtra: [
     nPR ? tip(h("span", { class: "prc lg" }, icon("trophy"), `${nPR} ${nPR === 1 ? "récord" : "récords"}`), w.exercises.filter((ex) => ex.prs && ex.prs.length).map((ex) => `${ex.name}: ${ex.prs.map((t) => PR_SHORT[t]).join(", ")}`).join("\n")) : null,
-    wUps.length ? tip(h("span", { class: "upchip lg l" + Math.max(...wUps.map((u) => u.to)) }, `▲ ${wUps.length} ${wUps.length === 1 ? "subida" : "subidas"} de rango`), wUps.map((u) => `${dispName(u.name)}: ${LVL[u.from]} → ${LVL[u.to]}`).join("\n")) : null,
+    wUps.length ? tip(h("span", { class: "upchip lg l" + Math.max(...wUps.map((u) => u.to)) }, icon("up"), `${wUps.length} ${wUps.length === 1 ? "rango nuevo" : "rangos nuevos"}`), wUps.map((u) => `${dispName(u.name)}: ${LVL[u.from]} → ${LVL[u.to]}`).join("\n")) : null,
     h("span", { class: "datec" }, dateLabel(w.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) + (w.start_time ? " · " + w.start_time : "")),
     bwAt(w.date) ? tip(h("span", { class: "datec" }, `${fmt(bwAt(w.date), 1)} kg`), bwExact(w.date) ? "Tu peso ese día (pesaje)" : "Tu peso ese día (interpolado entre pesajes)") : null] });
 }
