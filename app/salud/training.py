@@ -121,6 +121,7 @@ def ex_key(conn, name, canon=None):
 
 # Variantes que en Hevy se apuntan en un ejercicio normal y se indican en la nota (p. ej. «Dominada» + «a una mano con goma»):
 # se guardan como su propio ejercicio para no mezclarlas. Así vale también al reimportar de Hevy.
+# Dominada a una mano: «(asistida)» salvo que la nota diga «sin goma»/«estricta».
 _ONE = re.compile(r"\b(a |con )?(una mano|un brazo)\b")
 _ASSIST = re.compile(r"goma|banda|el[aá]stic|asistid|apoyando|ayuda")
 
@@ -129,12 +130,14 @@ def note_variant(name, notes):
     n, t = core._norm(name or ""), core._norm(notes or "")
     if not t or not _ONE.search(t):
         return name
-    if n in ("dominada", "dominadas", "pull up", "pull ups"):
+    if n in ("dominada", "dominadas", "pull up", "pull ups") or n.startswith("dominada a una mano"):
         base = "Dominada a una mano"
-    elif n in ("flexiones", "flexion", "push up", "push ups", "flexiones de brazos"):
+    elif n in ("flexiones", "flexion", "push up", "push ups", "flexiones de brazos") or n.startswith("flexion a una mano"):
         base = "Flexión a Una Mano"
     else:
         return name
+    if base.startswith("Dominada"):  # casi siempre con goma: estricta solo si la nota lo dice («sin goma», «estricta»)
+        return base + ("" if re.search(r"sin (goma|banda|ayuda)|estrict", t) else " (asistida)")
     return base + (" (asistida)" if _ASSIST.search(t) and not re.search(r"sin (goma|banda|ayuda)", t) else "")
 
 

@@ -1288,3 +1288,4 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .mrg-list .exrow .faint { font-size: 12px; }
 .hd em.alias { font-style: normal; font-size: 11.5px; color: var(--muted); }
 .lvinfo .axisln { stroke: var(--line); } .lvinfo .cutl { fill: var(--muted); font-weight: 600; }
+.lvinfo .norank, .lvcurve .norank { fill: var(--line); opacity: .35; }
