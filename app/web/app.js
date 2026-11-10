@@ -40,7 +40,7 @@ const FIELDS = ["kcal", "protein_g", "carbs_g", "fat_g"];
 const MEALS = [["desayuno", "Desayuno"], ["almuerzo", "Almuerzo"], ["merienda", "Merienda"], ["cena", "Cena"], ["otro", "Otro"]];
 const QUAL = { etiqueta: "Etiqueta", historico: "Histórico", provisional: "Provisional", estimacion: "Estimación", pendiente: "Pendiente" };
 const QORDER = ["etiqueta", "historico", "provisional", "estimacion", "pendiente"];
-const ACT_TYPES = [["fuerza", "Fuerza"], ["calistenia", "Calistenia"], ["hyrox", "HYROX"], ["carrera", "Carrera"], ["bici", "Bici"], ["caminata", "Caminata"], ["otro", "Otro"]];
+const ACT_TYPES = [["fuerza", "Fuerza"], ["calistenia", "Calistenia"], ["hyrox", "HYROX"], ["carrera", "Carrera"], ["bici", "Bici"], ["natacion", "Natación"], ["caminata", "Caminata"], ["otro", "Otro"]];
 const STEP_TYPES = ["carrera", "hyrox", "caminata"];
 const INTENS = ["suave", "normal", "dura", "muy dura"];
 const CAT_HUE = { cereales: 38, carnes: 14, "lácteos": 212, bebidas: 186, alcohol: 280, conservas: 200, embutidos: 355, snacks: 48, suplementos: 245, legumbres: 120, dulces: 28, receta: 158, habitual: 158 };
@@ -791,7 +791,7 @@ async function closeSheet(date) {
       if (fixes[w.code]) {
         const [field, ph] = fixes[w.code];
         const inp = h("input", { class: "input num", placeholder: ph, inputMode: "decimal" });
-        const go = async () => { const n = parseNum(inp.value); if (!(n > 0)) return; await act(() => api("PUT", "/api/days/" + date, { [field]: n })); draw(); };
+        const go = async () => { const n = parseNum(inp.value); if (n == null || n < 0 || (field === "weight_kg" && !(n > 0))) return; await act(() => api("PUT", "/api/days/" + date, { [field]: n })); draw(); };
         inp.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
         li.append(h("span", { class: "fix" }, inp, h("button", { class: "btn sm", onclick: go }, "Guardar")));
       } else if (w.code === "actividad") {
@@ -1241,41 +1241,48 @@ function hevyBox() {
   return box;
 }
 
-// ---- Conectar un agente (Claude, Codex, Gemini…): token personal + mensaje de arranque; la web detecta cuándo se conecta.
+// ---- Conectar un agente (Claude, ChatGPT, Codex…): conector MCP en <web>/mcp con inicio de sesión (OAuth).
+// El agente se conecta él solo: la persona añade la dirección, inicia sesión aquí y pulsa «Permitir».
 // Cada agente con su logotipo (web/logos, ver LEEME allí) y su color de marca.
+const MCP_URL = () => location.origin + "/mcp";
 const AGENTS = [
-  { k: "claude", n: "Claude", sub: "App, móvil o Cowork", logo: "claude.png", c: "#d97757",
-    where: "Abre Claude → Ajustes → Perfil → «Instrucciones personales» y pégalo ahí (así vale en todas las conversaciones). Luego, en un chat nuevo: «conecta mi salud»." },
+  { k: "claude", n: "Claude", sub: "Web, escritorio, móvil y Cowork", logo: "claude.png", c: "#d97757",
+    steps: () => [
+      ["Añade el conector", "En claude.ai (navegador) o en la app de escritorio: Ajustes → Conectores → «Añadir conector personalizado». Nombre: Salud · URL: la de arriba → Añadir. (En el plan gratis cabe 1 conector personalizado.)"],
+      ["Conéctalo", "Pulsa «Conectar»: se abre esta web, inicias sesión si hace falta y pulsas «Permitir»."],
+      ["Úsalo en cualquier chat", "También en la app del móvil. Pídele, por ejemplo, «apunta mi desayuno». Si no lo usa, actívalo en el botón «+» del chat → Conectores → Salud."]] },
   { k: "claude-code", n: "Claude Code", sub: "Terminal", logo: "claude-code.png", c: "#d97757",
-    where: "Abre Claude Code en una carpeta vacía y pega el mensaje." },
-  { k: "chatgpt", n: "ChatGPT", sub: "Modo agente", logo: "chatgpt.png", c: "#10a37f",
-    where: "Pégalo en ChatGPT con el modo agente activado (el chat normal no puede ejecutar código con internet)." },
-  { k: "codex", n: "Codex", sub: "OpenAI · app, CLI o web", logo: "codex.svg", c: "#7b6cf6",
-    where: "Abre Codex con acceso a internet y pega el mensaje." },
-  { k: "antigravity", n: "Antigravity CLI", sub: "Google · terminal", logo: "antigravity.svg", c: "#4285f4",
-    where: "Abre Antigravity CLI (agy) en una carpeta vacía y pega el mensaje." },
-  { k: "otro", n: "Otro agente", sub: "Que ejecute código", logo: null, c: "#8a8f98",
-    where: "Pégalo en tu agente. Necesita poder ejecutar Python con internet." },
+    steps: (u) => [
+      ["Añade el servidor", "En una terminal:", `claude mcp add --transport http --scope user salud ${u}`],
+      ["Conéctalo", "Abre Claude Code, escribe /mcp → salud → «Authenticate». Se abre esta web: inicia sesión y pulsa «Permitir»."]] },
+  { k: "chatgpt", n: "ChatGPT", sub: "Modo desarrollador (planes de pago)", logo: "chatgpt.png", c: "#10a37f",
+    steps: () => [
+      ["Activa el modo desarrollador", "En chatgpt.com (navegador): Ajustes → Aplicaciones y conectores → Configuración avanzada → «Modo de desarrollador»."],
+      ["Crea el conector", "«Crear»: nombre Salud, URL la de arriba, autenticación OAuth → Crear. Se abre esta web: inicia sesión y pulsa «Permitir»."],
+      ["Úsalo", "En un chat nuevo, elige el modo desarrollador y activa Salud en las herramientas."]] },
+  { k: "codex", n: "Codex", sub: "OpenAI · app o CLI", logo: "codex.svg", c: "#7b6cf6",
+    steps: (u) => [
+      ["Añade el servidor", "En una terminal:", `codex mcp add salud --url ${u}`],
+      ["Conéctalo", "Después:", "codex mcp login salud", "Se abre esta web: inicia sesión y pulsa «Permitir»."]] },
+  { k: "antigravity", n: "Antigravity", sub: "Google · IDE o CLI", logo: "antigravity.svg", c: "#4285f4",
+    steps: (u) => [
+      ["Añade el servidor MCP", "Panel del agente → ⋯ → Servidores MCP → Gestionar → «Ver configuración». Añade:", `{"mcpServers": {"salud": {"serverUrl": "${u}"}}}`],
+      ["Conéctalo", "Al usarlo por primera vez se abre esta web: inicia sesión y pulsa «Permitir»."]] },
+  { k: "otro", n: "Otro agente", sub: "Que admita MCP", logo: null, c: "#8a8f98",
+    steps: () => [
+      ["Añade un servidor MCP remoto", "Tipo «Streamable HTTP» con la URL de arriba y autenticación OAuth."],
+      ["Conéctalo", "Se abre esta web: inicia sesión y pulsa «Permitir». Si tu agente no admite OAuth, usa un token (abajo)."]] },
 ];
 // Agente declarado por el propio agente al conectarse (puede no coincidir con el elegido en la web).
 const agentOf = (name) => AGENTS.find((a) => name && (a.k === name || name.startsWith(a.k) || a.n.toLowerCase() === name)) || { k: name || "otro", n: name ? name[0].toUpperCase() + name.slice(1) : "Agente", logo: null, c: "#8a8f98" };
-// Paso previo: el entorno del agente tiene que poder salir a la web y a GitHub.
-const NET_STEP = {
-  claude: "Abre claude.ai en el navegador (en la app del móvil no sale esta opción) → Ajustes → Capacidades → activa «Permitir salida a la red» (Allow network egress). Si ves una lista de dominios, añade salud.eulogioqt.com y github.com. Se guarda en tu cuenta y vale también en la app. En cuentas de empresa lo cambia el administrador.",
-  "claude-code": "Claude Code en tu ordenador ya tiene internet. En Claude Code en la web, permite salud.eulogioqt.com y github.com en la red del entorno.",
-  chatgpt: "En el modo agente de ChatGPT, permite el acceso a internet.",
-  codex: "En Codex, activa el acceso a internet del entorno (en Codex web: Ajustes del entorno → Internet access) y permite salud.eulogioqt.com y github.com.",
-  antigravity: "Antigravity CLI en tu ordenador ya tiene internet.",
-  otro: "Tu agente necesita salir a internet a salud.eulogioqt.com y github.com.",
-};
+// Plan B para agentes sin MCP: token personal (cabecera Authorization: Bearer en /mcp, o el cliente salud_remoto.py del repositorio).
 function agentPrompt(ag, tok) {
-  const doc = ["claude", "claude-code"].includes(ag.k) ? "CLAUDE.md" : "AGENTS.md";
   const me = ag.k === "otro" ? "<tu nombre: claude, chatgpt, codex…>" : ag.k;
   return `Usa mi sistema de salud (comida, peso y entrenos): ${location.origin}\n` +
-    `Antes de nada comprueba que tu entorno llega a github.com y a ${location.host}. Si no llegas, NO es un error: dime exactamente qué tengo que activar (${NET_STEP[ag.k]}) y espera a que te avise para seguir.\n` +
-    `Cuando te pida algo de salud: clona https://github.com/eulogioqt/salud (o git pull), ejecuta «python3 app/salud_remoto.py comprobar» y sigue ${doc}.\n` +
-    `Mi token: ${tok} — guárdalo con «python3 app/salud_remoto.py login ${tok} --agente ${me}» (si no eres ${ag.k === "otro" ? "ninguno de esos" : ag.n}, pon tu nombre real) y no lo repitas.\n` +
-    `Después lee mi contexto con «python3 app/salud_remoto.py contexto» (si está vacío, pregúntame mis objetivos).`;
+    `Si admites servidores MCP: conecta ${MCP_URL()} con la cabecera «Authorization: Bearer ${tok}».\n` +
+    `Si no: clona https://github.com/eulogioqt/salud, guarda el token con «python3 app/salud_remoto.py login ${tok} --agente ${me}» (no lo repitas) y sigue AGENTS.md. ` +
+    `Tu entorno necesita salir a internet a ${location.host} y github.com; si no puede, dime qué activar.\n` +
+    `Después lee mi contexto (si está vacío, pregúntame mis objetivos).`;
 }
 const agentConnected = () => !!(S.me && S.me.agente && S.me.agente.connected);
 function agentLogo(ag, size = 36) {
@@ -1298,45 +1305,56 @@ function agentList(onChange) {
   const used = a.agents || [];
   if (!used.length) return h("div", { class: "warn-t" }, "⚠ Ningún agente conectado");
   return h("div", { class: "ag-list" }, used.map((t) => { const ag = agentOf(t.agent || t.kind);
-    return h("div", { class: "ag-item" }, agentLogo(ag, 32), h("div", { class: "grow" }, h("b", null, ag.n), h("div", { class: "faint" }, `Último uso ${t.used}` + (t.kind && t.agent && !(t.agent || "").startsWith(t.kind) ? ` · elegido «${agentOf(t.kind).n}» en la web` : ""))),
+    return h("div", { class: "ag-item" }, agentLogo(ag, 32), h("div", { class: "grow" }, h("b", null, ag.n), h("div", { class: "faint" }, (t.via === "mcp" ? "Conector · " : "Token · ") + `último uso ${t.used}` + (t.kind && t.agent && !(t.agent || "").startsWith(t.kind) ? ` · elegido «${agentOf(t.kind).n}» en la web` : ""))),
       h("button", { class: "btn sm", onclick: async () => { if (!confirm(`¿Desconectar ${ag.n}? Su token dejará de funcionar.`)) return; await api("DELETE", "/api/token/" + t.id); await refreshAgents(); toast(ag.n + " desconectado"); onChange && onChange(); } }, "Desconectar")); }));
+}
+function copyLine(text, cls = "") {
+  const done = h("span", { class: "faint" });
+  return h("div", { class: "copy-line " + cls }, h("code", null, text),
+    h("button", { class: "btn sm", onclick: async () => { try { await navigator.clipboard.writeText(text); done.textContent = "✓"; setTimeout(() => (done.textContent = ""), 1500); } catch (e) { toast("Cópialo a mano", { error: true }); } } }, "Copiar"), done);
 }
 function connectAgent() {
   let timer = null;
   const sh = sheet("Conectar un agente", null, null, { onClose: () => clearInterval(timer) });
   const step1 = () => sh.set("Conectar un agente", [
-    h("p", { class: "muted", style: { marginTop: 0 } }, "Tu agente (Claude u otro) podrá apuntar y consultar tus comidas, peso y entrenos. Solo tendrá acceso a tu cuenta. Puedes conectar varios y desconectar cada uno cuando quieras."),
+    h("p", { class: "muted", style: { marginTop: 0 } }, "Tu agente podrá apuntar y consultar tus comidas, peso y entrenos, solo en tu cuenta. Se conecta con esta web como una app más: inicias sesión y le das permiso. Puedes desconectarlo cuando quieras."),
     h("div", { class: "agent-grid" }, AGENTS.map((ag) => { const on = ag.k !== "otro" && agentsUsed().some((t) => t.kind === ag.k || t.agent === ag.k);
       return on ? agentBtn({ ...ag, sub: "Conectado" }, null, true) : agentBtn(ag, () => step2(ag)); })),
     agentConnected() ? h("div", null, h("div", { class: "sec-t" }, "Conectados"), agentList(step1)) : null]);
-  const step2 = async (ag) => {
-    let tok;
+  const watch = async (status, ag) => {
     await refreshAgents();
-    const before = new Set(((S.me && S.me.agente && S.me.agente.tokens) || []).map((t) => t.id));
-    try { tok = (await api("POST", "/api/token", { kind: ag.k })).token; } catch (e) { toast(e.message, { error: true }); return; }
-    const msg = agentPrompt(ag, tok);
-    const copied = h("span", { class: "faint" });
-    const status = h("div", { class: "agent-wait" }, h("span", { class: "spin" }), "Esperando a que tu agente se conecte…");
-    sh.set("Conectar " + ag.n, [
-      h("div", { class: "ag-head", style: { "--ac": ag.c } }, agentLogo(ag, 44), h("div", null, h("b", null, ag.n), h("div", { class: "muted" }, ag.sub))),
-      h("div", { class: "agent-steps" },
-        h("div", { class: "ast" }, h("span", { class: "n" }, "1"), h("div", null, h("b", null, "Dale acceso a internet"), h("div", { class: "muted" }, NET_STEP[ag.k]))),
-        h("div", { class: "ast" }, h("span", { class: "n" }, "2"), h("div", null, h("b", null, "Copia el mensaje"), h("div", { class: "muted" }, "Lleva tu token personal (solo se muestra ahora)."),
-          h("div", { class: "row", style: { marginTop: "8px", gap: "8px" } }, h("button", { class: "btn primary", onclick: async () => { try { await navigator.clipboard.writeText(msg); copied.textContent = "✓ Copiado"; } catch (e) { copied.textContent = "Cópialo a mano de abajo"; } } }, "Copiar mensaje"), copied),
-          h("details", { style: { marginTop: "6px" } }, h("summary", { class: "faint" }, "Ver mensaje"), h("textarea", { class: "input mono-ta", rows: 6, readonly: true, onclick: (e) => e.target.select() }, msg)))),
-        h("div", { class: "ast" }, h("span", { class: "n" }, "3"), h("div", null, h("b", null, "Pégalo en " + ag.n), h("div", { class: "muted" }, ag.where))),
-        h("div", { class: "ast" }, h("span", { class: "n" }, "4"), h("div", null, h("b", null, "Listo"), status)))],
-      null, { back: step1 });
+    const before = new Set(((S.me && S.me.agente && S.me.agente.agents) || []).map((t) => t.id));
     clearInterval(timer);
     timer = setInterval(async () => {
       const r = await refreshAgents();
       const t = r && (r.agents || []).find((x) => !before.has(x.id));
       if (t) {
         clearInterval(timer); const real = agentOf(t.agent || t.kind);
-        status.replaceChildren(agentLogo(real, 22), h("span", null, `Conectado: ${real.n}` + (t.agent && !t.agent.startsWith(ag.k) ? ` (lo elegiste como ${ag.n}, pero el agente dice ser ${real.n})` : "") + ". Ya puedes pedirle cosas."));
+        status.replaceChildren(agentLogo(real, 22), h("span", null, `Conectado: ${real.n}` + (t.agent && ag.k !== "otro" && !t.agent.startsWith(ag.k) ? ` (elegiste ${ag.n})` : "") + ". Ya puedes pedirle cosas."));
         status.classList.add("done");
       }
     }, 3000);
+  };
+  const step2 = (ag) => {
+    const u = MCP_URL();
+    const status = h("div", { class: "agent-wait" }, h("span", { class: "spin" }), "Esperando a que des permiso…");
+    const tokBox = h("div");
+    const steps = ag.steps(u);
+    sh.set("Conectar " + ag.n, [
+      h("div", { class: "ag-head", style: { "--ac": ag.c } }, agentLogo(ag, 44), h("div", null, h("b", null, ag.n), h("div", { class: "muted" }, ag.sub))),
+      h("div", { class: "sec-t", style: { marginTop: "4px" } }, "Dirección del conector"), copyLine(u, "big"),
+      h("div", { class: "agent-steps", style: { marginTop: "14px" } },
+        steps.map(([t, d, ...rest], i) => h("div", { class: "ast" }, h("span", { class: "n" }, String(i + 1)), h("div", null, h("b", null, t), h("div", { class: "muted" }, d),
+          rest.map((x) => (/^(claude|codex|\{)/.test(x) ? copyLine(x) : h("div", { class: "muted" }, x)))))),
+        h("div", { class: "ast" }, h("span", { class: "n" }, String(steps.length + 1)), h("div", null, h("b", null, "Listo"), status))),
+      h("details", { class: "tok-alt" }, h("summary", { class: "faint" }, "¿Tu agente no admite conectores (MCP) ni inicio de sesión? Usar un token"),
+        h("p", { class: "faint" }, "Genera un token personal y pégale el mensaje a tu agente. Solo se muestra una vez."),
+        h("button", { class: "btn sm", onclick: async () => {
+          let tok; try { tok = (await api("POST", "/api/token", { kind: ag.k })).token; } catch (e) { toast(e.message, { error: true }); return; }
+          tokBox.replaceChildren(h("textarea", { class: "input mono-ta", rows: 7, readonly: true, onclick: (e) => e.target.select() }, agentPrompt(ag, tok)), copyLine(agentPrompt(ag, tok).split("\n")[1] ? "Authorization: Bearer " + tok : tok));
+        } }, "Generar token"), tokBox)],
+      null, { back: step1 });
+    watch(status, ag);
   };
   step1();
 }

@@ -12,7 +12,7 @@ Mismo patrón que el resto de webs del servidor (p. ej. raquel.eulogioqt.com):
 | Web | nginx `sites-available/salud.eulogioqt.com` → HTTPS (Let's Encrypt, webroot `/var/www/letsencrypt`) |
 | Atajo CLI | `/usr/local/bin/salud` |
 
-Lo único público es `https://salud.eulogioqt.com` (web + `/api/…`). Todo `/api/` exige sesión o token, salvo `/api/login` y `/api/cuentas` (nombres para la pantalla de entrada).
+Lo único público es `https://salud.eulogioqt.com` (web + `/api/…` + conector `/mcp`). Todo `/api/` y `/mcp` exigen sesión o token, salvo `/api/login`, `/api/cuentas` (nombres para la pantalla de entrada) y el OAuth del conector (`/.well-known/oauth-*`, `/oauth/register`, `/oauth/authorize` —pide sesión—, `/oauth/token`). Los clientes OAuth registrados se guardan en `/srv/salud/private/oauth_clientes.json`.
 
 ## Actualizar
 Claude empuja el código al clon del servidor (`git push hetzner main`, con `receive.denyCurrentBranch=updateInstead`) y ejecuta `bash /opt/github/salud/deploy/instalar.sh`.

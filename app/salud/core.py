@@ -21,7 +21,7 @@ from .db import (BACKUP_DIR, DEFAULT_DB, EXPORT_DIR, ClosedDayError, NotFound, V
 
 MEALS = ["desayuno", "almuerzo", "merienda", "cena", "otro"]
 MEAL_LABEL = {"desayuno": "Desayuno", "almuerzo": "Almuerzo", "merienda": "Merienda", "cena": "Cena", "otro": "Otro"}
-ACTIVITY_TYPES = ["fuerza", "calistenia", "hyrox", "carrera", "bici", "caminata", "otro"]
+ACTIVITY_TYPES = ["fuerza", "calistenia", "hyrox", "carrera", "bici", "natacion", "caminata", "otro"]
 INTENSITIES = ["suave", "normal", "dura", "muy dura"]
 
 # MET brutos (Compendium of Physical Activities, valores redondeados).
@@ -32,6 +32,7 @@ MET = {
     "hyrox":      {"suave": 6.0, "normal": 8.0, "dura": 9.5, "muy dura": 11.0},
     "carrera":    {"suave": 8.0, "normal": 9.8, "dura": 11.5, "muy dura": 12.8},
     "bici":       {"suave": 5.0, "normal": 7.0, "dura": 9.0, "muy dura": 11.0},
+    "natacion":   {"suave": 5.8, "normal": 7.0, "dura": 9.8, "muy dura": 10.5},
     "caminata":   {"suave": 3.0, "normal": 3.5, "dura": 4.5, "muy dura": 5.5},
     "otro":       {"suave": 3.0, "normal": 4.5, "dura": 6.5, "muy dura": 8.0},
 }
@@ -911,7 +912,7 @@ def close_check(conn, d):
     if day["weight_kg"] is None:
         w.append({"level": "importante", "code": "peso", "text": "Falta el peso de la mañana"})
     if day["steps"] is None:
-        w.append({"level": "importante", "code": "pasos", "text": "Faltan los pasos (el gasto queda incompleto)"})
+        w.append({"level": "importante", "code": "pasos", "text": "Faltan los pasos (si no anduviste, pon 0): sin ellos el gasto queda incompleto"})
     if not st["activities"] and day["rest_day"] != 1:
         w.append({"level": "importante", "code": "actividad", "text": "Sin entrenamiento registrado: ¿fue día de descanso?"})
     if st["entry_count"] == 0:

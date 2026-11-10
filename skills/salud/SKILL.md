@@ -5,7 +5,9 @@ description: Seguimiento de salud en salud.eulogioqt.com (comida, macros, peso, 
 
 # Salud
 
-Sistema de seguimiento con web (https://salud.eulogioqt.com) y una cuenta por persona. Se opera con un token personal del usuario; funciona desde el entorno en la nube, sin su ordenador.
+Sistema de seguimiento con web (https://salud.eulogioqt.com) y una cuenta por persona.
+
+**Si tienes el conector «Salud» (MCP) conectado, usa sus herramientas y no sigas esta skill** (empieza por `leer_contexto`). Si no: conéctalo en tu agente con la URL `https://salud.eulogioqt.com/mcp` (la web lo explica en menú de tu nombre → Conectar un agente). Lo de abajo es el plan B con token personal, desde un entorno con Python e internet.
 
 ## Arranque (cada conversación)
 

@@ -10,9 +10,9 @@ import sys
 import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
 
-from . import auth, core
+from . import auth, core, mcp
 from .api import ApiError, dispatch
 from .db import APP_DIR, DEFAULT_DB, connect, now_local
 from .importer import init_db
@@ -31,6 +31,23 @@ CTX_LOCK = threading.Lock()
 RATE = auth.RateLimit()
 CLI_LOCK = threading.Lock()  # redirect_stdout es global: un comando de CLI a la vez
 COOKIE = "salud_s"
+
+OAUTH_CSS = """
+:root{color-scheme:light dark;--bg:#f4f1ea;--card:#fff;--fg:#1d2026;--mut:#6b7079;--line:#e6e2d8;--acc:#1f7a5c}
+@media (prefers-color-scheme:dark){:root{--bg:#121417;--card:#1b1e22;--fg:#eceef1;--mut:#9aa0a8;--line:#2b2f35;--acc:#3fb58a}}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--fg);
+font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:28px 24px;max-width:430px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.06)}
+.logos{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:14px}
+.logos img,.gen{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;background:var(--bg);font-size:26px;object-fit:cover}
+.dots{color:var(--mut);font-size:22px}h1{font-size:20px;line-height:1.3;margin:0 0 6px;text-align:center;font-weight:600}
+.who{color:var(--mut);text-align:center;margin:0 0 16px;font-size:14px}.who a{color:var(--mut)}
+ul{margin:0 0 14px;padding:14px 16px 14px 34px;background:var(--bg);border-radius:14px}li{margin:3px 0}
+.small{color:var(--mut);font-size:13px;margin:0 0 18px}.warn{background:#fff4d6;color:#7a5600;border-radius:12px;padding:8px 12px;font-size:14px}
+@media (prefers-color-scheme:dark){.warn{background:#3a3220;color:#f0d68a}}
+.btns{display:flex;gap:10px}.b{flex:1;text-align:center;padding:12px;border-radius:12px;border:1px solid var(--line);color:var(--fg);text-decoration:none;font-weight:600}
+.b.p{background:var(--acc);border-color:var(--acc);color:#fff}
+"""
 
 
 def user_ctx(username):
@@ -144,16 +161,14 @@ class Handler(BaseHTTPRequestHandler):
 
     CLI_BLOCKED = {"niveles-descargar", "usuario-crear", "usuario-password", "usuario-token", "usuarios", "foto", "init", "importar-hevy"}
 
-    def _cli(self, body, lock, user):
-        """Ejecuta un comando de la CLI sobre la BD del usuario de la sesión/token (así Claude opera por HTTPS)."""
+    @classmethod
+    def run_cli(cls, args, lock, user):
+        """Ejecuta un comando de la CLI sobre la BD del usuario (lo usan /api/cli y el MCP). → (código, stdout, stderr)"""
         import contextlib
         import io
         from . import cli
-        args = body.get("args")
-        if not isinstance(args, list) or not args or not all(isinstance(x, str) for x in args):
-            return self._send(400, {"error": "Formato: {\"args\": [\"hoy\"]}"})
-        if args[0] in self.CLI_BLOCKED or any(x in ("--db", "--usuario", "--datos", "--archivo") or x.startswith("--db=") for x in args):
-            return self._send(403, {"error": "Comando no permitido por HTTP"})
+        if args[0] in cls.CLI_BLOCKED or any(x in ("--db", "--usuario", "--datos", "--archivo") or x.startswith(("--db=", "--archivo=", "--usuario=", "--datos=")) for x in args):
+            return 2, "", "Comando no permitido por HTTP"
         db = auth.user_db(MULTI, user) if MULTI else None
         out, err = io.StringIO(), io.StringIO()
         code = 0
@@ -167,7 +182,17 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:  # pragma: no cover
                 code = 1
                 err.write("Error: %s" % e)
-        return self._send(200, {"code": code, "stdout": out.getvalue(), "stderr": err.getvalue()})
+        return code, out.getvalue(), err.getvalue()
+
+    def _cli(self, body, lock, user):
+        """Ejecuta un comando de la CLI sobre la BD del usuario de la sesión/token (así Claude opera por HTTPS)."""
+        args = body.get("args")
+        if not isinstance(args, list) or not args or not all(isinstance(x, str) for x in args):
+            return self._send(400, {"error": "Formato: {\"args\": [\"hoy\"]}"})
+        code, out, err = self.run_cli(args, lock, user)
+        if code == 2 and err == "Comando no permitido por HTTP":
+            return self._send(403, {"error": err})
+        return self._send(200, {"code": code, "stdout": out, "stderr": err})
 
     def _api(self, method):
         u = urlparse(self.path)
@@ -269,6 +294,208 @@ class Handler(BaseHTTPRequestHandler):
             traceback.print_exc()
             self._send(500, {"error": "Error interno: %s" % e})
 
+    # ------------------------------------------------------------------ MCP + OAuth 2.1
+    CORS = {"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Authorization, Content-Type, Mcp-Session-Id, MCP-Protocol-Version, X-Salud-Agent",
+            "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS", "Access-Control-Expose-Headers": "WWW-Authenticate, Mcp-Session-Id"}
+
+    def _base(self):
+        host = self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or "localhost"
+        proto = self.headers.get("X-Forwarded-Proto") or "http"
+        return "%s://%s" % (proto, host.split(",")[0].strip())
+
+    def _json(self, status, payload, extra=None):
+        return self._send(status, payload, extra_headers=dict(self.CORS, **(extra or {})))
+
+    def _body_raw(self, limit=8 * 1024 * 1024):
+        n = int(self.headers.get("Content-Length") or 0)
+        if n > limit:
+            raise ValueError("Petición demasiado grande")
+        return self.rfile.read(n) if n else b""
+
+    def _well_known(self, path):
+        base = self._base()
+        if path.startswith("/.well-known/oauth-protected-resource"):
+            return self._json(200, {"resource": base + "/mcp", "authorization_servers": [base], "scopes_supported": ["salud"],
+                                    "bearer_methods_supported": ["header"], "resource_name": "Salud"})
+        return self._json(200, {
+            "issuer": base, "authorization_endpoint": base + "/oauth/authorize", "token_endpoint": base + "/oauth/token",
+            "registration_endpoint": base + "/oauth/register", "scopes_supported": ["salud"], "response_types_supported": ["code"],
+            "response_modes_supported": ["query"], "grant_types_supported": ["authorization_code", "refresh_token"],
+            "code_challenge_methods_supported": ["S256"],
+            "token_endpoint_auth_methods_supported": ["none", "client_secret_post", "client_secret_basic"],
+            "authorization_response_iss_parameter_supported": True, "service_documentation": base + "/"})
+
+    def _oauth_register(self):
+        try:
+            meta = json.loads(self._body_raw(64 * 1024).decode("utf-8") or "{}")
+            return self._json(201, auth.register_client(MULTI, meta))
+        except (ValueError, auth.AuthError) as e:
+            return self._json(400, {"error": "invalid_client_metadata", "error_description": str(e)})
+
+    def _page(self, status, title, body):
+        html = ("<!doctype html><html lang=es><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
+                "<title>%s · Salud</title><style>%s</style></head><body><main class=card>%s</main></body></html>") % (title, OAUTH_CSS, body)
+        return self._send(status, html.encode("utf-8"), "text/html; charset=utf-8")
+
+    @staticmethod
+    def _esc(x):
+        import html
+        return html.escape(str(x or ""), quote=True)
+
+    def _csrf(self, q):
+        import hashlib
+        import hmac
+        key = hashlib.sha256((self._cookie_token() or "").encode()).digest()
+        msg = "|".join(q.get(k, "") for k in ("client_id", "redirect_uri", "code_challenge", "state")).encode()
+        return hmac.new(key, msg, hashlib.sha256).hexdigest()[:32]
+
+    def _oauth_authorize(self, q):
+        import hmac
+        client = auth.get_client(MULTI, q.get("client_id"))
+        if not client:
+            return self._page(400, "Error", "<h1>Conexión no válida</h1><p>Este agente no está registrado. Vuelve a añadir el conector desde tu agente.</p>")
+        ru = q.get("redirect_uri") or (client["redirect_uris"][0] if len(client["redirect_uris"]) == 1 else "")
+        if ru not in client["redirect_uris"]:
+            return self._page(400, "Error", "<h1>Conexión no válida</h1><p>La dirección de vuelta no coincide con la registrada.</p>")
+
+        def back(**params):
+            if q.get("state"):
+                params["state"] = q["state"]
+            params["iss"] = self._base()
+            self.send_response(302)
+            self.send_header("Location", ru + ("&" if "?" in ru else "?") + urlencode(params))
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        if q.get("response_type") != "code":
+            return back(error="unsupported_response_type")
+        if not q.get("code_challenge") or q.get("code_challenge_method", "plain") != "S256":
+            return back(error="invalid_request", error_description="PKCE S256 obligatorio")
+        user = auth.session_user(MULTI, self._cookie_token())
+        if not user:
+            self.send_response(302)
+            self.send_header("Location", "/login?next=" + quote(self.path, safe=""))
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if q.get("denegar"):
+            return back(error="access_denied", error_description="La persona no ha dado permiso")
+        if q.get("aprobar") and hmac.compare_digest(q["aprobar"], self._csrf(q)):
+            return back(code=auth.new_code(user, client["client_id"], ru, q["code_challenge"], q.get("scope")))
+        kind = auth.kind_of(client["name"])
+        logo = {"claude": "claude.png", "claude-code": "claude-code.png", "chatgpt": "chatgpt.png", "codex": "codex.svg", "antigravity": "antigravity.svg"}.get(kind)
+        info = auth.list_users(MULTI).get(user, {})
+        same = [t for t in auth.list_tokens(MULTI, user) if t.get("used") and kind != "otro" and (t.get("kind") == kind or t.get("agent") == kind)]
+        qs = {k: v for k, v in q.items() if k not in ("aprobar", "denegar")}
+        ok = "/oauth/authorize?" + urlencode(dict(qs, aprobar=self._csrf(q)))
+        no = "/oauth/authorize?" + urlencode(dict(qs, denegar="1"))
+        host = urlparse(ru).netloc or urlparse(ru).scheme
+        body = (
+            "<div class=logos>%s<span class=dots>⋯</span><img src='/logos/salud.svg' alt=''></div>"
+            "<h1><b>%s</b> quiere conectarse a tu cuenta de Salud</h1>"
+            "<p class=who>Sesión iniciada como <b>%s</b> (@%s) · <a href='/login?cambiar=1&next=%s'>no soy yo</a></p>"
+            "<ul><li>Ver y apuntar tus comidas, peso, pasos y entrenos</li><li>Leer y actualizar tus objetivos y tus notas para el agente</li>"
+            "<li>Solo tu cuenta: nunca ve tu contraseña ni las de otras personas</li></ul>"
+            "%s<p class=small>Podrás desconectarlo cuando quieras: menú de tu nombre → Agentes. Volverás a <b>%s</b>.</p>"
+            "<div class=btns><a class='b' href='%s'>Cancelar</a><a class='b p' href='%s'>Permitir</a></div>") % (
+            "<img src='/logos/%s' alt=''>" % logo if logo else "<span class=gen>✦</span>", self._esc(client["name"]),
+            self._esc(info.get("name") or user), self._esc(user), quote(self.path, safe=""),
+            "<p class=warn>Ya tenías conectado este agente: la conexión nueva sustituirá a la anterior.</p>" if same else "",
+            self._esc(host), self._esc(no), self._esc(ok))
+        return self._page(200, "Conectar agente", body)
+
+    def _oauth_token(self):
+        import base64
+        try:
+            raw = self._body_raw(64 * 1024).decode("utf-8")
+        except ValueError as e:
+            return self._json(400, {"error": "invalid_request", "error_description": str(e)})
+        if (self.headers.get("Content-Type") or "").startswith("application/json"):
+            try:
+                b = {k: str(v) for k, v in json.loads(raw or "{}").items()}
+            except ValueError:
+                return self._json(400, {"error": "invalid_request"})
+        else:
+            b = {k: v[0] for k, v in parse_qs(raw).items()}
+        cid, secret = b.get("client_id"), b.get("client_secret")
+        ah = self.headers.get("Authorization") or ""
+        if ah.startswith("Basic "):
+            try:
+                u_, _, p_ = base64.b64decode(ah[6:]).decode().partition(":")
+                cid, secret = unquote(u_), unquote(p_)
+            except ValueError:
+                pass
+        client = auth.get_client(MULTI, cid)
+        if not client or not auth.client_auth_ok(client, secret):
+            return self._json(401, {"error": "invalid_client"})
+        gt = b.get("grant_type")
+        if gt == "authorization_code":
+            c = auth.take_code(b.get("code"))
+            if not c or c["client_id"] != cid or (b.get("redirect_uri") and b["redirect_uri"] != c["redirect_uri"]) \
+                    or not auth.pkce_ok(b.get("code_verifier"), c["challenge"]):
+                return self._json(400, {"error": "invalid_grant"})
+            return self._json(200, auth.issue_oauth(MULTI, c["user"], client))
+        if gt == "refresh_token":
+            r = auth.refresh_oauth(MULTI, b.get("refresh_token"), cid)
+            return self._json(200, r) if r else self._json(400, {"error": "invalid_grant"})
+        return self._json(400, {"error": "unsupported_grant_type"})
+
+    def _mcp(self, method):
+        bearer = self.headers.get("Authorization") or ""
+        user = auth.token_user(MULTI, bearer[7:].strip(), self.headers.get("X-Salud-Agent")) if bearer.startswith("Bearer ") else None
+        if not user:
+            return self._json(401, {"error": "invalid_token", "error_description": "Conecta el agente: inicia sesión en Salud"},
+                              {"WWW-Authenticate": 'Bearer realm="salud", resource_metadata="%s/.well-known/oauth-protected-resource"' % self._base()})
+        if method != "POST":
+            return self._json(405, {"error": "Solo POST (Streamable HTTP sin SSE)"}, {"Allow": "POST"})
+        try:
+            msg = json.loads(self._body_raw().decode("utf-8"))
+        except ValueError:
+            return self._json(400, {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "JSON no válido"}})
+        _conn, lock = user_ctx(user)
+        run = lambda argv: self.run_cli(argv, lock, user)  # noqa: E731
+        if isinstance(msg, list):
+            res = [r for r in (mcp.handle(m, run) for m in msg) if r is not None]
+        else:
+            res = mcp.handle(msg, run)
+        if not res:
+            self.send_response(202)
+            for k, v in self.CORS.items():
+                self.send_header(k, v)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        return self._json(200, res)
+
+    def _oauth_routes(self, method):
+        """Rutas públicas del conector MCP. Devuelve True si la ha atendido."""
+        if not MULTI:
+            return False
+        u = urlparse(self.path)
+        if method == "OPTIONS" and (u.path.startswith(("/.well-known/", "/oauth/", "/mcp"))):
+            self.send_response(204)
+            for k, v in self.CORS.items():
+                self.send_header(k, v)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return True
+        if method == "GET" and (u.path.startswith(("/.well-known/oauth-", "/.well-known/openid-configuration"))):
+            self._well_known(u.path)
+            return True
+        if u.path == "/oauth/register" and method == "POST":
+            self._oauth_register()
+            return True
+        if u.path == "/oauth/authorize" and method == "GET":
+            self._oauth_authorize({k: v[0] for k, v in parse_qs(u.query).items()})
+            return True
+        if u.path == "/oauth/token" and method == "POST":
+            self._oauth_token()
+            return True
+        if u.path in ("/mcp", "/mcp/"):
+            self._mcp(method)
+            return True
+        return False
+
     def _allowed(self):
         """Modo local: solo este ordenador y la red local. Modo servidor: lo protege el inicio de sesión."""
         if MULTI:
@@ -284,13 +511,17 @@ class Handler(BaseHTTPRequestHandler):
             self._send(403, {"error": "Acceso solo desde la red local"})
         return ok
 
+    def do_OPTIONS(self):
+        if not self._oauth_routes("OPTIONS"):
+            self._send(404, {"error": "Ruta no encontrada"})
+
     def do_GET(self):
-        if not self._allowed():
+        if not self._allowed() or self._oauth_routes("GET"):
             return
         if self.path.startswith("/api/"):
             return self._api("GET")
         path = unquote(urlparse(self.path).path)
-        public = path in ("/login", "/login.html", "/login.css", "/login.js", "/styles.css")
+        public = path in ("/login", "/login.html", "/login.css", "/login.js", "/styles.css") or path.startswith("/logos/")
         ctx = self._ctx()
         if MULTI and not ctx and not public:
             self.send_response(302)
@@ -323,7 +554,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, data, ctype)
 
     def do_POST(self):
-        if self._allowed():
+        if self._allowed() and not self._oauth_routes("POST"):
             self._api("POST")
 
     def do_PUT(self):
@@ -331,7 +562,7 @@ class Handler(BaseHTTPRequestHandler):
             self._api("PUT")
 
     def do_DELETE(self):
-        if self._allowed():
+        if self._allowed() and not self._oauth_routes("DELETE"):
             self._api("DELETE")
 
 

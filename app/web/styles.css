@@ -1004,3 +1004,10 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
   .item.b { padding: 9px 11px; gap: 10px; } .item.b .mono { width: 40px; height: 40px; }
   .strip { grid-template-columns: 1fr 1fr; } .strip > .stat:last-child { grid-column: 1 / -1; }
 }
+
+/* Conector MCP: dirección y comandos con botón de copiar */
+.copy-line { display: flex; align-items: center; gap: 8px; margin-top: 6px; background: var(--bg2, rgba(127,127,127,.08)); border: 1px solid var(--line); border-radius: 10px; padding: 6px 6px 6px 10px; }
+.copy-line code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; scrollbar-width: thin; }
+.copy-line.big code { font-size: 15px; font-weight: 600; }
+.tok-alt { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 10px; }
+.tok-alt summary { cursor: pointer; }

@@ -422,21 +422,35 @@ def photo_dir(conn):
     return os.path.join(os.path.dirname(os.path.abspath(path)), "fotos")
 
 
+SVG_BAD = re.compile(rb"<\s*(script|foreignObject|iframe|image|use|a|style)\b|\bon[a-z]+\s*=|javascript:|href\s*=\s*[\"'](?!#)|url\(\s*[\"']?(?!#)", re.I)
+
+
+def check_svg(raw):
+    """Ilustraciones SVG: solo dibujo (sin scripts, enlaces externos ni imágenes incrustadas)."""
+    if len(raw) > 400 * 1024:
+        raise ValidationError("SVG demasiado grande (máx. 400 KB)")
+    head = raw[:2000].lower()
+    if b"<svg" not in head:
+        raise ValidationError("No es un SVG")
+    if SVG_BAD.search(raw):
+        raise ValidationError("El SVG solo puede llevar formas y degradados (sin scripts, imágenes, estilos ni enlaces)")
+
+
 def set_food_image(conn, food_id, data_url=None, file_path=None, source="web"):
     f = get_food(conn, food_id)
     pdir = photo_dir(conn)
     os.makedirs(pdir, exist_ok=True)
     if data_url:
-        m = re.match(r"^data:image/(jpeg|jpg|png|webp);base64,(.+)$", data_url, re.S)
+        m = re.match(r"^data:image/(jpeg|jpg|png|webp|svg\+xml);base64,(.+)$", data_url, re.S)
         if not m:
-            raise ValidationError("Imagen no válida (usa JPG, PNG o WebP)")
+            raise ValidationError("Imagen no válida (usa JPG, PNG, WebP o SVG)")
         raw = base64.b64decode(m.group(2))
-        ext = {"jpeg": "jpg"}.get(m.group(1), m.group(1))
+        ext = {"jpeg": "jpg", "svg+xml": "svg"}.get(m.group(1), m.group(1))
     elif file_path:
         if not os.path.isfile(file_path):
             raise NotFound("No existe %s" % file_path)
         ext = os.path.splitext(file_path)[1].lower().lstrip(".")
-        if ext not in ("jpg", "jpeg", "png", "webp"):
+        if ext not in ("jpg", "jpeg", "png", "webp", "svg"):
             raise ValidationError("Formato no admitido: %s" % ext)
         ext = "jpg" if ext == "jpeg" else ext
         with open(file_path, "rb") as fh:
@@ -445,11 +459,14 @@ def set_food_image(conn, food_id, data_url=None, file_path=None, source="web"):
         raise ValidationError("Falta la imagen")
     if len(raw) > 3 * 1024 * 1024:
         raise ValidationError("Imagen demasiado grande (máx. 3 MB)")
+    if ext == "svg":
+        check_svg(raw)
     name = "food_%d_%s.%s" % (f["id"], now_local().strftime("%Y%m%d%H%M%S"), ext)
     with open(os.path.join(pdir, name), "wb") as fh:
         fh.write(raw)
     with tx(conn, "set_food_image", source, ref=food_id, payload={"file": name, "previous": f["image"]}):
-        conn.execute("UPDATE foods SET image=?, image_source=NULL, updated_at=? WHERE id=?", ("fotos/" + name, ts(), food_id))
+        conn.execute("UPDATE foods SET image=?, image_source=?, updated_at=? WHERE id=?",
+                     ("fotos/" + name, "ilustración" if ext == "svg" and source != "web" else None, ts(), food_id))
     return {"ok": True, "image": "fotos/" + name}
 
 
@@ -565,10 +582,14 @@ def set_template_image(conn, tid, data_url=None, file_path=None, source="web"):
             raise ValidationError("Formato no admitido")
         with open(file_path, "rb") as fh:
             raw = fh.read()
+    if len(raw) > 3 * 1024 * 1024:
+        raise ValidationError("Imagen demasiado grande (máx. 3 MB)")
+    if ext == "svg":
+        check_svg(raw)
     name = "tpl_%d_%s.%s" % (tid, now_local().strftime("%Y%m%d%H%M%S"), ext)
     with open(os.path.join(pdir, name), "wb") as fh:
         fh.write(raw)
     with tx(conn, "set_template_image", source, ref=tid, payload={"file": name}):
         conn.execute("UPDATE templates SET image=?, image_source=?, updated_at=? WHERE id=?",
-                     ("fotos/" + name, "ilustración" if ext == "svg" and source == "chat" else None, ts(), tid))
+                     ("fotos/" + name, "ilustración" if ext == "svg" and source != "web" else None, ts(), tid))
     return {"ok": True, "image": "fotos/" + name}

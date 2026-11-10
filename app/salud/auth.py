@@ -148,7 +148,7 @@ def _tokens(u):
 
 def list_tokens(base, username):
     u = list_users(base).get(username) or {}
-    return [{k: t.get(k) for k in ("id", "kind", "agent", "created", "used")} for t in _tokens(dict(u))]
+    return [{k: t.get(k) for k in ("id", "kind", "agent", "created", "used", "via")} for t in _tokens(dict(u))]
 
 
 def new_api_token(base, username, kind=None):
@@ -187,8 +187,153 @@ def token_user(base, token, agent=None):
     for k, v in list_users(base).items():
         for t in _tokens(dict(v)):
             if hmac.compare_digest(t["hash"], h):
-                _touch_token(base, k, t, agent)
+                if t.get("exp_ts") and t["exp_ts"] < time.time():
+                    return None  # token OAuth caducado: el agente lo renueva con su refresh_token
+                _touch_token(base, k, t, agent if t.get("via") != "mcp" else None)
                 return k
+    return None
+
+
+# ---- OAuth 2.1 (conectores MCP: Claude, ChatGPT, Codex…). Registro dinámico de clientes + código con PKCE.
+# El token que recibe cada conector es un token de agente más (sale en «Agentes» y se desconecta igual).
+ACCESS_DAYS = 30
+_CODES = {}
+KINDS = (("claude code", "claude-code"), ("claude", "claude"), ("chatgpt", "chatgpt"), ("openai", "chatgpt"),
+         ("codex", "codex"), ("antigravity", "antigravity"), ("gemini", "antigravity"))
+
+
+def kind_of(name):
+    n = (name or "").lower()
+    for k, v in KINDS:
+        if k in n:
+            return v
+    return "otro"
+
+
+def clients_path(base):
+    return os.path.join(base, "oauth_clientes.json")
+
+
+def _redirect_ok(uri):
+    from urllib.parse import urlparse
+    try:
+        p = urlparse(uri)
+    except ValueError:
+        return False
+    if not p.scheme or "#" in uri:
+        return False
+    if p.scheme == "https":
+        return bool(p.netloc)
+    if p.scheme == "http":
+        return (p.hostname or "") in ("localhost", "127.0.0.1", "::1")
+    return p.scheme not in ("javascript", "data", "file", "vbscript", "about", "blob")  # apps nativas (cursor://…)
+
+
+def register_client(base, meta):
+    uris = meta.get("redirect_uris")
+    if not isinstance(uris, list) or not uris or len(uris) > 10 or not all(isinstance(u, str) and len(u) < 500 and _redirect_ok(u) for u in uris):
+        raise AuthError("redirect_uris no válidas")
+    method = meta.get("token_endpoint_auth_method") or "none"
+    if method not in ("none", "client_secret_post", "client_secret_basic"):
+        method = "none"
+    name = str(meta.get("client_name") or "Agente")[:80]
+    cid = "salc_" + secrets.token_urlsafe(16)
+    secret = None if method == "none" else "sals_" + secrets.token_urlsafe(32)
+    with _LOCK:
+        cs = _read(clients_path(base), {})
+        if len(cs) >= 500:  # tope: fuera los más antiguos que nunca se usaron
+            for k in sorted((k for k, v in cs.items() if not v.get("used")), key=lambda k: cs[k].get("created_ts", 0))[:100]:
+                cs.pop(k, None)
+        cs[cid] = {"name": name, "redirect_uris": uris, "method": method, "created_ts": time.time(),
+                   "secret_hash": hashlib.sha256(secret.encode()).hexdigest() if secret else None}
+        _write(clients_path(base), cs)
+    out = {"client_id": cid, "client_name": name, "redirect_uris": uris, "token_endpoint_auth_method": method,
+           "grant_types": ["authorization_code", "refresh_token"], "response_types": ["code"], "client_id_issued_at": int(time.time())}
+    if secret:
+        out.update({"client_secret": secret, "client_secret_expires_at": 0})
+    return out
+
+
+def get_client(base, cid):
+    c = _read(clients_path(base), {}).get(cid or "")
+    return dict(c, client_id=cid) if c else None
+
+
+def client_auth_ok(client, secret):
+    if client.get("method", "none") == "none":
+        return True
+    return bool(secret) and hmac.compare_digest(client.get("secret_hash") or "", hashlib.sha256(secret.encode()).hexdigest())
+
+
+def new_code(username, client_id, redirect_uri, challenge, scope=None):
+    code = "salk_" + secrets.token_urlsafe(32)
+    now = time.time()
+    with _LOCK:
+        for k in [k for k, v in _CODES.items() if v["exp"] < now]:
+            _CODES.pop(k, None)
+        _CODES[code] = {"user": username, "client_id": client_id, "redirect_uri": redirect_uri, "challenge": challenge,
+                        "scope": scope, "exp": now + 600}
+    return code
+
+
+def take_code(code):
+    with _LOCK:
+        c = _CODES.pop(code or "", None)
+    return c if c and c["exp"] > time.time() else None
+
+
+def pkce_ok(verifier, challenge):
+    import base64
+    if not verifier or not challenge:
+        return False
+    d = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    return hmac.compare_digest(d, challenge)
+
+
+def _new_pair():
+    return "sal_" + secrets.token_urlsafe(32), "salr_" + secrets.token_urlsafe(40)
+
+
+def issue_oauth(base, username, client):
+    """Conecta el agente: crea su token (sustituye al anterior del mismo tipo) y devuelve la respuesta del endpoint /oauth/token."""
+    kind = kind_of(client.get("name"))
+    access, refresh = _new_pair()
+    now = time.time()
+    with _LOCK:
+        users = list_users(base)
+        if username not in users:
+            raise AuthError("No existe la cuenta")
+        ts = _tokens(users[username])
+        ts[:] = [t for t in ts if t.get("client_id") != client["client_id"] and (kind == "otro" or (t.get("kind") != kind and t.get("agent") != kind))]
+        ts.append({"id": secrets.token_hex(4), "hash": hashlib.sha256(access.encode()).hexdigest(),
+                   "refresh_hash": hashlib.sha256(refresh.encode()).hexdigest(), "kind": kind,
+                   "agent": kind if kind != "otro" else AGENT_RX.sub("", client.get("name", "").lower())[:40] or None,
+                   "client_id": client["client_id"], "via": "mcp", "created": time.strftime("%Y-%m-%d %H:%M"), "created_ts": now,
+                   "used": time.strftime("%Y-%m-%d %H:%M"), "used_ts": now, "exp_ts": now + ACCESS_DAYS * 86400})
+        _write(users_path(base), users)
+        cs = _read(clients_path(base), {})
+        if client["client_id"] in cs:
+            cs[client["client_id"]]["used"] = time.strftime("%Y-%m-%d %H:%M")
+            _write(clients_path(base), cs)
+    return {"access_token": access, "token_type": "Bearer", "expires_in": ACCESS_DAYS * 86400, "refresh_token": refresh, "scope": "salud"}
+
+
+def refresh_oauth(base, refresh, client_id):
+    if not refresh or not refresh.startswith("salr_"):
+        return None
+    h = hashlib.sha256(refresh.encode()).hexdigest()
+    access, new_refresh = _new_pair()
+    now = time.time()
+    with _LOCK:
+        users = list_users(base)
+        for u in users.values():
+            for t in _tokens(u):
+                if t.get("refresh_hash") and hmac.compare_digest(t["refresh_hash"], h) and t.get("client_id") == client_id:
+                    t.update({"hash": hashlib.sha256(access.encode()).hexdigest(), "refresh_hash": hashlib.sha256(new_refresh.encode()).hexdigest(),
+                              "exp_ts": now + ACCESS_DAYS * 86400, "used": time.strftime("%Y-%m-%d %H:%M"), "used_ts": now})
+                    _write(users_path(base), users)
+                    return {"access_token": access, "token_type": "Bearer", "expires_in": ACCESS_DAYS * 86400,
+                            "refresh_token": new_refresh, "scope": "salud"}
     return None
 
 

@@ -30,6 +30,7 @@ $("f").addEventListener("submit", async (ev) => {
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { e.textContent = d.error || "No se pudo entrar"; $("go").disabled = false; p.select(); return; }
     try { localStorage.setItem("salud_last", u.value); } catch (x) {}
-    location.href = "/";
+    const next = new URLSearchParams(location.search).get("next") || "";
+    location.href = /^\/(?![\/\\])/.test(next) ? next : "/";  // vuelta a la página de origen (p. ej. dar permiso a un agente)
   } catch (x) { e.textContent = "Sin conexión con el servidor"; $("go").disabled = false; }
 });
