@@ -382,7 +382,7 @@ function exLevel(e, bw) {
   const valTxt = metric === "1rm" ? `1RM ≈ ${fmt(raw)} kg` + (ratio !== 1 ? ` (polea × ${fmt(ratio, 2)})` : "") : metric === "db" ? `1RM ≈ ${fmt(raw)} kg por mancuerna (${fmt(raw * 2)} kg las dos)`
     : metric === "add" ? `lastre 1RM ≈ +${fmt(raw)} kg` : `${raw} reps seguidas`;
   const cutsTxt = `Cortes para ${sexWord()} de ${fmt(bwUsed, 1)} kg: ` + cuts.map((x, i) => `${LVL[i + 1]} ${metric === "reps" ? Math.round(x) : (metric === "add" && x > 0 ? "+" : "") + fmt(x)}`).join(" · ");
-  return { idx, frac, score: idx + frac, raw, pct, z, metric, need, valTxt, cutsTxt, cuts, rawSet, machine: !!machine, solid: !machine, model, bw: bwUsed, date: best.date, name: e.name };
+  return { idx, frac, score: idx + frac, raw, pct, z, metric, need, valTxt, cutsTxt, cuts, rawSet, machine: !!machine, solid: true, model, bw: bwUsed, date: best.date, name: e.name };
 }
 // Paleta de rangos: cobre → plata → oro → esmeralda → diamante → mítico
 const TIER = [["Principiante", "Cobre", ["#e0a070", "#9c5a2c", "#6e3a17"]], ["Novato", "Plata", ["#f1f4f8", "#aab4bf", "#6f7a86"]],
@@ -426,9 +426,8 @@ function lvlPill(L) {
   const lines = [`${LVL[L.idx]} · ${TIER[L.idx][1]} · ${topTxt(L.pct)}`, `Más fuerte que el ${fmt(L.pct)} % de los ${sexWord()} de ${fmt(L.bw, 1)} kg` + (L.date ? ` (tu peso el ${dateLabel(L.date, { day: "numeric", month: "short" })})` : ""),
     "## Tu marca", L.valTxt, L.need ? "Siguiente | " + L.need.replace(/ para .*/, "") + " → " + LVL[L.idx + 1] : "Rango máximo",
     "## Cortes", ...L.cuts.map((c, i) => `${LVL[i + 1]} | ${sg(c)}`)];
-  if (L.machine) lines.push("## Ojo", "Máquina/polea: orientativo");
   lines.push("Pulsa para ver la curva");
-  return tip(h("span", { class: "lvl l" + L.idx + (L.machine ? " soft" : "") + " click", onclick: (ev) => { ev.stopPropagation(); levelSheet(L.name, L); } }, LVL[L.idx]), lines.join("\n"));
+  return tip(h("span", { class: "lvl l" + L.idx + " click", onclick: (ev) => { ev.stopPropagation(); levelSheet(L.name, L); } }, LVL[L.idx]), lines.join("\n"));
 }
 // Una sola barra del color del rango: cuánto llevas hacia el siguiente
 function lvlBar(L, withText) {
@@ -840,7 +839,7 @@ function zToIdx(pct) { return pct >= 99 ? 5 : pct >= 95 ? 4 : pct >= 80 ? 3 : pc
 const topTxt = (pct) => "top " + fmt(Math.max(0.1, 100 - pct), 100 - pct < 1 ? 1 : 0) + " %";
 function lvAgg(L) {
   let sw = 0, sz = 0;
-  for (const e of L) { const w = e.level.machine ? 0.5 : 1; sw += w; sz += w * e.level.z; }
+  for (const e of L) { const w = 1; sw += w; sz += w * e.level.z; }
   const pct = PHI(sz / sw) * 100;
   return { pct, idx: zToIdx(pct) };
 }
@@ -878,7 +877,7 @@ function tNivel(st) {
       h("div", { class: "exr-v" }, h("div", { class: "lvr click", onclick: (ev) => { ev.stopPropagation(); levelSheet(e.name, e.level); } }, lvlShield(e.level, 22), h("b", { class: "lvname l" + e.level.idx }, LVL[e.level.idx])), h("span", null, topTxt(e.level.pct)))))
       : h("div", { class: "muted" }, "Nada con estos filtros."))),
     h("div", { class: "row", style: { marginTop: "10px" } }, h("button", { class: "btn", onclick: () => levelsInfoSheet(st) }, "ⓘ Cómo funcionan los niveles · tablas y gráficas")),
-    h("div", { class: "note" }, `Fuente: Strength Level (strengthlevel.com), tablas de ${sexWord()} por peso corporal. Cada entreno se compara con tu peso de ese día (pesajes; los días sin pesaje se interpolan entre el anterior y el siguiente). Último pesaje: ${fmt(S.bw, 1)} kg (${dateLabel(S.bwDate, { day: "numeric", month: "short" })}). Niveles por percentil: Novato 20 %, Intermedio 50 %, Avanzado 80 %, Élite 95 % (top 5 %), Leyenda 99 % (top 1 %, extrapolado). Se compara tu mejor 1RM estimado con la tabla de Hevy, tus reps máximas o tu lastre. Mancuernas: entre dos. Poleas que pesan la mitad: × 0,5. Máquinas (etiqueta punteada): orientativo.`));
+    h("div", { class: "note" }, `Fuente: Strength Level (strengthlevel.com), tablas de ${sexWord()} por peso corporal. Cada entreno se compara con tu peso de ese día (pesajes; los días sin pesaje se interpolan entre el anterior y el siguiente). Último pesaje: ${fmt(S.bw, 1)} kg (${dateLabel(S.bwDate, { day: "numeric", month: "short" })}). Niveles por percentil: Novato 20 %, Intermedio 50 %, Avanzado 80 %, Élite 95 % (top 5 %), Leyenda 99 % (top 1 %, extrapolado). Se compara tu mejor 1RM estimado con la tabla de Hevy, tus reps máximas o tu lastre. Mancuernas: entre dos. Poleas que pesan la mitad: × 0,5. A las máquinas se les resta su peso si lo indicas.`));
 }
 
 // Información general de los niveles: cómo se calculan y las tablas de cada ejercicio (por peso corporal y sexo).
@@ -927,7 +926,7 @@ function strengthInfo(st, body) {
         h("li", null, h("b", null, "Peso corporal: "), "Strength Level publica una fila cada 5 kg (hombres 50–140 kg, mujeres 40–120 kg); entre filas se interpola, así que vale para cualquier peso. Cada entreno se compara con tu peso de ese día (los días sin pesaje se interpolan)."),
         h("li", null, h("b", null, "Sexo: "), "hay tablas separadas para hombres y mujeres; se usa el sexo de tu perfil."),
         h("li", null, h("b", null, "Altura y edad: "), "no se usan. Strength Level no tiene tablas por altura; por edad sí publica, pero no las aplicamos."),
-        h("li", null, h("b", null, "Cálculo: "), "1RM estimado con la tabla de Hevy; mancuernas = una mancuerna; poleas que pesan la mitad × 0,5; a las máquinas se les resta su peso; lastre = peso corporal + lastre. En máquinas es orientativo (cada máquina es distinta)."),
+        h("li", null, h("b", null, "Cálculo: "), "1RM estimado con la tabla de Hevy; mancuernas = una mancuerna; poleas que pesan la mitad × 0,5; a las máquinas se les resta su peso; lastre = peso corporal + lastre."),
         h("li", null, h("b", null, "Ejercicios sin tabla: "), `${opts.length} tablas de Strength Level en el servidor (citadas a ellos: son sus datos). A cualquier ejercicio se le puede elegir su tabla de Strength Level en su ficha («Material, peso real y nivel»): se descarga de strengthlevel.com la primera vez y queda guardada. Sin tabla no hay nivel, pero sí récords, 1RM y progreso.` + (without.length ? ` Tuyos sin nivel: ${without.join(", ")}.` : ""))),
       h("div", { class: "sec-t" }, "Tabla por ejercicio"),
       h("select", { class: "input", onchange: (ev) => { cur = ev.target.value; draw(); } }, [...opts].sort((a, b) => a[1].localeCompare(b[1])).map(([k, n]) => h("option", { value: k, selected: k === cur }, n))),
@@ -1107,7 +1106,7 @@ function levelSheet(name, L) {
       h("span", { class: "muted" }, `${topTxt(L.pct)} · más fuerte que el ${fmt(L.pct)} % de los ${sexWord()} de ${fmt(L.bw, 1)} kg` + (L.date ? ` (tu peso el ${dateLabel(L.date, { day: "numeric", month: "short" })})` : "")), h("span", { class: "faint" }, L.valTxt + (L.need ? " · " + L.need : "")))),
     h("div", { class: "card panel flat" }, h("h3", null, L.metric === "reps" ? "Reps máximas → percentil" : L.metric === "add" ? "Lastre (1RM) → percentil" : "1RM → percentil"), svg),
     h("table", { class: "t lvtable" }, h("tr", null, h("th", null, "Rango"), h("th", { class: "r" }, L.metric === "reps" ? "Reps" : "1RM"), h("th", { class: "r" }, "Percentil"), h("th", { class: "r" }, "Te falta")), rows),
-    h("div", { class: "note" }, "Strength Level publica los cortes de principiante a élite para " + sexWord() + " de cada peso corporal; la curva entre ellos y el corte de Leyenda (top 1 %) están interpolados. " + (L.machine ? "En máquinas y poleas es orientativo." : "")),
+    h("div", { class: "note" }, "Strength Level publica los cortes de principiante a élite para " + sexWord() + " de cada peso corporal; la curva entre ellos y el corte de Leyenda (top 1 %) están interpolados. "),
   ], null, { wide: true });
 }
 
@@ -1162,42 +1161,31 @@ async function workoutSheet(id) {
 }
 
 // Ajustes del ejercicio: material, peso de la máquina, polea que pesa la mitad y si es a un brazo.
+// Ajuste del usuario: solo el peso de la máquina (o si la polea pesa la mitad). Material, tabla y «a un brazo» los define el ejercicio.
 function exSettingsPanel(name, kind, rec) {
-  if (!["peso", "lastre", "corporal"].includes(kind)) return null;
-  const cfg = exSet(name), weighted = kind !== "corporal";
-  const slIn = h("input", { class: "input sm", value: cfg.sl_slug || "", placeholder: "p. ej. pull-ups, bench-press o su URL" });
-  const eq = h("select", { class: "input sm" }, [["", "—"], ["barra", "Barra"], ["mancuerna", "Mancuernas (apunto las dos)"], ["maquina", "Máquina de placas"], ["discos", "Máquina de discos"], ["cable", "Cable / polea normal"], ["polea", "Polea que pesa la mitad"], ["corporal", "Peso corporal"], ["otro", "Otro"]]
-    .map(([k, l]) => h("option", { value: k, selected: (cfg.equipment || "") === k }, l)));
+  if (!["peso", "lastre"].includes(kind)) return null;
+  const n = norm(name), cfg = exSet(name);
+  const isMach = /maquina|discos|smith|prensa|hack/.test(n) || ["maquina", "discos"].includes(cfg.equipment);
+  const isCable = /cable|polea/.test(n) || ["cable", "polea"].includes(cfg.equipment);
+  if (!isMach && !isCable) return null;
   const mk = h("input", { class: "input sm num", type: "number", step: "0.5", min: "0", value: cfg.machine_kg ?? "", placeholder: "0" });
-  const uni = h("input", { type: "checkbox", checked: isUni(name) });
-  const best = rec.w;
-  const ratio = loadRatio(name), mach = cfg.machine_kg || 0;
-  const real = best && (ratio !== 1 || mach) ? best.v * ratio : null;
+  const half = h("input", { type: "checkbox", checked: loadRatio(name) === 0.5 });
+  const mach = cfg.machine_kg || 0, ratio = loadRatio(name);
   const save = async () => {
-    const body = weighted ? { name, equipment: eq.value || null, machine_kg: mk.value === "" ? null : +mk.value, unilateral: uni.checked ? 1 : 0,
-      load_ratio: eq.value === "polea" ? 0.5 : null, sl_slug: slIn.value.trim() || null } : { name, sl_slug: slIn.value.trim() || null };
-    await act(() => api("PUT", "/api/exercise-settings", body), "Ajustes guardados");
+    const body = { name };
+    if (isMach) body.machine_kg = mk.value === "" ? null : +mk.value;
+    if (isCable) body.load_ratio = half.checked ? 0.5 : null;
+    await act(() => api("PUT", "/api/exercise-settings", body), "Guardado");
     S.exSet = await api("GET", "/api/exercise-settings"); S.tStats = null;
-    for (const k in SL_FAIL) delete SL_FAIL[k];
-    await loadSLTables();
-    if (body.sl_slug && SL_FAIL[(S.exSet[exKeyName(name)] || {}).sl_slug]) toast("Strength Level: " + SL_FAIL[S.exSet[exKeyName(name)].sl_slug], { error: true });
     if (S._exSh) S._exSh.close();
     render(); setTimeout(() => exerciseSheet(name), 160);
   };
-  const slRow = h("div", { style: { marginTop: "8px" } }, h("label", { class: "f" }, "Tabla de niveles (Strength Level)"), slIn,
-    h("div", { class: "note" }, cfg.sl_slug ? `Usando strengthlevel.com/strength-standards/${cfg.sl_slug}.` : "Sin elegir: se usa la tabla por defecto si existe para este nombre. ",
-      h("a", { href: "https://strengthlevel.com/strength-standards", target: "_blank", rel: "noopener" }, "Buscar el ejercicio en Strength Level"), " y pega aquí su URL o el final (p. ej. «pull-ups»)."));
-  if (!weighted) return h("details", { class: "card panel flat exset" + (cfg.sl_slug ? " has" : "") },
-    h("summary", null, h("b", null, "Nivel"), h("span", { class: "faint" }, cfg.sl_slug ? "tabla: " + cfg.sl_slug : "sin tabla elegida")),
-    h("div", { class: "exset-b" }, slRow, h("div", { class: "row", style: { justifyContent: "flex-end", marginTop: "8px" } }, h("button", { class: "btn sm primary", onclick: save }, "Guardar"))));
-  return h("details", { class: "card panel flat exset" + (cfg.name_key ? " has" : "") },
-    h("summary", null, h("b", null, "Material, peso real y nivel"), h("span", { class: "faint" }, [cfg.equipment ? eq.selectedOptions[0].textContent : null, mach ? `máquina ${fmt(mach, 1)} kg` : null, ratio !== 1 ? "polea × 0,5" : null, isUni(name) ? "a un brazo" : null].filter(Boolean).join(" · ") || "sin ajustar")),
+  return h("details", { class: "card panel flat exset" + (mach || ratio !== 1 ? " has" : "") },
+    h("summary", null, h("b", null, isMach ? "Peso de la máquina" : "Polea"), h("span", { class: "faint" }, isMach ? (mach ? fmt(mach, 1) + " kg" : "sin indicar") : ratio !== 1 ? "pesa la mitad (× 0,5)" : "normal")),
     h("div", { class: "exset-b" },
-      h("div", { class: "grid3" }, h("div", null, h("label", { class: "f" }, "Material"), eq), h("div", null, h("label", { class: "f" }, "Peso de la máquina incluido en lo que apuntas (kg)"), mk),
-        h("label", { class: "chk" }, uni, " A un brazo (apunto las reps de los dos)")),
-      real != null ? h("div", { class: "note" }, `Tu mayor peso: ${fmt(best.v, 1)} kg apuntados${ratio !== 1 ? ` → ${fmt(real, 1)} kg reales (polea × 0,5)` : ""}${mach ? ` · de ellos ${fmt(mach, 1)} kg son de la máquina → ${fmt(best.v * ratio - mach, 1)} kg cargados` : ""}.`) : null,
-      h("div", { class: "note" }, "Récords y volumen: tal cual lo apuntas en Hevy. Nivel: se aplica la polea (× 0,5) y se resta el peso de la máquina, porque los estándares cuentan solo lo cargado (la barra sí cuenta). Si un día usas otra máquina, pon en la nota de Hevy «la máquina pesa X kg» y ese día se usa ese peso."),
-      slRow,
+      isMach ? h("div", null, h("label", { class: "f" }, "¿Cuánto pesa la máquina vacía? (kg, si lo incluyes en lo que apuntas)"), h("div", { style: { maxWidth: "200px" } }, mk),
+        h("div", { class: "note" }, "Para el nivel se cuenta solo lo que cargas. Si un día usas otra máquina, pon en la nota de Hevy «la máquina pesa X kg».")) : null,
+      isCable ? h("label", { class: "chk" }, half, " Esta polea pesa la mitad de lo que marca (× 0,5)") : null,
       h("div", { class: "row", style: { justifyContent: "flex-end", marginTop: "8px" } }, h("button", { class: "btn sm primary", onclick: save }, "Guardar"))));
 }
 
@@ -1244,14 +1232,13 @@ async function exerciseSheet(name) {
         ? h("div", { class: "faint exh-x" }, [isUni(name) ? "a un brazo (reps de los dos lados)" : null, /mancuerna/.test(norm(name)) ? "peso de las dos mancuernas" : null].filter(Boolean).join(" · ")) : null,
       h("div", { class: "exhero-v" }, h("b", { class: "num" }, main ? recTxt(types[0], main.v, kind) : "—"), h("span", null, REC_LABEL[types[0]] + " · tu récord")),
       L ? (() => {
-        const u = (x) => (L.metric === "reps" ? fmt(Math.round(x)) + " reps" : "1RM " + (L.metric === "add" && x > 0 ? "+" : "") + fmt(x) + " kg");
+        const u = (x) => (L.metric === "reps" ? fmt(Math.round(x)) + " reps" : (L.metric === "add" && x > 0 ? "+" : "") + fmt(x) + " kg");
         const lo = L.idx ? L.cuts[L.idx - 1] : 0, hi = L.cuts[L.idx];
+        const how = L.metric === "reps" ? "reps seguidas" : L.metric === "add" ? "1RM con lastre" : L.metric === "db" ? "1RM por mancuerna" : "1RM";
         return h("div", { class: "exhero-next" },
-          h("div", { class: "exn-t" }, L.idx === 5 ? h("b", null, "Rango máximo") : [h("span", null, "Siguiente: "), h("b", { class: "lvname l" + (L.idx + 1) }, LVL[L.idx + 1]), h("span", { class: "faint" }, L.need ? " · " + L.need.replace(/ para .*/, "") : "")],
-            h("span", { class: "grow" }), h("span", { class: "faint" }, `top ${fmt(Math.max(0.5, 100 - L.pct))} %`)),
+          L.idx < 5 ? h("div", { class: "exn-ends" }, h("span", null, h("b", { class: "lvname l" + L.idx }, LVL[L.idx]), " " + u(lo)), h("span", null, h("b", { class: "lvname l" + (L.idx + 1) }, LVL[L.idx + 1]), " " + u(hi))) : null,
           tip(h("div", { class: "click", onclick: () => levelSheet(name, L) }, lvlBar(L)), "Pulsa para ver la curva de niveles"),
-          L.idx < 5 ? h("div", { class: "exn-ends" }, h("span", null, `${LVL[L.idx]} · ${u(lo)}`), h("span", null, `${LVL[L.idx + 1]} · ${u(hi)}`)) : null,
-          h("div", { class: "exn-v" }, "Tu nivel se mide con tu ", h("b", null, L.valTxt.replace("lastre 1RM", "1RM con lastre")), L.machine ? " · máquina: orientativo" : ""));
+          h("div", { class: "exn-v" }, `Tu ${how}: `, h("b", null, u(L.raw)), L.idx < 5 && L.need ? ` · te faltan ${L.need.replace(/ para .*/, "").replace(" de 1RM", "")}` : " · rango máximo", ` · top ${fmt(Math.max(0.5, 100 - L.pct))} %`));
       })() : null)),
     h("div", { class: "kpis tight recs", style: { gridTemplateColumns: `repeat(${types.length}, 1fr)` } }, types.map((t) => { const r = rec[t];
       return h("div", { class: "kpi" }, h("div", { class: "l" }, h("span", { class: "sic c" }, "🏆"), REC_LABEL[t]), h("div", { class: "v num" }, r ? recTxt(t, r.v, kind) : "—"),

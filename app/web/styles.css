@@ -1267,3 +1267,8 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .exh-x { font-size: 12.5px; margin-bottom: 2px; }
 .exn-v { font-size: 12px; color: var(--muted); margin-top: 6px; } .exn-v b { color: var(--text); font-weight: 650; }
 @media (max-width: 640px) { .kpis.recs { grid-template-columns: 1fr 1fr !important; } }
+/* Comidas con colores propios (distintos de P/C/G) y la barra arriba como en el gasto */
+:root { --m0: #c39bd3; --m1: #4fb3a3; --m2: #f28fb0; --m3: #8fa35a; --m4: #b0b4bb; }
+.bd-meals { margin: 0 0 14px; } .bd-meals .bd-stack { height: 8px; }
+.exn-ends .lvname { font-size: 12px; }
+.exn-v { margin-top: 8px; font-size: 12.5px; }
