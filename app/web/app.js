@@ -756,8 +756,8 @@ function summaryView(s, extra) {
       h("tr", { class: "main bal " + (bal == null ? "" : bal < 0 ? "neg" : "pos") }, h("td", null, "Balance estimado"), h("td", { class: "r num" }, signed(bal) + " kcal"), h("td", { class: "r faint" }, bal == null ? "" : bal < 0 ? "déficit" : "superávit")),
       gap(),
       main("Peso", s.weight_kg != null ? fmt(s.weight_kg, 1) + " kg" : "—", s.avg7 != null ? "media 7 d " + fmt(s.avg7, 1) : ""),
-      sub("Pasos", s.steps != null ? fmt(s.steps) : "—", ""),
-      sub("Actividad", s.activities.length ? s.activities.map((a) => `${a.type}${a.minutes ? " " + fmt(a.minutes) + " min" : ""}`).join(", ") : (s.rest_day === 1 ? "descanso" : "—"), "")),
+      main("Pasos", s.steps != null ? fmt(s.steps) : "—", ""),
+      main("Actividad", s.activities.length ? s.activities.map((a) => `${a.type}${a.minutes ? " " + fmt(a.minutes) + " min" : ""}`).join(", ") : (s.rest_day === 1 ? "descanso" : "—"), "")),
     (t.missing || []).length ? h("div", { class: "note warn" }, "* Totales mínimos: hay valores desconocidos.") : null,
     s.observations && s.observations.length ? h("ul", { class: "obs" }, s.observations.map((o) => h("li", null, o))) : null,
     extra || null);
