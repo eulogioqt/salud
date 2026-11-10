@@ -21,6 +21,7 @@ import urllib.request
 BASE = "https://strengthlevel.com/strength-standards/"
 SLUG_RX = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 MAX_AGE = 90 * 86400
+VERSION = 2  # sube si cambia el formato: lo guardado con otra versión se vuelve a pedir
 _LOCK = threading.Lock()
 _LAST = [0.0]
 
@@ -58,6 +59,8 @@ def parse(page):
                 tables.append(rows)
         if len(tables) >= 4:   # peso corporal: repeticiones y lastre
             out[sx] = {"reps": tables[0], "reps_age": tables[1], "add": tables[2], "add_age": tables[3]}
+        elif len(tables) >= 2 and re.search(r"How many reps|Reps By", sec):  # solo repeticiones
+            out[sx] = {"reps": tables[0], "reps_age": tables[1]}
         elif len(tables) >= 2:
             out[sx] = {"w": tables[0], "w_age": tables[1]}
     if not out["H"] and not out["M"]:
@@ -79,7 +82,9 @@ def get(datadir, slug, fetch=None):
     path = os.path.join(cache_dir(datadir), slug + ".json")
     if os.path.exists(path) and time.time() - os.path.getmtime(path) < MAX_AGE:
         with open(path, encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        if data.get("v") == VERSION:
+            return data
     url = BASE + slug + "/kg"
     with _LOCK:  # una petición cada 2 s como mucho, para no molestar
         wait = 2 - (time.time() - _LAST[0])
@@ -94,7 +99,7 @@ def get(datadir, slug, fetch=None):
                     return json.load(f)
             raise SLError("No se ha podido consultar Strength Level (%s)" % e)
     data = parse(page)
-    data.update({"slug": slug, "url": url, "fetched": time.strftime("%Y-%m-%d")})
+    data.update({"slug": slug, "url": url, "fetched": time.strftime("%Y-%m-%d"), "v": VERSION})
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
