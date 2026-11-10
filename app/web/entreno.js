@@ -303,6 +303,7 @@ const STD = [
   [/gemelos sentado/, "1rm", "seated-calf-raise", ["peso"], true],
   [/gemelos de pie/, "1rm", "machine-calf-raise", ["peso"], true],
   [/^dominada \(con peso/, "add", "pull-ups.add", ["lastre"]],
+  [/^dominadas?\b(?!.*una mano)/, "add", "pull-ups.add", ["asistido"]], [/^fondos?\b/, "add", "dips.add", ["asistido"]],  // asistidas: lastre negativo
   [/^fondos \(con peso/, "add", "dips.add", ["lastre"]],
   [/^muscle up \(con peso/, "add", "muscle-ups.add", ["lastre"]],
   [/^dominada$/, "reps", "pull-ups.reps", ["corporal"]],
@@ -431,7 +432,7 @@ function exLevel(e, bw) {
       let v = null;
       // Lo apuntado incluye el peso de la máquina: para comparar con los estándares se usa solo lo cargado.
       if (metric === "1rm" || metric === "db") { const w = s_.weight_kg != null ? s_.weight_kg - mk : null; v = w > 0 ? e1rm(w, s_.reps, e.name) : null; if (v != null) v *= ratio; if (v != null && metric === "db") v /= 2; }
-      else if (metric === "add") v = s_.reps && s_.weight_kg > 0 ? (b + s_.weight_kg) / HEVY_PCT[Math.min(s_.reps, 30) - 1] - b : null;
+      else if (metric === "add") v = s_.reps && s_.weight_kg != null && (s_.weight_kg > 0 || (e.kind === "asistido" && s_.weight_kg < 0 && b + s_.weight_kg > 0)) ? (b + s_.weight_kg) / HEVY_PCT[Math.min(s_.reps, 30) - 1] - b : null;
       else if (metric === "secs") v = s_.seconds || null;
       // a una mano: reps de los dos lados → por brazo (salvo «solo derecha/izquierda» en la nota: son las de ese brazo)
       else v = s_.reps && isUni(e.name) && !/solo (con )?(el |la )?(brazo |mano )?(derech|izquierd)/.test(norm(x.notes || "")) ? Math.ceil(s_.reps / 2) : s_.reps;
@@ -450,7 +451,7 @@ function exLevel(e, bw) {
   const frac = hi == null ? 1 : Math.max(0, Math.min(1, (raw - lo) / (hi - lo)));
   const need = hi == null ? null : `${metric === "reps" ? "+" + Math.ceil(hi - raw) + " reps" : metric === "secs" ? "+" + Math.ceil(hi - raw) + " s" : "+" + fmt(Math.max(1, hi - raw)) + " kg de 1RM" + (metric === "db" ? " por mancuerna" : "")} para ${LVL[idx + 1]}`;
   const valTxt = metric === "1rm" ? `1RM ≈ ${fmt(raw)} kg` + (ratio !== 1 ? ` (polea × ${fmt(ratio, 2)})` : "") : metric === "db" ? `1RM ≈ ${fmt(raw)} kg por mancuerna (${fmt(raw * 2)} kg las dos)`
-    : metric === "add" ? `lastre 1RM ≈ +${fmt(raw)} kg` : metric === "secs" ? `${fmt(raw)} s aguantando (estricto)` : `${raw} reps seguidas`;
+    : metric === "add" ? (raw >= 0 ? `lastre 1RM ≈ +${fmt(raw)} kg` : `asistencia 1RM ≈ ${fmt(-raw)} kg`) : metric === "secs" ? `${fmt(raw)} s aguantando (estricto)` : `${raw} reps seguidas`;
   const cutsTxt = `Cortes para ${sexWord()} de ${fmt(bwUsed, 1)} kg: ` + cuts.map((x, i) => `${LVL[i + 1]} ${metric === "reps" ? Math.round(x) : (metric === "add" && x > 0 ? "+" : "") + fmt(x)}`).join(" · ");
   return { idx, frac, score: idx + frac, raw, pct, z, metric, need, floor, slug, valTxt, cutsTxt, cuts, rawSet, machine: !!machine, solid: true, model, bw: bwUsed, date: best.date, name: e.name };
 }
@@ -953,7 +954,8 @@ function tNivel(st) {
   const groups = Object.entries(byG).map(([g, L]) => ({ g, L, ...lvAgg(L) })).sort((a, b) => b.pct - a.pct);
   const fT = S.lvTier, fG = S.lvGroup;
   const shown = xs.filter((e) => (fT == null || e.level.idx === fT) && (!fG || exGroup(e.name) === fG));
-  const setF = (k, v) => { S[k] = S[k] === v ? null : v; render(); };
+  // al filtrar, se baja a la lista de ejercicios (en el móvil quedaba debajo de los grupos)
+  const setF = (k, v) => { S[k] = S[k] === v ? null : v; render(); setTimeout(() => { const el = document.getElementById("lv-list"); if (el && S[k] != null && el.getBoundingClientRect().top > window.innerHeight * 0.6) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 30); };
   return h("div", null,
     h("div", { class: "card lvhero" },
       h("div", { class: "lvh-b" }, lvlBadge(G.idx, 64)),
@@ -961,7 +963,7 @@ function tNivel(st) {
         h("span", { class: "muted" }, `${topTxt(G.pct)} · media de ${xs.length} ejercicios (las máquinas cuentan la mitad)`),
         h("div", { class: "dist" }, counts.map((n, i) => n ? tip(h("i", { class: "t" + i, style: { flex: n } }), `${LVL[i]}: ${n} ejercicios`) : null)),
         h("div", { class: "dleg" }, counts.map((n, i) => h("button", { class: "chip t" + i + (fT === i ? " on" : ""), onclick: () => setF("lvTier", i) }, h("i"), `${LVL[i]} ${n}`))))),
-    h("div", { class: "sec-t" }, "Por grupo muscular · de mejor a peor"),
+    h("div", { class: "sec-t" }, "Por grupo muscular · de mejor a peor", h("span", { class: "only-m faint" }, " · desliza →")),
     h("div", { class: "lvgroups" }, groups.map((r) => {
       const best = r.L[0], worst = r.L[r.L.length - 1];
       return h("button", { class: "lvg" + (fG === r.g ? " on" : ""), onclick: () => setF("lvGroup", r.g) },
@@ -969,7 +971,7 @@ function tNivel(st) {
         h("div", { class: "lvg-dots" }, r.L.map((e) => tip(h("i", { class: "t" + e.level.idx }), `${e.name}\n${LVL[e.level.idx]} · ${topTxt(e.level.pct)}`))),
         h("div", { class: "lvg-f" }, h("span", null, "Mejor: ", h("b", null, best.name)), r.L.length > 1 ? h("span", null, "Peor: ", h("b", null, worst.name)) : null));
     })),
-    h("div", { class: "row wrap", style: { margin: "18px 2px 8px" } }, h("div", { class: "sec-t", style: { margin: 0 } }, "Por ejercicio" + (fG ? " · " + fG : "") + (fT != null ? " · " + LVL[fT] : "")), h("span", { class: "grow" }),
+    h("div", { class: "row wrap", id: "lv-list", style: { margin: "18px 2px 8px", scrollMarginTop: "70px" } }, h("div", { class: "sec-t", style: { margin: 0 } }, "Por ejercicio" + (fG ? " · " + fG : "") + (fT != null ? " · " + LVL[fT] : "")), h("span", { class: "grow" }),
       fG || fT != null ? h("button", { class: "btn sm ghost", onclick: () => { S.lvGroup = null; S.lvTier = null; render(); } }, "Quitar filtros") : null),
     h("div", { class: "card panel" }, h("div", { class: "exlist" }, shown.length ? shown.map((e) => h("button", { class: "exrow lvrow", onclick: () => exerciseSheet(e.name) }, exIcon(e.name, 34),
       h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, h("span", null, e.name)), h("div", { class: "exr-s" }, e.level.valTxt), lvlBar(e.level)),

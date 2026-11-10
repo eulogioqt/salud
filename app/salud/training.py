@@ -577,6 +577,7 @@ def clear_food_image(conn, food_id, source="web"):
 
 MONTHS = {"jan": 1, "ene": 1, "feb": 2, "mar": 3, "apr": 4, "abr": 4, "may": 5, "jun": 6, "jul": 7, "aug": 8, "ago": 8,
           "sep": 9, "sept": 9, "oct": 10, "nov": 11, "dec": 12, "dic": 12}
+ASSIST_RX = re.compile(r"asistid|assist|\bband\b|banda|con goma")
 LASTRE_HINTS = ("weighted", "lastrad", "dip", "fondo", "pull up", "pull-up", "chin up", "chin-up", "dominad", "muscle up")
 
 
@@ -639,7 +640,14 @@ def import_hevy_csv(conn, text, source="web"):
                 elif not loaded:
                     kind = "corporal"
                 else:
-                    kind = "lastre" if any(hh in core._norm(ex["name"]) for hh in LASTRE_HINTS) else "peso"
+                    nn = core._norm(ex["name"])
+                    if ASSIST_RX.search(nn):  # dominada/fondos asistidos (máquina o banda): el peso es lo que te quitan
+                        kind = "asistido"
+                        for s_ in sets:
+                            if s_["weight_kg"]:
+                                s_["weight_kg"] = -abs(s_["weight_kg"])
+                    else:
+                        kind = "lastre" if any(hh in nn for hh in LASTRE_HINTS) else "peso"
                 exercises.append({"name": ex["name"], "kind": kind, "notes": ex["notes"], "sets": sets})
             hid = "csv:" + hashlib.sha1(("%s|%s" % (title, start)).encode("utf-8")).hexdigest()[:16]
             data = {"hevy_id": hid, "source": "hevy-csv", "title": title or "Entreno", "date": st.date().isoformat(),

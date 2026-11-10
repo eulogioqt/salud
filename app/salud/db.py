@@ -267,6 +267,12 @@ MIGRATIONS = [
     """
     ALTER TABLE exercise_settings ADD COLUMN same_as TEXT;
     """,
+    # v11 — dominadas/fondos asistidos (con banda o máquina) que se importaron como «con lastre»: el peso es asistencia (negativo)
+    """
+    UPDATE workout_sets SET weight_kg = -ABS(weight_kg) WHERE weight_kg IS NOT NULL AND exercise_id IN (SELECT id FROM workout_exercises
+      WHERE kind='lastre' AND (lower(name) LIKE '%asistid%' OR lower(name) LIKE '%assist%' OR lower(name) LIKE '%banda%' OR lower(name) LIKE '%(band)%'));
+    UPDATE workout_exercises SET kind='asistido' WHERE kind='lastre' AND (lower(name) LIKE '%asistid%' OR lower(name) LIKE '%assist%' OR lower(name) LIKE '%banda%' OR lower(name) LIKE '%(band)%');
+    """,
 ]
 
 

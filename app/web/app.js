@@ -1064,7 +1064,7 @@ function summaryView(s, extra) {
 // Cómo fue el día sin contar los pasos (de pie, tareas…): cambia el «día a día» del gasto
 function neatPicker(date, onDone) {
   const st = S.day && S.day.date === date ? S.day : null;
-  const levels = (st && st.neat_levels) || [{ key: "cama", label: "En cama o enfermo", kcal: 0 }, { key: "casa", label: "Casi todo el día sentado", kcal: 50 }, { key: "ligero", label: "Algo de movimiento: recados, cocinar", kcal: 100 }, { key: "normal", label: "Normal", kcal: 150 }, { key: "activo", label: "Activo: mucho de pie o tareas", kcal: 300 }, { key: "muy", label: "Muy activo: trabajo físico", kcal: 450 }];
+  const levels = (st && st.neat_levels) || [{ key: "cama", label: "En cama o enfermo", kcal: 0 }, { key: "casa", label: "Casi todo el día sentado", kcal: 50 }, { key: "ligero", label: "Algo de movimiento: recados, cocinar", kcal: 100 }, { key: "normal", label: "Normal", kcal: 150 }, { key: "activo", label: "Activo: mucho de pie o tareas", kcal: 250 }, { key: "muy", label: "Muy activo: trabajo físico", kcal: 350 }];
   const cur = st ? st.day.neat_kcal : null;
   const short = { cama: "En cama / enfermo", casa: "Sentado casi todo", ligero: "Algo de movimiento", normal: "Normal", activo: "Activo", muy: "Muy activo" };
   return h("div", { class: "neat-pk" }, h("div", { class: "sec-t", style: { marginTop: 0 } }, "¿Cómo fue el día? ", h("span", { class: "faint", style: { textTransform: "none", letterSpacing: 0, fontWeight: 400 } }, "(sin contar los pasos)")),

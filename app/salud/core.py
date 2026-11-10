@@ -53,7 +53,7 @@ DEFAULT_SETTINGS = {
 }
 # Movimiento del día sin contar los pasos (estar de pie, tareas de casa…): se elige al cerrar el día
 NEAT_LEVELS = (("cama", "En cama o enfermo", 0), ("casa", "Casi todo el día sentado", 50), ("ligero", "Algo de movimiento: recados, cocinar", 100),
-               ("normal", "Normal", 150), ("activo", "Activo: mucho de pie o tareas", 300), ("muy", "Muy activo: trabajo físico", 450))
+               ("normal", "Normal", 150), ("activo", "Activo: mucho de pie o tareas", 250), ("muy", "Muy activo: trabajo físico", 350))
 
 
 def neat_label(kcal):
