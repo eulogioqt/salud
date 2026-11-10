@@ -244,7 +244,12 @@ class Handler(BaseHTTPRequestHandler):
                         auth.revoke_api_token(MULTI, user, t["id"])
                 return self._send(200, {"ok": True})
             t = next((t for t in auth.list_tokens(MULTI, user) if t.get("kind") == "pasos"), None)
-            return self._send(200, {"configurado": bool(t), "conectado": bool(t and t.get("used")), "ultimo": t and t.get("used"), "url": self._base() + "/api/hooks/salud"})
+            conn, lock = user_ctx(user)
+            with lock:
+                bas = conn.execute("SELECT MAX(date||' '||COALESCE(time,'')) FROM body_metrics WHERE source='movil' AND deleted_at IS NULL").fetchone()[0]
+                stp = conn.execute("SELECT MAX(received_at) FROM step_buckets").fetchone()[0]
+            return self._send(200, {"configurado": bool(t), "conectado": bool(t and t.get("used")), "ultimo": t and t.get("used"),
+                                    "bascula": bas, "pasos_ultimo": stp, "url": self._base() + "/api/hooks/salud"})
         if MULTI and u.path.startswith("/api/token"):
             # Tokens de agentes (Claude, Codex…): solo con la sesión de la web, nunca con otro token.
             user = auth.session_user(MULTI, self._cookie_token())

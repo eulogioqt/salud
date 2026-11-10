@@ -204,7 +204,8 @@ function icon(name) {
     star: "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z", chev: "M6 9l6 6 6-6",
     minus: "M5 12h14", camera: "M4 8h3l2-3h6l2 3h3v11H4zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", out: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6",
     gear: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z",
-    swap: "M7 7h13l-3-3M17 17H4l3 3", up: "M12 19V5M6 11l6-6 6 6", dumbbell: "M6 7v10M3 9v6M18 7v10M21 9v6M6 12h12", trophy: "M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8M10 17h4v3h-4z", scale: "M5 4h14v16H5zM9 9a3 3 0 0 1 6 0M12 9l1-2",
+    swap: "M7 7h13l-3-3M17 17H4l3 3", up: "M12 19V5M6 11l6-6 6 6", flame: "M12 3c1 3 4 5 4 9a4 4 0 0 1-8 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 0-8z", bolt: "M13 2L4 14h7l-1 8 9-12h-7z", cal: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
+    target: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", medal: "M12 21a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM8.5 9.5L6 3h4l2 5M15.5 9.5L18 3h-4l-2 5", check: "M5 12l5 5 9-10", route: "M6 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM6 15V9a4 4 0 0 1 4-4h6M18 9v6a4 4 0 0 1-4 4H8", dumbbell: "M6 7v10M3 9v6M18 7v10M21 9v6M6 12h12", trophy: "M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8M10 17h4v3h-4z", scale: "M5 4h14v16H5zM9 9a3 3 0 0 1 6 0M12 9l1-2",
   };
   const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("width", "18"); s.setAttribute("height", "18");
@@ -366,7 +367,8 @@ function bodyStrip(st) {
     await act(() => api("PUT", "/api/days/" + st.date, { weight_kg: n }), "Peso guardado").catch(() => { el.value = day.weight_kg ?? ""; });
   });
   const weight = h("div", { class: "stat" },
-    h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic w" }, "⚖"), "Peso")),
+    h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic w" }, "⚖"), "Peso"),
+      S.me && !closed && !(S.pasos || {}).bascula ? h("button", { class: "lnk-btn", title: "Que los pesajes de tu báscula lleguen solos", onclick: (e) => { e.stopPropagation(); stepsConnectSheet("bascula"); } }, "🔗 Conectar") : null),
     h("div", { class: "v" }, el, h("small", null, "kg")), h("div", { class: "s" }, st.avg7 != null ? `media 7 d ${fmt(st.avg7, 1)}` : ""));
   // Pasos: conectados al móvil → solo «Ver» (ficha con estadísticas); si no, se apuntan a mano y se ofrece conectar
   const auto = !!(S.pasos || {}).conectado;
@@ -404,119 +406,140 @@ function blockBars(hrs, today) {
       h("i", { style: { height: (fut ? 6 : Math.max(b.v ? 10 : 4, (100 * b.v) / mx)) + "%" } }), h("em", null, String(b.a)));
   }));
 }
-// Ficha de pasos: objetivo del día (anillo), por horas frente a tu media, semana, rachas y récords, últimos 30 días
-async function stepsStatsSheet(st) {
-  const sub = dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" });
-  const sh = sheet("Pasos", h("div", { class: "muted" }, "Cargando…"), null, { wide: true, sub });
-  let d; try { d = await api("GET", "/api/pasos/stats?date=" + st.date); } catch (e) { toast(e.message, { error: true }); sh.close(); return; }
-  const en = st.energy, steps = st.day.steps || 0, today = st.date === st.today, now = new Date().getHours(), goal = d.goal || 8000;
-  const byDate = Object.fromEntries(d.days.map((x) => [x.date, x.steps]));
-  const kmOf = (n) => (en.stride_m ? (n * en.stride_m) / 1000 : null);
-  const hrs = d.hours || Array(24).fill(0), avg = d.avg_hours;
-  // --- rachas (días seguidos llegando al objetivo; hoy cuenta si ya llegaste, si no, no rompe la racha aún)
+// Pasos: datos comunes de las fichas (rachas, semanas, récords) a partir de /api/pasos/stats
+async function stepsData(st) {
+  const d = await api("GET", "/api/pasos/stats?date=" + st.date);
+  const goal = d.goal || 8000, byDate = Object.fromEntries(d.days.map((x) => [x.date, x.steps]));
   let cur = 0, k = byDate[st.date] >= goal ? st.date : addDays(st.date, -1);
   while (byDate[k] >= goal) { cur++; k = addDays(k, -1); }
   let bestStreak = 0, run = 0, prev = null;
-  for (const x of d.days) { run = x.steps >= goal && prev && addDays(prev, 1) === x.date && run ? run + 1 : x.steps >= goal ? 1 : 0; prev = x.date; bestStreak = Math.max(bestStreak, run); }
-  // --- semanas
+  for (const x of d.days) { run = x.steps >= goal ? (prev && addDays(prev, 1) === x.date && run ? run + 1 : 1) : 0; prev = x.date; bestStreak = Math.max(bestStreak, run); }
+  return Object.assign(d, { goal, byDate, streak: cur, bestStreak });
+}
+const agoTxt = (ts) => { if (!ts) return "—"; const m = Math.round((Date.now() - new Date(ts.replace(" ", "T"))) / 60000); return m < 1 ? "ahora" : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : dateLabel(ts.slice(0, 10), { day: "numeric", month: "short" }); };
+function stepsFooter(d, sh) {
+  return [h("span", { class: "faint sm" }, `Último envío del móvil: ${agoTxt(d.last_received)}`), h("span", { class: "grow" }),
+    h("button", { class: "btn ghost sm", onclick: () => { sh.close(); phoneConnSheet(); } }, "Administrar conexión")];
+}
+// Ficha de pasos del día (desde Hoy): objetivo, gasto, distancia, racha y el día por horas frente a tu media
+async function stepsStatsSheet(st) {
+  const sub = dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" });
+  const sh = sheet("Pasos", h("div", { class: "muted" }, "Cargando…"), null, { wide: true, sub });
+  let d; try { d = await stepsData(st); } catch (e) { toast(e.message, { error: true }); sh.close(); return; }
+  const en = st.energy, steps = st.day.steps || 0, today = st.date === st.today, now = new Date().getHours(), goal = d.goal;
+  const hrs = d.hours || Array(24).fill(0), avg = d.avg_hours;
+  const km = en.stride_m ? (Math.max(0, steps - (en.steps_in_activities || 0)) * en.stride_m) / 1000 : null;
+  const C = 2 * Math.PI * 62, frac = Math.min(1, steps / goal);
+  const ring = svgE("svg", { width: 150, height: 150, viewBox: "-75 -75 150 150", class: "sring" + (steps >= goal ? " done" : "") });
+  ring.append(svgE("circle", { r: 62, fill: "none", "stroke-width": 12, class: "rg-bg" }));
+  if (frac > 0) ring.append(svgE("circle", { r: 62, fill: "none", "stroke-width": 12, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${C * frac} ${C}`, transform: "rotate(-90)" }));
+  const accNow = hrs.slice(0, today ? now + 1 : 24).reduce((a, x) => a + x, 0), accAvg = avg ? avg.slice(0, today ? now + 1 : 24).reduce((a, x) => a + x, 0) : null;
+  const diff = accAvg != null ? accNow - accAvg : null;
+  const kv = (ic, l, v) => h("div", { class: "sh2-kv" }, h("span", null, h("span", { class: "kvi" }, icon(ic)), l), h("b", null, v));
+  const goalSheet = () => {
+    const inp = h("input", { class: "qty-in big num", inputMode: "numeric", value: String(goal) });
+    const g = sheet("Objetivo de pasos", [h("div", { class: "steps-box" }, inp, h("div", { class: "faint" }, "pasos al día")),
+      h("div", { class: "note" }, "Se usa para las rachas y los días cumplidos. 7.000–10.000 es lo habitual; mejor uno que puedas cumplir casi todos los días.")],
+      [h("span", { class: "grow" }), h("button", { class: "btn primary lg", onclick: async () => { const n = parseNum(inp.value); if (!(n >= 1000)) return toast("Pon al menos 1.000", { error: true });
+        await act(() => api("PUT", "/api/settings", { objetivo_pasos: String(Math.round(n)) }), "Objetivo guardado"); g.close(); sh.close(); stepsStatsSheet(st); } }, "Guardar")]);
+    setTimeout(() => { inp.focus(); inp.select(); }, 60);
+  };
+  const mx = Math.max(1, ...hrs, ...(avg || [0]));
+  const hchart = h("div", { class: "sch" }, hrs.map((v, i) => {
+    const fut = today && i > now;
+    return tip(h("div", { class: "sc" + (fut ? " fut" : "") + (!fut && !v ? " zero" : "") + (today && i === now ? " now" : "") },
+      h("i", { style: { height: (fut || !v ? 0 : Math.max(3, (100 * v) / mx)) + "%" } }),
+      avg ? h("span", { class: "avg", style: { bottom: (100 * avg[i]) / mx + "%" } }) : null),
+      `${String(i).padStart(2, "0")}:00–${String(i + 1).padStart(2, "0")}:00\n${fut ? "—" : fmt(v) + " pasos"}${avg ? `\nTu media: ${fmt(avg[i])}` : ""}`);
+  }));
+  const peak = hrs.reduce((b, v, i) => (v > hrs[b] ? i : b), 0);
+  sh.set("Pasos", [
+    h("div", { class: "sh2" },
+      h("div", { class: "sh2-ring" }, ring, h("div", { class: "sh2-in" }, h("b", { class: "num" }, fmt(steps)), h("span", null, "pasos"),
+        h("button", { class: "sgoal", title: "Cambiar el objetivo de pasos", onclick: goalSheet }, `de ${fmt(goal)} ✎`))),
+      h("div", { class: "sh2-side" },
+        h("div", { class: "sh2-msg" + (steps >= goal ? " ok" : "") }, steps >= goal ? [icon("check"), "Objetivo cumplido"] : `Te faltan ${fmt(goal - steps)} pasos`),
+        kv("bolt", "Gasto", en.steps_kcal != null ? `≈ ${fmt(en.steps_kcal)} kcal` : "—"),
+        kv("route", "Distancia", km != null ? `${fmt(km, 1)} km` : "—"),
+        kv("flame", "Racha", d.streak ? `${d.streak} ${d.streak === 1 ? "día" : "días"}` : "—"),
+        diff != null ? h("div", { class: "sh-vs " + (diff >= 0 ? "up" : "down") }, `${diff >= 0 ? "+" : "−"}${fmt(Math.abs(diff))} frente a tu media ${today ? "a esta hora" : "de ese día"}`) : null)),
+    h("div", { class: "card panel flat" }, h("div", { class: "row" }, h("h3", { style: { margin: 0 } }, "Por horas"), h("span", { class: "grow" }),
+      avg ? h("span", { class: "faint sm" }, h("span", { class: "lg-avg" }), ` tu media (${d.avg_days} ${d.avg_days === 1 ? "día" : "días"})`) : null), hchart,
+      h("div", { class: "sch-x" }, [0, 6, 12, 18, 24].map((x) => h("span", null, x + " h"))),
+      hrs[peak] ? h("div", { class: "faint sm", style: { marginTop: "6px" } }, `Hora más activa: ${peak}:00 · ${fmt(hrs[peak])} pasos`) : null),
+    h("button", { class: "btn more-st", onclick: () => { sh.close(); stepsMoreSheet(st); } }, "Más estadísticas: semana, rachas y récords", h("span", null, " ›")),
+  ], stepsFooter(d, sh), { wide: true, sub });
+}
+// Más estadísticas de pasos: semana L–D, rachas y récords, últimos 30 días y media por día de la semana
+async function stepsMoreSheet(st) {
+  const sh = sheet("Estadísticas de pasos", h("div", { class: "muted" }, "Cargando…"), null, { wide: true });
+  let d; try { d = await stepsData(st); } catch (e) { toast(e.message, { error: true }); sh.close(); return; }
+  const en = st.energy, goal = d.goal, byDate = d.byDate;
+  const kmOf = (n) => (en.stride_m ? (n * en.stride_m) / 1000 : null);
   const wk0 = mondayOf(st.date), wkDays = [...Array(7)].map((_, i) => addDays(wk0, i));
-  const wkSum = (m) => [...Array(7)].reduce((a, _, i) => a + (byDate[addDays(m, i)] || 0), 0);
-  const thisWk = wkSum(wk0), lastWkSame = [...Array(Math.min(7, daysBetween(wk0, st.date) + 1))].reduce((a, _, i) => a + (byDate[addDays(addDays(wk0, -7), i)] || 0), 0);
+  const wkSum = (m, n = 7) => [...Array(n)].reduce((a, _, i) => a + (byDate[addDays(m, i)] || 0), 0);
+  const thisWk = wkSum(wk0), lastWkSame = wkSum(addDays(wk0, -7), Math.min(7, daysBetween(wk0, st.date) + 1));
   const weeks = {}; for (const x of d.days) { const m = mondayOf(x.date); weeks[m] = (weeks[m] || 0) + x.steps; }
   const bestWk = Object.entries(weeks).sort((a, b) => b[1] - a[1])[0];
   const best = d.days.reduce((b, x) => (!b || x.steps > b.steps ? x : b), null);
   const last30 = d.days.filter((x) => x.date > addDays(st.date, -30)), hit30 = last30.filter((x) => x.steps >= goal).length;
   const prevDays = d.days.filter((x) => x.date < st.date).slice(-7), avg7 = prevDays.length ? prevDays.reduce((a, x) => a + x.steps, 0) / prevDays.length : null;
-  // media por día de la semana (últimas 8 semanas)
   const dow = [...Array(7)].map(() => []); for (const x of d.days.filter((x) => x.date > addDays(st.date, -56) && x.date < st.date)) dow[(new Date(x.date + "T12:00").getDay() + 6) % 7].push(x.steps);
   const dowAvg = dow.map((a) => (a.length ? a.reduce((p, q) => p + q, 0) / a.length : null));
-  // --- anillo del objetivo
-  const C = 2 * Math.PI * 62, frac = Math.min(1, steps / goal);
-  const ring = svgE("svg", { width: 150, height: 150, viewBox: "-75 -75 150 150", class: "sring" + (steps >= goal ? " done" : "") });
-  ring.append(svgE("circle", { r: 62, fill: "none", "stroke-width": 12, class: "rg-bg" }));
-  if (frac > 0) ring.append(svgE("circle", { r: 62, fill: "none", "stroke-width": 12, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${C * frac} ${C}`, transform: "rotate(-90)" }));
-  const goalBtn = h("button", { class: "sgoal", title: "Cambiar el objetivo de pasos", onclick: () => goalSheet() }, `de ${fmt(goal)} ✎`);
-  const accNow = hrs.slice(0, today ? now + 1 : 24).reduce((a, x) => a + x, 0), accAvg = avg ? avg.slice(0, today ? now + 1 : 24).reduce((a, x) => a + x, 0) : null;
-  const diff = accAvg != null ? accNow - accAvg : null;
-  const hero = h("div", { class: "sh2" },
-    h("div", { class: "sh2-ring" }, ring, h("div", { class: "sh2-in" }, h("b", { class: "num" }, fmt(steps)), h("span", null, "pasos"), goalBtn)),
-    h("div", { class: "sh2-side" },
-      h("div", { class: "sh2-msg" }, steps >= goal ? "🎯 Objetivo cumplido" : `Te faltan ${fmt(goal - steps)} pasos`),
-      h("div", { class: "sh2-kv" }, h("span", null, "Gasto"), h("b", null, en.steps_kcal != null ? `≈ ${fmt(en.steps_kcal)} kcal` : "—")),
-      h("div", { class: "sh2-kv" }, h("span", null, "Distancia"), h("b", null, kmOf(steps) != null ? `${fmt(kmOf(steps), 1)} km` : "—")),
-      h("div", { class: "sh2-kv" }, h("span", null, "Racha"), h("b", null, cur ? `🔥 ${cur} ${cur === 1 ? "día" : "días"}` : "—")),
-      diff != null ? h("div", { class: "sh-vs " + (diff >= 0 ? "up" : "down") }, `${diff >= 0 ? "+" : "−"}${fmt(Math.abs(diff))} frente a tu media ${today ? "a esta hora" : "de ese día"}`) : null));
-  // --- por horas
-  const mx = Math.max(1, ...hrs, ...(avg || [0]));
-  const hchart = h("div", { class: "sch" }, hrs.map((v, i) => {
-    const fut = today && i > now;
-    return tip(h("div", { class: "sc" + (fut ? " fut" : "") + (today && i === now ? " now" : "") },
-      h("i", { style: { height: (fut ? 0 : Math.max(v ? 3 : 0, (100 * v) / mx)) + "%" } }),
-      avg ? h("span", { class: "avg", style: { bottom: (100 * avg[i]) / mx + "%" } }) : null),
-      `${String(i).padStart(2, "0")}:00–${String(i + 1).padStart(2, "0")}:00\n${fut ? "—" : fmt(v) + " pasos"}${avg ? `\nTu media: ${fmt(avg[i])}` : ""}`);
-  }));
-  const peak = hrs.reduce((b, v, i) => (v > hrs[b] ? i : b), 0);
-  // --- semana (L–D) con la línea del objetivo
-  const wmx = Math.max(goal * 1.1, ...wkDays.map((x) => byDate[x] || 0));
   const LD = ["L", "M", "X", "J", "V", "S", "D"];
+  const wmx = Math.max(goal * 1.1, ...wkDays.map((x) => byDate[x] || 0));
   const wchart = [h("div", { class: "swk" }, h("span", { class: "sw-goal", style: { bottom: (100 * goal) / wmx + "%" } }),
-    wkDays.map((x) => { const v = byDate[x], fut = x > st.today; return tip(h("div", { class: "sw" + (x === st.date ? " cur" : "") + (v >= goal ? " ok" : "") },
+    wkDays.map((x) => { const v = byDate[x], fut = x > st.today; return tip(h("div", { class: "sw" + (x === st.date ? " cur" : "") + (v >= goal ? " ok" : "") + (!fut && !v ? " zero" : "") },
       h("i", { style: { height: (v ? Math.max(3, (100 * v) / wmx) : 0) + "%" } })),
       `${dateLabel(x, { weekday: "long", day: "numeric", month: "short" })}\n${fut ? "—" : v != null ? fmt(v) + " pasos" : "sin datos"}`); })),
     h("div", { class: "swk-x" }, LD.map((l, i) => h("em", { class: wkDays[i] === st.date ? "cur" : "" }, l)))];
   const wdiff = thisWk - lastWkSame;
-  // --- últimos 30 días
   const dmx = Math.max(goal * 1.1, 1, ...last30.map((x) => x.steps));
   const dchart = last30.length > 1 ? h("div", { class: "sdays" }, h("span", { class: "sd-avg", style: { bottom: (100 * goal) / dmx + "%" } }),
-    last30.map((x) => tip(h("i", { class: (x.date === st.date ? "cur" : "") + (x.steps >= goal ? " ok" : "") , style: { height: Math.max(3, (100 * x.steps) / dmx) + "%" } }),
+    last30.map((x) => tip(h("i", { class: (x.date === st.date ? "cur" : "") + (x.steps >= goal ? " ok" : ""), style: { height: Math.max(3, (100 * x.steps) / dmx) + "%" } }),
       `${dateLabel(x.date, { weekday: "short", day: "numeric", month: "short" })}\n${fmt(x.steps)} pasos`))) : h("div", { class: "muted sm" }, "En unos días verás aquí tu mes.");
-  const ago = (ts) => { if (!ts) return "—"; const m = Math.round((Date.now() - new Date(ts.replace(" ", "T"))) / 60000); return m < 1 ? "ahora" : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : dateLabel(ts.slice(0, 10), { day: "numeric", month: "short" }); };
-  const rec = (ic, l, v, sub_) => h("div", { class: "srec" }, h("span", { class: "srec-i" }, ic), h("div", null, h("div", { class: "srec-l" }, l), h("b", null, v), h("div", { class: "srec-s" }, sub_ || "")));
-  const goalSheet = () => {
-    const inp = h("input", { class: "qty-in big num", inputMode: "numeric", value: String(goal) });
-    const g = sheet("Objetivo de pasos", [h("div", { class: "steps-box" }, inp, h("div", { class: "faint" }, "pasos al día")),
-      h("div", { class: "note" }, "Se usa para las rachas y los días cumplidos. 7.000–10.000 es lo habitual; ponte uno que puedas cumplir la mayoría de los días.")],
-      [h("span", { class: "grow" }), h("button", { class: "btn primary lg", onclick: async () => { const n = parseNum(inp.value); if (!(n >= 1000)) return toast("Pon al menos 1.000", { error: true });
-        await act(() => api("PUT", "/api/settings", { objetivo_pasos: String(Math.round(n)) }), "Objetivo guardado"); g.close(); sh.close(); stepsStatsSheet(st); } }, "Guardar")]);
-    setTimeout(() => { inp.focus(); inp.select(); }, 60);
-  };
-  sh.set("Pasos", [
-    hero,
-    h("div", { class: "card panel flat" }, h("div", { class: "row" }, h("h3", { style: { margin: 0 } }, "Por horas"), h("span", { class: "grow" }),
-      avg ? h("span", { class: "faint sm" }, h("span", { class: "lg-avg" }), ` tu media (${d.avg_days} ${d.avg_days === 1 ? "día" : "días"})`) : null), hchart,
-      h("div", { class: "sch-x" }, [0, 6, 12, 18, 24].map((x) => h("span", null, x + " h"))),
-      hrs[peak] ? h("div", { class: "faint sm", style: { marginTop: "6px" } }, `Hora más activa: ${peak}:00 · ${fmt(hrs[peak])} pasos`) : null),
+  const rec = (ic, l, v, sub_) => h("div", { class: "srec" }, h("span", { class: "srec-i" }, icon(ic)), h("div", null, h("div", { class: "srec-l" }, l), h("b", { class: "num" }, v), h("div", { class: "srec-s" }, sub_ || "")));
+  sh.set("Estadísticas de pasos", [
     h("div", { class: "sgrid" },
-      h("div", { class: "card panel flat" }, h("div", { class: "row" }, h("h3", { style: { margin: 0 } }, "Esta semana"), h("span", { class: "grow" }), h("span", { class: "faint sm" }, "--- objetivo")),
+      h("div", { class: "card panel flat" }, h("div", { class: "row" }, h("h3", { style: { margin: 0 } }, "Esta semana"), h("span", { class: "grow" }), h("span", { class: "faint sm" }, `--- objetivo ${fmt(goal)}`)),
         h("div", { class: "sw-tot" }, h("b", { class: "num" }, fmt(thisWk)), " pasos", kmOf(thisWk) != null ? h("span", { class: "faint" }, ` · ${fmt(kmOf(thisWk), 1)} km`) : null,
-          lastWkSame ? h("span", { class: "sw-d " + (wdiff >= 0 ? "up" : "down") }, `${wdiff >= 0 ? "▲" : "▼"} ${fmt(Math.abs(wdiff))} vs semana pasada`) : null), wchart),
+          lastWkSame ? h("span", { class: "sw-d " + (wdiff >= 0 ? "up" : "down") }, `${wdiff >= 0 ? "+" : "−"}${fmt(Math.abs(wdiff))} frente a la semana pasada`) : null), wchart),
       h("div", { class: "card panel flat" }, h("h3", null, "Rachas y récords"), h("div", { class: "srecs" },
-        rec("🔥", "Racha actual", cur ? `${cur} ${cur === 1 ? "día" : "días"}` : "0", `días seguidos ≥ ${fmt(goal)}`),
-        rec("🏅", "Mejor racha", bestStreak ? `${bestStreak} ${bestStreak === 1 ? "día" : "días"}` : "—"),
-        rec("🏆", "Mejor día", best ? fmt(best.steps) : "—", best ? dateLabel(best.date, { day: "numeric", month: "short", year: "2-digit" }) : ""),
-        rec("📅", "Mejor semana", bestWk ? fmt(bestWk[1]) : "—", bestWk ? "desde el " + dateLabel(bestWk[0], { day: "numeric", month: "short" }) : ""),
-        rec("⚡", "Mejor hora", d.best_hour ? fmt(d.best_hour.steps) : "—", d.best_hour ? `${d.best_hour.hour}:00 · ${dateLabel(d.best_hour.date, { day: "numeric", month: "short" })}` : ""),
-        rec("🎯", "Objetivo (30 d)", `${hit30} de ${last30.length || 0}`, "días cumplidos")))),
+        rec("flame", "Racha actual", d.streak ? `${d.streak} ${d.streak === 1 ? "día" : "días"}` : "0", `seguidos con ${fmt(goal)} o más`),
+        rec("medal", "Mejor racha", d.bestStreak ? `${d.bestStreak} ${d.bestStreak === 1 ? "día" : "días"}` : "—"),
+        rec("trophy", "Mejor día", best ? fmt(best.steps) : "—", best ? dateLabel(best.date, { day: "numeric", month: "short", year: "2-digit" }) : ""),
+        rec("cal", "Mejor semana", bestWk ? fmt(bestWk[1]) : "—", bestWk ? "desde el " + dateLabel(bestWk[0], { day: "numeric", month: "short" }) : ""),
+        rec("bolt", "Mejor hora", d.best_hour ? fmt(d.best_hour.steps) : "—", d.best_hour ? `${d.best_hour.hour}:00 · ${dateLabel(d.best_hour.date, { day: "numeric", month: "short" })}` : ""),
+        rec("target", "Objetivo (30 días)", `${hit30} de ${last30.length || 0}`, "días cumplidos")))),
     h("div", { class: "card panel flat" }, h("div", { class: "row" }, h("h3", { style: { margin: 0 } }, "Últimos 30 días"), h("span", { class: "grow" }),
       avg7 != null ? h("span", { class: "faint sm" }, `media 7 días ${fmt(avg7)}`) : null), dchart,
-      dowAvg.some((x) => x != null) ? h("div", { class: "sdow" }, dowAvg.map((v, i) => h("div", null, h("em", null, LD[i]), h("b", { class: "num" }, v != null ? fmt(v / 1000, 1) + "k" : "—")))) : null),
-  ], [h("button", { class: "btn ghost sm", onclick: () => { sh.close(); stepsConnectSheet(); } }, "Conexión del móvil"), h("span", { class: "grow" }),
-    h("span", { class: "faint sm" }, `Último envío del móvil: ${ago(d.last_received)}`)], { wide: true, sub });
+      dowAvg.some((x) => x != null) ? [h("div", { class: "faint sm", style: { marginTop: "12px" } }, "Media por día de la semana (8 semanas)"),
+        h("div", { class: "sdow" }, dowAvg.map((v, i) => h("div", null, h("em", null, LD[i]), h("b", { class: "num" }, v != null ? fmt(v / 1000, 1) + "k" : "—"))))] : null),
+  ], stepsFooter(d, sh), { wide: true });
 }
 function hourBars(hrs, today) {
   const mx = Math.max(1, ...hrs), now = new Date().getHours();
   return h("div", { class: "hbars", title: "Pasos por hora" }, hrs.map((v, i) => h("i", { class: (today && i === now ? "now" : "") + (today && i > now ? " fut" : ""), style: { height: Math.max(v ? 8 : 3, (100 * v) / mx) + "%" }, title: `${i}:00 · ${fmt(v)} pasos` })));
 }
 // Conectar los pasos del móvil: Android (Health Connect + «Health Connect Webhook», gratis desde GitHub) o iPhone (Salud + Atajos)
-async function stepsConnectSheet() {
+async function stepsConnectSheet(mode = "pasos") {
   let info = await api("GET", "/api/pasos").catch(() => ({}));
   let tok = null, os = /iPhone|iPad/.test(navigator.userAgent) ? "ios" : /Android/.test(navigator.userAgent) ? "android" : null;
-  const sh = sheet("Conectar tus pasos", null, null, { onClose: () => { clearInterval(tm); loadPasos(); } });
+  const bas = mode === "bascula", title = bas ? "Conectar tu báscula" : "Conectar tus pasos";
+  const BTYPES = "Peso, Grasa corporal, Masa corporal magra, Masa ósea, Masa de agua corporal y Tasa metabólica basal";
+  const sh = sheet(title, null, null, { onClose: () => { clearInterval(tm); loadPasos(); } });
   let tm = null;
   const draw = () => {
     const seg = h("div", { class: "seg tg-seg" }, [["android", "Android"], ["ios", "iPhone"]].map(([k, l]) => h("button", { class: os === k ? "on" : "", onclick: () => { os = k; draw(); } }, l)));
     const tokLine = tok ? copyLine("Bearer " + tok) : h("button", { class: "btn sm", onclick: async () => { tok = (await api("POST", "/api/pasos", {})).token; draw(); } }, info.configurado ? "Generar una clave nueva" : "Generar mi clave");
-    const steps = os === "android" ? [
+    const have = !!info.conectado;  // HC Webhook ya instalada y enviando (por los pasos)
+    const steps = bas ? (os === "android" ? [
+      ["Que la báscula guarde en Health Connect", "En la app de tu báscula (Mi Fitness, Zepp Life…), busca «Health Connect» en sus ajustes y deja que escriba el peso y la composición corporal. Compruébalo en Ajustes del móvil → Health Connect → Permisos de apps."],
+      ...(have ? [["Activa los datos de la báscula en «HC Webhook»", `Ya la tienes por los pasos: en Qué sincronizar activa ${BTYPES} y pulsa «Permitir acceso». No hace falta nada más.`]]
+        : [["Instala «Health Connect Webhook» (gratis)", "Desde el móvil, descarga el .apk de la última versión en GitHub e instálalo (te pedirá permitir instalar desde el navegador). Es la misma app que en Google Play cuesta 7,99 €, pero gratis y de código abierto.", { href: "https://github.com/mcnaveen/health-connect-webhook/releases/latest", t: "Descargar de GitHub" }],
+          ["Qué sincronizar", `Activa ${BTYPES} (y Pasos, si quieres que lleguen también) y pulsa «Permitir acceso».`]]),
+    ] : os === "ios" ? [["En iPhone, con Atajos", "Se puede mandar el peso de Salud con una automatización de Atajos, como los pasos. Dímelo y lo preparamos."]] : [])
+    : os === "android" ? [
       ["Que tus pasos lleguen a Health Connect", "Tu app de pasos (Google Fit, Samsung Health, Fitbit…) tiene que guardarlos en Health Connect. En Google Fit: Perfil → ⚙ Ajustes → «Sincronizar con Health Connect». Compruébalo en Ajustes del móvil → Health Connect → Permisos de apps."],
       ["Instala «Health Connect Webhook» (gratis)", "Desde el móvil, descarga el .apk de la última versión en GitHub e instálalo (te pedirá permitir instalar desde el navegador). Es la misma app que en Google Play cuesta 7,99 €, pero gratis y de código abierto. Ábrela y dale permiso a «Pasos».", { href: "https://github.com/mcnaveen/health-connect-webhook/releases/latest", t: "Descargar de GitHub" }],
       ["Pasos: cada 15 o 60 minutos", "En Tipos de datos → Pasos, elige resolución de 15 min (o 60) y deja activado «Contar una vez las apps que se solapan»."],
@@ -525,25 +548,50 @@ async function stepsConnectSheet() {
       ["Acción «Buscar muestras de salud»", "Tipo: Pasos · Fecha de inicio: es hoy. Si llevas Apple Watch, añade el filtro «Fuente es (tu iPhone)» para no contar dos veces."],
       ["Acción «Calcular estadísticas»", "Suma de «Muestras de salud»."],
     ] : [];
-    sh.set("Conectar tus pasos", [
-      h("p", { class: "muted wz-p" }, "Así los pasos llegan solos (y por horas). Si no, los apuntas a mano en Hoy o se los dices a tu agente."),
+    const done = bas ? !!info.bascula : have, skipHook = bas && (have || os === "ios");
+    sh.set(title, [
+      h("p", { class: "muted wz-p" }, bas ? "Así cada pesaje (peso, % de grasa y lo demás que mida) llega solo a la web. Si no, lo apuntas a mano o mandas la captura a tu agente."
+        : "Así los pasos llegan solos (y por horas). Si no, los apuntas a mano en Hoy o se los dices a tu agente."),
       seg,
       os ? h("div", { class: "agent-steps simple" },
         steps.map(([t, d, x], i) => h("div", { class: "ast" }, h("span", { class: "n" }, String(i + 1)), h("div", null, h("b", null, t), h("div", { class: "muted" }, d),
           x ? h("a", { class: "btn sm ext", href: x.href, target: "_blank", rel: "noopener" }, x.t, " ↗") : null))),
-        os === "ios" ? h("div", { class: "ast" }, h("span", { class: "n" }, String(steps.length + 1)), h("div", null, h("b", null, "Acción «Obtener contenido de URL»"), h("div", { class: "muted" }, "URL:"), copyLine(info.url || location.origin + "/api/hooks/salud"),
+        skipHook ? null : os === "ios" ? h("div", { class: "ast" }, h("span", { class: "n" }, String(steps.length + 1)), h("div", null, h("b", null, "Acción «Obtener contenido de URL»"), h("div", { class: "muted" }, "URL:"), copyLine(info.url || location.origin + "/api/hooks/salud"),
           h("div", { class: "muted", style: { marginTop: "8px" } }, "Método: POST · Encabezados → clave «Authorization» y, como valor, tu clave (solo se ve ahora):"), tokLine,
           h("div", { class: "muted", style: { marginTop: "8px" } }, "Cuerpo de la solicitud: JSON → añade un campo Número llamado «steps» con el valor «Estadísticas». Pulsa ▶ para probarlo.")))
         : h("div", { class: "ast" }, h("span", { class: "n" }, String(steps.length + 1)), h("div", null, h("b", null, "Añade el webhook"), h("div", { class: "muted" }, "Webhooks → Añadir. Dirección:"), copyLine(info.url || location.origin + "/api/hooks/salud"),
           h("div", { class: "muted", style: { marginTop: "8px" } }, "Encabezado (header) → nombre «Authorization» y, como valor, tu clave (solo se ve ahora):"), tokLine,
           h("div", { class: "muted", style: { marginTop: "8px" } }, "Sincronización: cada 30 min. Pulsa «Probar» o «Sincronizar ahora»."))),
-        h("div", { class: "ast" }, h("span", { class: "n" + (info.conectado ? " ok" : "") }, info.conectado ? "✓" : String(steps.length + 2)), h("div", null, h("b", null, "Listo"),
-          h("div", { class: "agent-wait soft" + (info.conectado ? " done" : "") }, info.conectado ? `Conectado · último envío ${info.ultimo}` : "Cuando llegue el primer envío, aquí pondrá «Conectado»."))))
+        h("div", { class: "ast" }, h("span", { class: "n" + (done ? " ok" : "") }, done ? "✓" : String(steps.length + (skipHook ? 1 : 2))), h("div", null, h("b", null, "Listo"),
+          h("div", { class: "agent-wait soft" + (done ? " done" : "") }, bas ? (done ? `Conectada · último pesaje ${info.bascula}` : "Pésate: cuando llegue el primer pesaje, aquí pondrá «Conectada».")
+            : done ? `Conectado · último envío ${info.ultimo}` : "Cuando llegue el primer envío, aquí pondrá «Conectado»."))))
         : h("p", { class: "muted" }, "¿Qué móvil tienes?")],
-      info.configurado ? [h("button", { class: "btn ghost sm", onclick: async () => { if (!confirm("¿Desconectar los pasos automáticos? La clave dejará de funcionar.")) return; await api("DELETE", "/api/pasos"); info = {}; tok = null; draw(); } }, "Desconectar")] : null);
+      null);
   };
   draw();
-  tm = setInterval(async () => { const r = await api("GET", "/api/pasos").catch(() => null); if (r && r.conectado !== info.conectado) { info = r; draw(); refresh(); } }, 4000);
+  tm = setInterval(async () => { const r = await api("GET", "/api/pasos").catch(() => null); if (r && (r.conectado !== info.conectado || r.bascula !== info.bascula)) { info = r; draw(); refresh(); } }, 4000);
+}
+// Administrar la conexión del móvil: estado, qué llega, clave nueva, desconectar y los tutoriales
+async function phoneConnSheet() {
+  let info = await api("GET", "/api/pasos").catch(() => ({})), tok = null;
+  const ago = (ts) => { if (!ts) return null; const m = Math.round((Date.now() - new Date(ts.replace(" ", "T"))) / 60000); return m < 1 ? "ahora" : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : dateLabel(ts.slice(0, 10), { day: "numeric", month: "short" }); };
+  const sh = sheet("Conexión del móvil", null, null, { onClose: () => loadPasos() });
+  const draw = () => {
+    const row_ = (ic, t, ok, sub_, btn) => h("div", { class: "pc-row" }, h("span", { class: "pc-i " + (ok ? "ok" : "") }, ic), h("div", { class: "grow" }, h("b", null, t), h("div", { class: "faint sm" }, sub_)), btn);
+    sh.set("Conexión del móvil", [
+      h("div", { class: "pc-st " + (info.conectado ? "on" : "") }, h("span", { class: "pc-dot" }), info.conectado ? `Conectado · último envío ${ago(info.ultimo) || "—"}` : info.configurado ? "Clave creada, aún no ha llegado nada" : "Sin conectar"),
+      h("div", { class: "pc-list" },
+        row_("👟", "Pasos", !!info.pasos_ultimo, info.pasos_ultimo ? `Último tramo recibido ${ago(info.pasos_ultimo)}` : "Aún no han llegado", h("button", { class: "btn sm ghost", onclick: () => { sh.close(); stepsConnectSheet("pasos"); } }, "Cómo se configura")),
+        row_("⚖", "Báscula", !!info.bascula, info.bascula ? `Último pesaje ${info.bascula}` : "Aún no ha llegado ningún pesaje", h("button", { class: "btn sm ghost", onclick: () => { sh.close(); stepsConnectSheet("bascula"); } }, "Cómo se configura"))),
+      tok ? h("div", { class: "field" }, h("label", { class: "f" }, "Clave nueva: ponla en la app (encabezado «Authorization»). Solo se ve ahora."), copyLine("Bearer " + tok)) : null,
+      h("div", { class: "note" }, "Una sola clave sirve para todo lo que mande el móvil. Si la cambias, la anterior deja de funcionar y hay que ponerla en la app."),
+    ], [
+      info.configurado ? h("button", { class: "btn ghost sm danger", onclick: async () => { if (!confirm("¿Desconectar el móvil? La clave dejará de funcionar y los datos dejarán de llegar.")) return; await api("DELETE", "/api/pasos"); info = await api("GET", "/api/pasos").catch(() => ({})); tok = null; draw(); } }, "Desconectar") : null,
+      h("span", { class: "grow" }),
+      h("button", { class: "btn sm", onclick: async () => { if (info.configurado && !confirm("¿Generar una clave nueva? La actual dejará de funcionar.")) return; tok = (await api("POST", "/api/pasos", {})).token; info = await api("GET", "/api/pasos").catch(() => info); draw(); } }, info.configurado ? "Generar clave nueva" : "Generar clave"),
+    ]);
+  };
+  draw();
 }
 async function loadPasos() { if (!S.me) return; S.pasos = await api("GET", "/api/pasos").catch(() => ({})); if (S.view === "hoy") render(); }
 function stepsSheet(st) {

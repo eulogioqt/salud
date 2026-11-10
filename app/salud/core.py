@@ -1353,6 +1353,7 @@ def ingest_health(conn, payload, source="health"):
     tot = payload.get("steps", payload.get("pasos"))
     if isinstance(tot, (int, float, str)) and not isinstance(tot, bool):
         return _ingest_total(conn, payload, tot, source)
+    body = _ingest_body(conn, payload, source)
     recs = payload.get("steps") or []
     days, n = set(), 0
     with tx(conn, "health_sync", source, payload={"steps": len(recs), "app": payload.get("app_version")}):
@@ -1383,7 +1384,47 @@ def ingest_health(conn, payload, source="health"):
             _ensure_day(conn, d)
             conn.execute("UPDATE days SET steps=?, steps_auto=1, updated_at=? WHERE date=?", (int(tot), ts(), d))
             out.append({"fecha": d, "pasos": int(tot), "guardado": True})
-    return {"ok": True, "tramos": n, "dias": out}
+    return {"ok": True, "tramos": n, "dias": out, "bascula": body}
+
+
+# Báscula por Health Connect: tipo del envío → (campo de body_metrics, clave del valor, conversión)
+_BODY_HC = {"weight": ("weight_kg", "kilograms", 1), "body_fat": ("fat_pct", "percentage", 1), "lean_body_mass": ("lean_kg", "kilograms", 1),
+            "bone_mass": ("bone_kg", "kilograms", 1), "body_water_mass": ("water_kg", "kilograms", 1),
+            "basal_metabolic_rate": ("bmr_kcal", "watts", 86400 / 4184)}
+
+
+def _ingest_body(conn, payload, source):
+    """Junta las medidas de la báscula por momento (fecha y hora) y las guarda como un pesaje; no duplica
+    uno ya apuntado (misma hora, o mismo día con el mismo peso, p. ej. desde una captura)."""
+    from . import training as T
+    by = {}
+    for typ, (field, key, k) in _BODY_HC.items():
+        for r in payload.get(typ) or []:
+            try:
+                dt = _local_dt(r["time"])
+                v = round(float(r[key]) * k, 2)
+            except (KeyError, ValueError, TypeError):
+                continue
+            by.setdefault(dt.strftime("%Y-%m-%d %H:%M"), {})[field] = v
+    out = []
+    for when, vals in sorted(by.items()):
+        d, t = when[:10], when[11:]
+        same = conn.execute("SELECT * FROM body_metrics WHERE date=? AND deleted_at IS NULL AND (time=? OR (weight_kg IS NOT NULL AND ABS(weight_kg-?)<0.06))",
+                            (d, t, vals.get("weight_kg", -99))).fetchone()
+        if same:
+            new = {f: v for f, v in vals.items() if same[f] is None}
+            if new:
+                conn.execute("UPDATE body_metrics SET %s WHERE id=?" % ",".join(f + "=?" for f in new), list(new.values()) + [same["id"]])
+            out.append({"fecha": d, "hora": t, "nuevo": False})
+            continue
+        if "weight_kg" not in vals and "fat_pct" not in vals:
+            continue
+        try:
+            T.add_body(conn, dict(vals, date=d, time=t, source="movil"), source)
+            out.append({"fecha": d, "hora": t, "nuevo": True, **vals})
+        except (ValidationError, ClosedDayError):
+            continue
+    return out
 
 
 def _ingest_total(conn, payload, tot, source):

@@ -324,6 +324,18 @@ class TestTraining(Base):
         core.ingest_health(self.conn, {"steps": [{"count": 300, "start_time": D1 + "T19:00:00+01:00", "end_time": D1 + "T19:15:00+01:00"}]})
         self.assertEqual(core.get_day_row(self.conn, D1)["steps"], 300)  # el total del día se sustituye por los tramos
 
+    def test_body_from_phone(self):
+        from salud import training as T
+        p = {"weight": [{"kilograms": 81.6, "time": D1 + "T08:01:10+01:00"}], "body_fat": [{"percentage": 18.2, "time": D1 + "T08:01:10+01:00"}],
+             "basal_metabolic_rate": [{"watts": 85.0, "time": D1 + "T08:01:10+01:00"}]}
+        r = core.ingest_health(self.conn, p)
+        self.assertTrue(r["bascula"][0]["nuevo"])
+        self.assertEqual(core.get_day_row(self.conn, D1)["weight_kg"], 81.6)
+        b = self.conn.execute("SELECT * FROM body_metrics WHERE date=?", (D1,)).fetchall()
+        self.assertEqual(len(b), 1); self.assertEqual(b[0]["fat_pct"], 18.2); self.assertAlmostEqual(b[0]["bmr_kcal"], 1755.26, 1)
+        core.ingest_health(self.conn, p)  # reenviado: no duplica
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM body_metrics WHERE date=?", (D1,)).fetchone()[0], 1)
+
     def test_note_variant(self):
         from salud import training as T
         self.assertEqual(T.note_variant("Dominada", "A un brazo sin goma"), "Dominada a una mano")

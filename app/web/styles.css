@@ -1384,3 +1384,18 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .sw-goal { margin-bottom: 0; }
 .swk-x { display: flex; gap: 6px; margin-top: 4px; } .swk-x em { flex: 1; text-align: center; font-style: normal; font-size: 11px; color: var(--faint); } .swk-x em.cur { color: var(--text); font-weight: 700; }
 .swk .sw { flex-direction: row; align-items: flex-end; }
+/* Pasos: retoques (iconos sobrios, horas a 0 con una barrita gris, botón de más estadísticas) */
+.sc.zero::before, .sw.zero::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--line-2, #ddd); border-radius: 2px; }
+.sw { position: relative; }
+.kvi { display: inline-flex; vertical-align: -3px; margin-right: 6px; color: var(--faint); } .kvi svg { width: 15px; height: 15px; }
+.sh2-msg.ok { color: var(--accent); display: inline-flex; align-items: center; gap: 6px; } .sh2-msg.ok svg { width: 17px; height: 17px; stroke-width: 2.6; }
+.srec-i { width: 30px; height: 30px; border-radius: 9px; background: var(--surface-2); color: var(--muted); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.srec-i svg { width: 16px; height: 16px; }
+.btn.more-st { width: 100%; justify-content: center; margin-top: 12px; }
+.pc-st { display: flex; align-items: center; gap: 8px; font-weight: 650; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); margin-bottom: 12px; }
+.pc-st .pc-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--faint); } .pc-st.on .pc-dot { background: var(--accent); }
+.pc-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.pc-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.pc-i { width: 34px; height: 34px; border-radius: 10px; background: var(--surface-2); display: inline-flex; align-items: center; justify-content: center; filter: grayscale(1); opacity: .6; }
+.pc-i.ok { filter: none; opacity: 1; background: var(--accent-soft); }
+.btn.danger { color: #b4412d; }
