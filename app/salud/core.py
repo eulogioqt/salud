@@ -202,6 +202,8 @@ def resolve_dynamic(conn, d, t):
     if no_steps:
         proj = _avg_steps(conn, d)
         day = dict(day, steps=proj if proj is not None else 0)
+    if day["neat_kcal"] is None:  # el objetivo cuenta con un día «normal» hasta que se elija al cerrar
+        day = dict(day, neat_kcal=float(settings(conn)["neat_base_kcal"]))
     en = energy(conn, d, 0, day, acts)
     tef = float(settings(conn)["tef_pct"])
     t = dict(t)
@@ -925,7 +927,10 @@ def energy(conn, d, intake_kcal=None, day=None, acts=None):
     missing = [n for n, v in (("peso", kg), ("altura", h), ("edad o fecha de nacimiento", age), ("sexo", sex if sex in ("H", "M") else None)) if v is None]
     bmr = None if missing else 10 * kg + 6.25 * h - 5 * age + (5 if sex == "H" else -161)
     tef = float(s["tef_pct"]) * (intake_kcal or 0)
-    neat = day["neat_kcal"] if day["neat_kcal"] is not None else float(s["neat_base_kcal"])
+    # Día a día (NEAT): se elige al cerrar; mientras el día está abierto y sin elegir cuenta 0 («por definir").
+    # Días cerrados de antes de esto, sin elegir: el valor base (normal).
+    neat_pending = day["neat_kcal"] is None and day.get("status") != "cerrado"
+    neat = day["neat_kcal"] if day["neat_kcal"] is not None else (0.0 if neat_pending else float(s["neat_base_kcal"]))
     stride_m = (h or 170) * float(s["factor_zancada"]) / 100
     steps_in_acts = sum(a["steps_in_activity"] or 0 for a in acts)
     if day["steps"] is None or kg is None:
@@ -943,7 +948,8 @@ def energy(conn, d, intake_kcal=None, day=None, acts=None):
         "weight_used_kg": None if kg is None else round(kg, 2), "weight_source": ksrc, "weight_measured": measured,
         "missing_profile": missing,
         "bmr": None if bmr is None else round(bmr), "tef": round(tef), "neat": round(neat),
-        "neat_source": (neat_label(day["neat_kcal"]) or "elegido para el día") if day["neat_kcal"] is not None else "sin elegir: normal",
+        "neat_source": (neat_label(day["neat_kcal"]) or "elegido para el día") if day["neat_kcal"] is not None else ("por definir al cerrar el día" if neat_pending else "normal"),
+        "neat_pending": neat_pending,
         "neat_set": day["neat_kcal"] is not None,
         "steps": day["steps"], "steps_effective": eff_steps, "steps_in_activities": steps_in_acts,
         "steps_kcal": None if steps_kcal is None else round(steps_kcal),
