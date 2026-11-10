@@ -38,7 +38,7 @@ const dateLabel = (iso, opts = { weekday: "long", day: "numeric", month: "short"
 const norm = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const FIELDS = ["kcal", "protein_g", "carbs_g", "fat_g"];
 const MEALS = [["desayuno", "Desayuno"], ["almuerzo", "Almuerzo"], ["merienda", "Merienda"], ["cena", "Cena"], ["otro", "Otro"]];
-const QUAL = { etiqueta: "Etiqueta", historico: "Histórico", provisional: "Provisional", estimacion: "Estimación", pendiente: "Pendiente" };
+const QUAL = { etiqueta: "Etiqueta", historico: "Histórico", provisional: "Aproximado", estimacion: "Estimación", pendiente: "Sin datos oficiales" };
 const QORDER = ["etiqueta", "historico", "provisional", "estimacion", "pendiente"];
 const ACT_TYPES = [["fuerza", "Fuerza"], ["calistenia", "Calistenia"], ["hyrox", "HYROX"], ["carrera", "Carrera"], ["bici", "Bici"], ["natacion", "Natación"], ["caminata", "Caminata"], ["otro", "Otro"]];
 const STEP_TYPES = ["carrera", "hyrox", "caminata"];
@@ -1167,7 +1167,7 @@ function viewLibrary() {
   const c = S.catalog; if (!c) return h("div");
   const nRev = c.foods.filter((f) => !f.deleted && !f.hidden && !f.reviewed).length + c.templates.filter((t) => !t.deleted && !t.hidden && !t.reviewed).length;
   if (S.libFilter == null) S.libFilter = nRev ? "revisar" : "todo";
-  const filters = [...(nRev ? [["revisar", `Por revisar · ${nRev}`]] : []), ["todo", "Todo"], ["producto", "Productos"], ["receta", "Recetas"], ["habitual", "Comidas habituales"], ["pendiente", "Datos provisionales"], ["oculto", "Ocultos"]];
+  const filters = [...(nRev ? [["revisar", `Por revisar · ${nRev}`]] : []), ["todo", "Todo"], ["producto", "Productos"], ["receta", "Recetas"], ["habitual", "Comidas habituales"], ["pendiente", "Sin datos oficiales"], ["oculto", "Ocultos"]];
   const search = h("input", { class: "input", placeholder: "Buscar", value: S.libQuery, oninput: (e) => { S.libQuery = e.target.value; drawGrid(); } });
   const grid = h("div");
   const drawGrid = () => {
