@@ -1399,3 +1399,5 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .pc-i { width: 34px; height: 34px; border-radius: 10px; background: var(--surface-2); display: inline-flex; align-items: center; justify-content: center; filter: grayscale(1); opacity: .6; }
 .pc-i.ok { filter: none; opacity: 1; background: var(--accent-soft); }
 .btn.danger { color: #b4412d; }
+.neat-row { grid-template-columns: repeat(3, 1fr); }
+.neat-b b { line-height: 1.2; }

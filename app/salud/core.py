@@ -52,7 +52,8 @@ DEFAULT_SETTINGS = {
     "revisar_agente": ("0", "1 = lo que crea el agente (productos, recetas, comidas habituales) queda «por revisar» en la Biblioteca"),
 }
 # Movimiento del día sin contar los pasos (estar de pie, tareas de casa…): se elige al cerrar el día
-NEAT_LEVELS = (("casa", "Casi todo el día sentado", 50), ("normal", "Normal", 150), ("activo", "Activo: mucho de pie o tareas", 300), ("muy", "Muy activo: trabajo físico", 450))
+NEAT_LEVELS = (("cama", "En cama o enfermo", 0), ("casa", "Casi todo el día sentado", 50), ("ligero", "Algo de movimiento: recados, cocinar", 100),
+               ("normal", "Normal", 150), ("activo", "Activo: mucho de pie o tareas", 300), ("muy", "Muy activo: trabajo físico", 450))
 
 
 def neat_label(kcal):

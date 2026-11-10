@@ -157,8 +157,17 @@ function showTip(text, x, y) {
 }
 function hideTip() { if (TIP.el) TIP.el.style.display = "none"; }
 const tipTarget = (e) => (e.target && e.target.closest ? e.target.closest("[data-tip]") : null);
-document.addEventListener("pointermove", (e) => { const t = tipTarget(e); if (t) showTip(t.dataset.tip, e.clientX, e.clientY); else if (!(e.target.closest && e.target.closest(".mchart.line"))) hideTip(); });
-document.addEventListener("pointerdown", (e) => { const t = tipTarget(e); if (t && e.pointerType !== "mouse") showTip(t.dataset.tip, e.clientX, e.clientY); });
+// En el móvil (táctil) el tooltip sale al tocar, pero no en botones (al tocarlos se hace la acción) y se va solo a los 3 s
+let TIP_T = null;
+const isAction = (t) => t && t.closest && t.closest("button, a, input, select, label, .clickable, [onclick]");
+document.addEventListener("pointermove", (e) => { if (e.pointerType !== "mouse") return; const t = tipTarget(e); if (t) showTip(t.dataset.tip, e.clientX, e.clientY); else if (!(e.target.closest && e.target.closest(".mchart.line"))) hideTip(); });
+document.addEventListener("pointerdown", (e) => {
+  if (e.pointerType === "mouse") return;
+  const t = tipTarget(e);
+  if (!t || isAction(t)) { hideTip(); return; }
+  showTip(t.dataset.tip, e.clientX, e.clientY); clearTimeout(TIP_T); TIP_T = setTimeout(hideTip, 3000);
+});
+window.addEventListener("blur", hideTip); document.addEventListener("visibilitychange", hideTip);
 document.addEventListener("pointerleave", hideTip);
 window.addEventListener("scroll", hideTip, true);
 window.addEventListener("hashchange", hideTip);
