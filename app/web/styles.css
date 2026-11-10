@@ -1443,3 +1443,4 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .supp-ck.on { background: var(--accent); border-color: var(--accent); color: #fff; } .supp-ck svg { width: 15px; height: 15px; stroke-width: 3; }
 .supp-it:not(.on) .sub { color: var(--faint); }
 .exb-r1 { row-gap: 3px; }
+.prchip svg, .prc svg { margin-top: -1px; }
