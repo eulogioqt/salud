@@ -945,3 +945,17 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
   .q { font-size: 9.5px; padding: 0 5px; }
   .empty-meal { padding: 8px 12px; font-size: 13px; }
 }
+
+/* ---- Resumen del cierre: filas principales en negrita y desglose sangrado */
+.sumtbl.v2 td, .sumtbl.v2 th { border: 0; padding: 5px 8px; }
+.sumtbl.v2 th { font-size: 12px; color: var(--faint); font-weight: 600; border-bottom: 1px solid var(--line); }
+.sumtbl.v2 tr.main td { font-weight: 650; font-size: 15px; padding-top: 9px; }
+.sumtbl.v2 tr.main td:first-child { color: var(--text); }
+.sumtbl.v2 tr.sub td { font-size: 13px; color: var(--muted); padding-top: 2px; padding-bottom: 2px; }
+.sumtbl.v2 tr.sub td:first-child { padding-left: 22px; position: relative; }
+.sumtbl.v2 tr.sub td:first-child::before { content: ""; position: absolute; left: 10px; top: 0; bottom: 0; border-left: 2px solid var(--line); }
+.sumtbl.v2 tr.gap td { padding: 4px 0; border-bottom: 1px solid var(--line); }
+.agent-btn.on { cursor: default; background: color-mix(in srgb, var(--ac) 7%, var(--surface)); }
+.agent-btn.on:hover { transform: none; box-shadow: none; }
+/* Peso: el «kg» pegado al número, no al otro extremo */
+.stat .v input { width: 5.2ch; flex: 0 0 auto; }

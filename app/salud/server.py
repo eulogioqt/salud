@@ -142,7 +142,7 @@ class Handler(BaseHTTPRequestHandler):
         used = [t for t in ts if t["used"]]
         return {"tokens": ts, "connected": bool(used), "agents": used}
 
-    CLI_BLOCKED = {"usuario-crear", "usuario-password", "usuario-token", "usuarios", "foto", "init", "importar-hevy"}
+    CLI_BLOCKED = {"niveles-descargar", "usuario-crear", "usuario-password", "usuario-token", "usuarios", "foto", "init", "importar-hevy"}
 
     def _cli(self, body, lock, user):
         """Ejecuta un comando de la CLI sobre la BD del usuario de la sesión/token (así Claude opera por HTTPS)."""
@@ -199,7 +199,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, self._agent_info(user))
             if method == "POST" and u.path == "/api/token":
                 kind = str(body.get("kind") or "")[:30] or None
-                return self._send(200, {"token": auth.new_api_token(MULTI, user, kind), "usuario": user})
+                try:
+                    return self._send(200, {"token": auth.new_api_token(MULTI, user, kind), "usuario": user})
+                except auth.AuthError as e:
+                    return self._send(409, {"error": str(e)})
             if method == "DELETE":
                 tid = u.path[len("/api/token/"):] if u.path.startswith("/api/token/") else None
                 auth.revoke_api_token(MULTI, user, tid)
@@ -226,7 +229,11 @@ class Handler(BaseHTTPRequestHandler):
                         T.set_exercise_settings(conn, {"name": name, "sl_slug": d["slug"]}, "auto")
                 return self._send(200, {"slug": d["slug"] if d else None, "nuevo": bool(d)})
             try:
-                return self._send(200, SL.cached(datadir) if slug == "" else SL.get(datadir, slug))
+                if slug == "":
+                    return self._send(200, SL.index(datadir))
+                if slug == "varias":
+                    return self._send(200, SL.bulk(datadir, [x for x in q.get("slugs", "").split(",") if x]))
+                return self._send(200, SL.get(datadir, slug))
             except SL.SLError as e:
                 return self._send(404, {"error": str(e)})
         if u.path == "/api/cli" and method == "POST":

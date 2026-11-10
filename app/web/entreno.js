@@ -235,15 +235,17 @@ function metricTxt(kind, v) {
 }
 
 // ------------------------------------------------------------- niveles de fuerza
-// Fuente: Strength Level (strengthlevel.com), tablas «By Bodyweight» de hombre y mujer (niveles.js), consultadas el 2026-11-10.
+// Fuente: Strength Level (strengthlevel.com), tablas «By Bodyweight» de hombre y mujer, que sirve nuestro servidor desde su caché (/api/strength).
 // Cada nivel = percentil entre los usuarios de ese sexo y peso: principiante 5 %, novato 20 %, intermedio 50 %, avanzado 80 %, élite 95 %.
 // Valores = 1RM en kg (mancuernas: por mancuerna), reps máximas o lastre 1RM. Entre filas de la tabla se interpola por peso corporal;
 // cada sesión se compara con el peso corporal de ese día (pesajes interpolados).
 // «Leyenda» = top 1 % (percentil 99), extrapolado de la curva de Strength Level (no lo publican).
+// Tablas de Strength Level: las sirve nuestro servidor desde su caché (descargadas de strengthlevel.com, que es la fuente).
+const SL_TABLES = {}, SL_NAMES = {};
 const LVL = ["Principiante", "Novato", "Intermedio", "Avanzado", "Élite", "Leyenda"];
 const PCT = [5, 20, 50, 80, 95];
 const STD = [
-  // [regex, métrica, tabla de niveles.js (SL_TABLES), tipos, máquina/polea]
+  // [regex, métrica, tabla de Strength Level (su página, + .reps / .add en peso corporal), tipos, máquina/polea]
   [/press de banca inclinado \(barra\)/, "1rm", "incline-bench-press", ["peso"]],
   [/press de banca inclinado \(mancuerna\)/, "db", "incline-dumbbell-bench-press", ["peso"]],
   [/press de banca \(mancuerna\)/, "db", "dumbbell-bench-press", ["peso"]],
@@ -816,13 +818,20 @@ function tNivel(st) {
 
 // Información general de los niveles: cómo se calculan y las tablas de cada ejercicio (por peso corporal y sexo).
 function levelsInfoSheet(st) {
-  const slugs = Object.keys(SL_TABLES).sort((a, b) => SL_NAMES[a].localeCompare(SL_NAMES[b], "es"));
-  let cur = S.lvInfo && SL_TABLES[S.lvInfo] ? S.lvInfo : "bench-press";
+  let cur = S.lvInfo || "bench-press";
+  let opts = Object.keys(SL_TABLES).map((k) => [k, SL_NAMES[k]]);
   const mine = (st && st.list) || [];
   const without = mine.filter((e) => !e.level && ["peso", "lastre", "corporal"].includes(e.kind)).map((e) => e.name);
   const unitOf = (k) => (k.endsWith(".reps") ? "reps" : k.endsWith(".add") ? "kg de lastre" : "kg (1RM)");
   const body = h("div");
-  const draw = () => {
+  api("GET", "/api/strength/").then((idx) => { // todos los ejercicios con tabla en el servidor
+    const all = idx.flatMap((x) => x.types.includes("w") ? [[x.slug, x.name]] : [[x.slug + ".reps", x.name + " (reps)"], ...(x.types.includes("add") ? [[x.slug + ".add", x.name + " (lastre)"]] : [])]);
+    if (all.length) { opts = all; draw(); }
+  }).catch(() => {});
+  const draw = async () => {
+    if (!SL_TABLES[cur]) { try { addSL(await api("GET", "/api/strength/" + cur.replace(/\.(reps|add)$/, ""))); } catch (e) { /* sin tabla */ } }
+    if (!SL_TABLES[cur]) cur = "bench-press";
+    if (!SL_TABLES[cur]) { body.replaceChildren(h("div", { class: "muted" }, "Cargando tablas…")); return; }
     S.lvInfo = cur;
     const metric = cur.endsWith(".reps") ? "reps" : cur.endsWith(".add") ? "add" : "1rm";
     // Filas con Leyenda (top 1 %): no la publica Strength Level, se extrapola igual que en el cálculo del nivel.
@@ -855,9 +864,9 @@ function levelsInfoSheet(st) {
         h("li", null, h("b", null, "Sexo: "), "hay tablas separadas para hombres y mujeres; se usa el sexo de tu perfil."),
         h("li", null, h("b", null, "Altura y edad: "), "no se usan. Strength Level no tiene tablas por altura; por edad sí publica, pero no las aplicamos."),
         h("li", null, h("b", null, "Cálculo: "), "1RM estimado con la tabla de Hevy; mancuernas = una mancuerna; poleas que pesan la mitad × 0,5; a las máquinas se les resta su peso; lastre = peso corporal + lastre. En máquinas es orientativo (cada máquina es distinta)."),
-        h("li", null, h("b", null, "Ejercicios sin tabla: "), `${Object.keys(SL_TABLES).length} tablas cargadas. A cualquier ejercicio se le puede elegir su tabla de Strength Level en su ficha («Material, peso real y nivel»): se descarga de strengthlevel.com la primera vez y queda guardada. Sin tabla no hay nivel, pero sí récords, 1RM y progreso.` + (without.length ? ` Tuyos sin nivel: ${without.join(", ")}.` : ""))),
+        h("li", null, h("b", null, "Ejercicios sin tabla: "), `${opts.length} tablas de Strength Level en el servidor (citadas a ellos: son sus datos). A cualquier ejercicio se le puede elegir su tabla de Strength Level en su ficha («Material, peso real y nivel»): se descarga de strengthlevel.com la primera vez y queda guardada. Sin tabla no hay nivel, pero sí récords, 1RM y progreso.` + (without.length ? ` Tuyos sin nivel: ${without.join(", ")}.` : ""))),
       h("div", { class: "sec-t" }, "Tabla por ejercicio"),
-      h("select", { class: "input", onchange: (ev) => { cur = ev.target.value; draw(); } }, slugs.map((k) => h("option", { value: k, selected: k === cur }, SL_NAMES[k]))),
+      h("select", { class: "input", onchange: (ev) => { cur = ev.target.value; draw(); } }, [...opts].sort((a, b) => a[1].localeCompare(b[1])).map(([k, n]) => h("option", { value: k, selected: k === cur }, n))),
       h("div", { class: "lv-legend" }, LVL.map((l, i) => h("span", { class: "lg t" + i }, l + (i === 5 ? " (extrapolada)" : ""))), h("span", { class: "lg solid" }, "— hombres"), h("span", { class: "lg dash" }, "- - mujeres"), e && e.level ? h("span", { class: "lg me" }, "● tú") : null),
       h("div", { class: "chart-scroll" }, svg),
       h("div", { class: "faint", style: { fontSize: "12.5px", margin: "4px 0 10px" } }, `Eje vertical: ${unit}. Eje horizontal: peso corporal.`),
@@ -906,9 +915,14 @@ async function autoGuessSL() {
   } finally { S._slGuessing = false; }
 }
 async function loadSLTables() {
-  const slugs = [...new Set(Object.values(S.exSet || {}).map((x) => x.sl_slug).filter(Boolean))]
-    .filter((sl) => !SL_TABLES[sl] && !SL_TABLES[sl + ".reps"] && !SL_FAIL[sl]);
-  await Promise.all(slugs.map(async (sl) => { try { addSL(await api("GET", "/api/strength/" + sl)); } catch (e) { SL_FAIL[sl] = e.message; } }));
+  const want = new Set(STD.map(([, , k]) => k.replace(/\.(reps|add)$/, "")));
+  for (const x of Object.values(S.exSet || {})) if (x.sl_slug) want.add(x.sl_slug);
+  const slugs = [...want].filter((sl) => !SL_TABLES[sl] && !SL_TABLES[sl + ".reps"] && !SL_FAIL[sl]);
+  if (!slugs.length) return;
+  const got = await api("GET", "/api/strength/varias?slugs=" + slugs.join(",")).catch(() => ({}));
+  for (const sl of slugs) if (got[sl]) addSL(got[sl]);
+  // las que aún no estén en la caché del servidor se piden de una en una, sin bloquear la página
+  for (const sl of slugs.filter((x) => !got[x])) api("GET", "/api/strength/" + sl).then((d) => { addSL(d); S.tStats = null; if (S.view === "entreno" && !S.sheetOpen) render(); }).catch(() => { SL_FAIL[sl] = "sin tabla"; });
 }
 function addSL(d) {
   const fix = (rows, reps) => (rows || []).map((r) => { r = r.slice(); for (let i = 2; i <= 5; i++) if (r[i] <= r[i - 1]) r[i] = r[i - 1] + (reps ? 0.5 : 1); return r; });

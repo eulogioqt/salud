@@ -16,8 +16,9 @@ Seguimiento de nutrición, peso y entrenamiento (estilo Hevy) para uso personal,
 
 Los niveles (principiante → élite) usan los estándares públicos de **[Strength Level](https://strengthlevel.com)**, creados con los levantamientos que envía su comunidad. Todo el mérito de esos datos es suyo.
 
-- `app/web/niveles.js` trae las tablas de los ejercicios más comunes.
-- Para cualquier otro ejercicio, en su ficha («Material, peso real y nivel») se elige su página de Strength Level; el servidor la consulta **una vez** cuando hace falta y la guarda en caché (90 días). No se publica ninguna copia masiva de su web.
+- El servidor descarga sus tablas (todas las de su web, ~290 ejercicios, por peso corporal y edad, hombres y mujeres) despacio y una sola vez, las guarda en su caché (se refrescan cada 90 días) y la web las pide a nuestra API. No están en este repositorio: son datos de Strength Level.
+- Cada ejercicio de Hevy se enlaza solo con su página por el nombre; si no acierta, se elige a mano en la ficha del ejercicio («Material, peso real y nivel»).
+- Descarga inicial en el servidor: `salud niveles-descargar` (una página cada 3 s).
 
 ## Añadir una persona (administrador)
 

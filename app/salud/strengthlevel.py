@@ -208,3 +208,64 @@ def guess(datadir, name, fetch=None):
             with open(miss_path, "w", encoding="utf-8") as f:
                 json.dump(miss, f)
     return None
+
+
+# ---- Todas las tablas: lista de ejercicios de su sitemap y descarga lenta (una página cada pocos segundos)
+def all_slugs(datadir, fetch=None):
+    path = os.path.join(cache_dir(datadir), "_lista.json")
+    if os.path.exists(path) and time.time() - os.path.getmtime(path) < 30 * 86400:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    xml = (fetch or _fetch)("https://strengthlevel.com/sitemap.xml")
+    slugs = sorted({m for m in re.findall(r"<loc>https://strengthlevel\.com/strength-standards/([a-z0-9-]+)/kg</loc>", xml)
+                    if m not in ("male", "female") and "-vs-" not in m})
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(slugs, f)
+    return slugs
+
+
+def download_all(datadir, delay=3.0, log=print):
+    """Descarga las tablas que falten (las ya guardadas no se vuelven a pedir). Pensado para lanzarlo una vez en el servidor."""
+    slugs = all_slugs(datadir)
+    ok = bad = 0
+    for i, sl in enumerate(slugs, 1):
+        fresh = os.path.exists(os.path.join(cache_dir(datadir), sl + ".json"))
+        try:
+            get(datadir, sl)
+            ok += 1
+        except SLError as e:
+            bad += 1
+            log("  %s: %s" % (sl, e))
+        if not fresh:
+            time.sleep(delay)
+        if i % 25 == 0:
+            log("%d/%d" % (i, len(slugs)))
+    log("Hecho: %d con tablas, %d sin tablas" % (ok, bad))
+
+
+def bulk(datadir, slugs):
+    """Varias tablas a la vez (solo las ya guardadas; las que falten se piden de una en una)."""
+    out = {}
+    for sl in slugs[:400]:
+        if not SLUG_RX.match(sl) or not os.path.exists(os.path.join(cache_dir(datadir), sl + ".json")):
+            continue  # solo de la caché: así no se queda colgada la página esperando a Strength Level
+        try:
+            out[sl] = get(datadir, sl)
+        except SLError:
+            pass
+    return out
+
+
+def index(datadir):
+    """Todos los ejercicios guardados con sus tipos de tabla: [{slug, name, types}]."""
+    d = cache_dir(datadir)
+    out = []
+    for f in sorted(os.listdir(d)):
+        if f.endswith(".json") and not f.startswith("_"):
+            try:
+                with open(os.path.join(d, f), encoding="utf-8") as fh:
+                    j = json.load(fh)
+                out.append({"slug": j["slug"], "name": j.get("name"), "types": sorted(k for k in j.get("H", {}) if not k.endswith("_age"))})
+            except (OSError, ValueError, KeyError):
+                pass
+    return out

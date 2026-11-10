@@ -736,20 +736,28 @@ function activitySheet(st) {
 // ----------------------------------------------------------------- cierre
 function summaryView(s, extra) {
   const t = s.intake, tg = s.target || {}, en = s.energy, d = s.diffs || {};
-  const r = (a, b, c) => h("tr", null, h("td", null, a), h("td", { class: "r num" }, b), h("td", { class: "r num faint" }, c || ""));
+  // fila principal (negrita) y filas de desglose (sangradas, más pequeñas)
+  const main = (a, b, c) => h("tr", { class: "main" }, h("td", null, a), h("td", { class: "r num" }, b), h("td", { class: "r num faint" }, c || ""));
+  const sub = (a, b, c) => h("tr", { class: "sub" }, h("td", null, a), h("td", { class: "r num" }, b), h("td", { class: "r num faint" }, c || ""));
+  const gap = () => h("tr", { class: "gap" }, h("td", { colspan: 3 }));
+  const bal = s.balance;
   return h("div", null,
-    h("table", { class: "t sumtbl" },
-      h("tr", null, h("th", null, ""), h("th", { class: "r" }, "Día"), h("th", { class: "r" }, "Objetivo / dif.")),
-      r("Calorías", v(t, "kcal") + " kcal", tg.kcal ? `${fmt(tg.kcal)} · ${signed(d.kcal)}` : ""),
-      r("Proteína", v(t, "protein_g") + " g", tg.protein_g != null ? `${fmt(tg.protein_g)} · ${signed(d.protein_g)}` : ""),
-      r("Carbohidratos", v(t, "carbs_g") + " g", tg.carbs_g != null ? `${fmt(tg.carbs_g)} · ${signed(d.carbs_g)}` : ""),
-      r("Grasas", v(t, "fat_g") + " g", tg.fat_min_g != null ? `${fmt(tg.fat_min_g)}–${fmt(tg.fat_max_g)}${d.fat_g ? " · " + signed(d.fat_g) : " · en rango"}` : ""),
-      r("Gasto estimado", fmt(en.total) + " kcal" + (en.complete ? "" : " *"), en.complete ? "" : "faltan pasos"),
-      h("tr", null, h("td", { colspan: 3, class: "faint", style: { fontSize: "12.5px", paddingTop: 0 } }, `BMR ${fmt(en.bmr)} + TEF ${fmt(en.tef)} + NEAT ${fmt(en.neat)} + pasos ${en.steps_kcal == null ? "?" : fmt(en.steps_kcal)} + ejercicio neto ${fmt(en.exercise_kcal)}`)),
-      r("Balance estimado", signed(s.balance) + " kcal", ""),
-      r("Peso", s.weight_kg != null ? fmt(s.weight_kg, 1) + " kg" : "—", s.avg7 != null ? "media 7d " + fmt(s.avg7, 2) : ""),
-      r("Pasos", s.steps != null ? fmt(s.steps) : "—", ""),
-      r("Actividad", s.activities.length ? s.activities.map((a) => `${a.type}${a.minutes ? " " + fmt(a.minutes) + "′" : ""}`).join(", ") : (s.rest_day === 1 ? "descanso" : "—"), "")),
+    h("table", { class: "t sumtbl v2" },
+      h("tr", null, h("th", null, ""), h("th", { class: "r" }, "Día"), h("th", { class: "r" }, "Objetivo · dif.")),
+      main("Calorías", v(t, "kcal") + " kcal", tg.kcal ? `${fmt(tg.kcal)} · ${signed(d.kcal)}` : ""),
+      sub("Proteína", v(t, "protein_g") + " g", tg.protein_g != null ? `${fmt(tg.protein_g)} · ${signed(d.protein_g)}` : ""),
+      sub("Carbohidratos", v(t, "carbs_g") + " g", tg.carbs_g != null ? `${fmt(tg.carbs_g)} · ${signed(d.carbs_g)}` : ""),
+      sub("Grasas", v(t, "fat_g") + " g", tg.fat_min_g != null ? `${fmt(tg.fat_min_g)}–${fmt(tg.fat_max_g)}${d.fat_g ? " · " + signed(d.fat_g) : " · en rango"}` : ""),
+      gap(),
+      main("Gasto estimado", fmt(en.total) + " kcal" + (en.complete ? "" : " *"), en.complete ? "" : "incompleto"),
+      sub("Metabolismo basal", fmt(en.bmr), ""), sub("Efecto térmico (TEF)", fmt(en.tef), ""), sub("NEAT sin pasos", fmt(en.neat), ""),
+      sub("Pasos", en.steps_kcal == null ? "?" : fmt(en.steps_kcal), ""), sub("Ejercicio neto", fmt(en.exercise_kcal), ""),
+      gap(),
+      h("tr", { class: "main bal " + (bal == null ? "" : bal < 0 ? "neg" : "pos") }, h("td", null, "Balance estimado"), h("td", { class: "r num" }, signed(bal) + " kcal"), h("td", { class: "r faint" }, bal == null ? "" : bal < 0 ? "déficit" : "superávit")),
+      gap(),
+      main("Peso", s.weight_kg != null ? fmt(s.weight_kg, 1) + " kg" : "—", s.avg7 != null ? "media 7 d " + fmt(s.avg7, 1) : ""),
+      sub("Pasos", s.steps != null ? fmt(s.steps) : "—", ""),
+      sub("Actividad", s.activities.length ? s.activities.map((a) => `${a.type}${a.minutes ? " " + fmt(a.minutes) + " min" : ""}`).join(", ") : (s.rest_day === 1 ? "descanso" : "—"), "")),
     (t.missing || []).length ? h("div", { class: "note warn" }, "* Totales mínimos: hay valores desconocidos.") : null,
     s.observations && s.observations.length ? h("ul", { class: "obs" }, s.observations.map((o) => h("li", null, o))) : null,
     extra || null);
@@ -1249,9 +1257,10 @@ function agentLogo(ag, size = 36) {
   return h("span", { class: "ag-logo", style: { width: size + "px", height: size + "px" } },
     ag.logo ? h("img", { src: "/logos/" + ag.logo, alt: "", width: size, height: size, class: ag.logo.endsWith(".png") ? "full" : "" }) : h("span", { class: "ag-dots" }, "…"));
 }
-function agentBtn(ag, onclick) {
-  return h("button", { class: "agent-btn", style: { "--ac": ag.c }, onclick }, agentLogo(ag),
-    h("span", { class: "ag-t" }, h("b", null, ag.n), h("span", null, ag.sub)), h("span", { class: "ag-go" }, icon("right")));
+const agentsUsed = () => (S.me && S.me.agente && S.me.agente.agents) || [];
+function agentBtn(ag, onclick, connected) {
+  return h("button", { class: "agent-btn" + (connected ? " on" : ""), style: { "--ac": ag.c }, onclick, disabled: !!connected }, agentLogo(ag),
+    h("span", { class: "ag-t" }, h("b", null, ag.n), h("span", null, ag.sub)), connected ? h("span", { class: "ok-dot" }, "✓") : h("span", { class: "ag-go" }, icon("right")));
 }
 async function refreshAgents() {
   const r = await api("GET", "/api/token").catch(() => null);
@@ -1272,14 +1281,13 @@ function connectAgent() {
   const sh = sheet("Conectar un agente", null, null, { onClose: () => clearInterval(timer) });
   const step1 = () => sh.set("Conectar un agente", [
     h("p", { class: "muted", style: { marginTop: 0 } }, "Tu agente (Claude u otro) podrá apuntar y consultar tus comidas, peso y entrenos. Solo tendrá acceso a tu cuenta. Puedes conectar varios y desconectar cada uno cuando quieras."),
-    h("div", { class: "agent-grid" }, AGENTS.map((ag) => agentBtn(ag, () => step2(ag)))),
+    h("div", { class: "agent-grid" }, AGENTS.map((ag) => { const on = ag.k !== "otro" && agentsUsed().some((t) => t.kind === ag.k || t.agent === ag.k);
+      return on ? agentBtn({ ...ag, sub: "Conectado · desconéctalo abajo para conectar otro" }, null, true) : agentBtn(ag, () => step2(ag)); })),
     agentConnected() ? h("div", null, h("div", { class: "sec-t" }, "Conectados"), agentList(step1)) : null]);
   const step2 = async (ag) => {
     let tok;
     await refreshAgents();
     const before = new Set(((S.me && S.me.agente && S.me.agente.tokens) || []).map((t) => t.id));
-    const prev = ((S.me && S.me.agente && S.me.agente.tokens) || []).find((t) => t.kind === ag.k || t.agent === ag.k);
-    if (prev && ag.k !== "otro" && !confirm(`Ya tienes ${ag.n} conectado. Si sigues, el nuevo lo sustituye y el anterior deja de funcionar. ¿Seguir?`)) return;
     try { tok = (await api("POST", "/api/token", { kind: ag.k })).token; } catch (e) { toast(e.message, { error: true }); return; }
     const msg = agentPrompt(ag, tok);
     const copied = h("span", { class: "faint" });
