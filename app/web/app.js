@@ -1304,7 +1304,8 @@ const MCP_URL = () => location.origin + "/mcp";
 const AGENTS = [
   { k: "claude", n: "Claude", sub: "Web, escritorio, móvil y Cowork", logo: "claude.png", c: "#d97757",
     steps: () => [["Añádelo en Claude", "«+ Añadir» → «Añadir conector personalizado» → nombre «Salud» y pega la dirección. Lo demás, como viene (Iniciar sesión ahora · Usar la identidad publicada de Claude · sin encabezados) → Añadir.", { href: "https://claude.ai/customize/connectors", t: "Abrir conectores de Claude" }],
-      ["Pulsa «Conectar» y luego «Permitir»", ""]] },
+      ["Pulsa «Conectar» y luego «Permitir»", ""],
+      ["Quita los avisos", "En ese mismo conector, cambia «Requiere aprobación» por «Permitir siempre» (en los dos grupos de herramientas). Si no, te pedirá permiso cada vez que apunte algo."]] },
   { k: "claude-code", n: "Claude Code", sub: "Terminal", logo: "claude-code.png", c: "#d97757",
     steps: (u) => [["Ejecuta en una terminal", "", `claude mcp add --transport http --scope user salud ${u}`],
       ["En Claude Code: /mcp → salud → Authenticate", "y pulsa «Permitir»."]] },

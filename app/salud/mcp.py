@@ -15,7 +15,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 INSTRUCTIONS = """Salud: seguimiento personal de comidas, peso, pasos y entrenos (web https://salud.eulogioqt.com). Estás conectado a la cuenta de UNA persona.
 
-AL EMPEZAR cualquier tarea de salud: llama a `leer_contexto` (objetivos, perfil, cómo quiere usarlo y estilo de respuesta) y síguelo. Si está vacío, es la primera vez: pregunta lo justo (objetivo, kcal y proteína si las tiene, cómo quiere usarlo) y guárdalo con `guardar_contexto`; revisa el perfil (sexo, nacimiento, altura, peso aproximado) con `api` GET /api/settings y corrígelo con PUT /api/settings.
+AL EMPEZAR cualquier tarea de salud: llama a `leer_contexto` (objetivos, perfil, cómo quiere usarlo y estilo de respuesta) y síguelo. Si está vacío, es la primera vez: pregunta lo justo (objetivo, cómo quiere usarlo) y guárdalo con `guardar_contexto`; revisa el perfil (sexo, nacimiento, altura, peso aproximado) con `ver_perfil` y corrígelo con `cambiar_perfil`; fija su objetivo con `objetivo` (enséñale antes la vista previa).
 
 Reglas:
 - Nunca simules un registro: usa la herramienta y su salida es la confirmación. «Cuánto llevo» → `ver_dia`.
@@ -87,6 +87,23 @@ def _imagen(a):
     return ["api", "POST", ruta, json.dumps({"data_url": data})]
 
 
+def _objetivo(a):
+    modo = a.get("modo") or "gasto"
+    body = {"mode": modo}
+    if modo == "gasto":
+        for k, f in (("diferencia_kcal", "kcal_offset"), ("proteina_g_por_kg", "protein_per_kg"), ("grasa_min_pct", "fat_min_pct"), ("grasa_max_pct", "fat_max_pct")):
+            if a.get(k) is not None:
+                body[f] = a[k]
+    else:
+        for k, f in (("kcal", "kcal"), ("proteina_g", "protein_g"), ("grasa_min_g", "fat_min_g"), ("grasa_max_g", "fat_max_g")):
+            if a.get(k) is not None:
+                body[f] = a[k]
+    if a.get("guardar"):
+        body.update({"valid_from": a.get("desde"), "provisional": True, "note": a.get("nota") or "Fijado desde el chat"})
+        return ["api", "POST", "/api/targets", json.dumps(body, ensure_ascii=False)]
+    return ["api", "POST", "/api/targets/preview", json.dumps(body, ensure_ascii=False)]
+
+
 TOOLS = [
     ("leer_contexto", "Notas personales de la persona: objetivos, perfil, cómo quiere usarlo y estilo de respuesta. Llámala al empezar.",
      _o({}), lambda a: ["contexto"], True),
@@ -150,6 +167,16 @@ TOOLS = [
     ("tendencias", "Medias y tendencias: semanas (medias semanales y calibración) o historial de N días.",
      _o({"tipo": {"type": "string", "enum": ["semanas", "historial"]}, "n": I}, ["tipo"]),
      lambda a: ["semanas", "--n", str(a.get("n") or 8)] if a["tipo"] == "semanas" else ["historial", "--dias", str(a.get("n") or 14)], True),
+    ("ver_perfil", "Perfil (sexo, fecha de nacimiento, altura, peso estimado, ajustes del gasto) y objetivo actual con su historial.",
+     _o({}), lambda a: ["api", "GET", "/api/settings"], True),
+    ("cambiar_perfil", "Corrige el perfil para el gasto estimado. Campos: sexo (H/M), fecha_nacimiento (AAAA-MM-DD), altura_cm, peso_estimado_kg (se usa hasta que haya pesajes).",
+     _o({"sexo": {"type": "string", "enum": ["H", "M"]}, "fecha_nacimiento": U, "altura_cm": N, "peso_estimado_kg": N}),
+     lambda a: ["api", "PUT", "/api/settings", json.dumps({k: str(v) for k, v in a.items() if v is not None}, ensure_ascii=False)], False),
+    ("objetivo", "Objetivo diario de kcal y macros. modo=gasto (recomendado): cada día kcal = gasto estimado + diferencia_kcal (−300 déficit suave, −500 perder, 0 mantener, +250 ganar), "
+     "proteína en g por kg (1,6–2,2) y grasa en % de las kcal (20–35). modo=fijo: kcal, proteina_g, grasa_min_g y grasa_max_g (tienen que cuadrar). "
+     "Sin guardar=true solo devuelve la vista previa de cómo quedaría hoy: enséñasela y guarda cuando la persona esté de acuerdo.",
+     _o({"modo": {"type": "string", "enum": ["gasto", "fijo"]}, "diferencia_kcal": N, "proteina_g_por_kg": N, "grasa_min_pct": N, "grasa_max_pct": N,
+         "kcal": N, "proteina_g": N, "grasa_min_g": N, "grasa_max_g": N, "desde": FECHA, "nota": U, "guardar": {"type": "boolean"}}, ["modo"]), _objetivo, False),
     ("consulta_sql", "Consulta SQL de solo lectura sobre su base de datos (tablas: foods, portions, entries, days, targets, templates, template_items, "
      "activities, workouts, workout_exercises, workout_sets, weights, body_measurements, exercise_settings, notes…).",
      _o({"sql": U}, ["sql"]), lambda a: ["sql", a["sql"]], True),
