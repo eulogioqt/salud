@@ -1363,6 +1363,10 @@ def ingest_health(conn, payload, source="health"):
             if cnt < 0 or cnt > 200000:
                 continue
             key = start.strftime("%Y-%m-%dT%H:%M:%S")
+            if (end - start).total_seconds() <= 3 * 3600:
+                # llegan tramos cortos (15–60 min): fuera los totales del día que hubiera (resolución «diaria») para no sumar dos veces
+                conn.execute("DELETE FROM step_buckets WHERE substr(start,1,10)=? AND start<>? AND "
+                             "(julianday(end)-julianday(start))*24 > 3", (key[:10], key))
             conn.execute("INSERT INTO step_buckets(start, end, steps, received_at) VALUES(?,?,?,?) "
                          "ON CONFLICT(start) DO UPDATE SET end=excluded.end, steps=excluded.steps, received_at=excluded.received_at",
                          (key, end.strftime("%Y-%m-%dT%H:%M:%S"), cnt, ts()))
@@ -1405,7 +1409,13 @@ def steps_hours(conn, d):
     rows_ = conn.execute("SELECT start, end, steps FROM step_buckets WHERE substr(start,1,10)=?", (d,)).fetchall()
     if not rows_:
         return None
-    hrs = [0] * 24
+    hrs = [0.0] * 24
     for r in rows_:
-        hrs[int(r["start"][11:13])] += r["steps"]
-    return hrs
+        h0, h1 = int(r["start"][11:13]), int((r["end"] or r["start"])[11:13])
+        if h1 <= h0:
+            hrs[h0] += r["steps"]
+            continue
+        # un tramo largo (p. ej. el total del día) se reparte por igual entre sus horas
+        for h in range(h0, h1 + 1):
+            hrs[h] += r["steps"] / (h1 - h0 + 1)
+    return [round(x) for x in hrs]

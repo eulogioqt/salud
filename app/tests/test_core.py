@@ -318,6 +318,12 @@ class TestTraining(Base):
         core.ingest_health(self.conn, {"steps": 9000, "date": D1})  # el total sustituye a los tramos
         self.assertEqual(core.get_day_row(self.conn, D1)["steps"], 9000)
 
+    def test_steps_daily_then_buckets(self):
+        core.ingest_health(self.conn, {"steps": [{"count": 500, "start_time": D1 + "T00:00:00+01:00", "end_time": D1 + "T19:48:00+01:00"}]})
+        self.assertEqual(core.get_day_row(self.conn, D1)["steps"], 500)
+        core.ingest_health(self.conn, {"steps": [{"count": 300, "start_time": D1 + "T19:00:00+01:00", "end_time": D1 + "T19:15:00+01:00"}]})
+        self.assertEqual(core.get_day_row(self.conn, D1)["steps"], 300)  # el total del día se sustituye por los tramos
+
     def test_note_variant(self):
         from salud import training as T
         self.assertEqual(T.note_variant("Dominada", "A un brazo sin goma"), "Dominada a una mano")
