@@ -35,7 +35,7 @@ Reglas:
 - Fechas en hora de Madrid; si es de otro día, pasa `fecha`.
 - «Cierra el día»: `revisar_dia`, di solo lo que falta de verdad (los pasos deben estar siempre, aunque sean 0; si no ha dicho cómo fue el día, pregúntalo en la misma frase y guárdalo con `como_fue_el_dia`), pregunta si cierra igualmente y, tras `cerrar_dia`, da un resumen compacto. Los días cerrados no se tocan salvo que pida `reabrir_dia`.
 - Historial de Hevy: que exporte el CSV (Hevy → Perfil → Ajustes → Exportar e importar datos → Exportar entrenos) y lo suba en la web (menú → Primeros pasos, o Entreno → Importar) o te lo adjunte para `importar_hevy`.
-- Entrenos desde capturas de Hevy: transcribe fielmente (no inventes series; si algo no se lee, pregunta) y usa `registrar_entreno`. El entreno ya cuenta en el gasto: no añadas además `registrar_actividad`.
+- Entrenos desde capturas de Hevy: transcribe fielmente (no inventes series; si algo no se lee, pregunta) y usa `registrar_entreno`. El entreno ya cuenta en el gasto: no añadas además `registrar_actividad`. Las kcal de entrenos, pasos y actividades las calcula siempre el servidor con la misma fórmula: no las estimes tú ni copies las de Hevy, el reloj o ChatGPT.
 - Báscula: `registrar_bascula`; la composición corporal es una estimación con mucho error, solo tendencias de semanas.
 - Objetivos: pueden ser fijos o «según el gasto» (kcal = gasto estimado del día ± diferencia, proteína por kg, grasa en %). Calibra con la media de 7 días y tendencias de 2–4 semanas, nunca con un día suelto.
 - Ilustraciones: si creas una comida habitual (o un plato) y no te mandan foto, dibuja una ilustración SVG con el estilo de la casa (`guia_ilustraciones`) y súbela con `poner_imagen`.
@@ -152,12 +152,12 @@ TOOLS = [
     ("registrar_peso", "Peso en ayunas (kg).", _o({"kg": N, "fecha": FECHA, "hora": HORA}, ["kg"]), lambda a: _fh(a, ["peso", str(a["kg"])]), False),
     ("registrar_pasos", "Pasos totales del día (0 si no anduvo).", _o({"pasos": I, "fecha": FECHA}, ["pasos"]),
      lambda a: ["pasos", str(a["pasos"])] + (["--fecha", a["fecha"]] if a.get("fecha") else []), False),
-    ("como_fue_el_dia", "Movimiento del día sin contar los pasos (gasto «día a día»): casa (casi todo sentado, 50 kcal), normal (150), activo (mucho de pie o tareas, 300) o muy (trabajo físico, 450). Pregúntalo al cerrar el día si no está.",
+    ("como_fue_el_dia", "Movimiento del día sin contar los pasos (gasto «día a día»): casa (casi todo sentado), normal, activo (mucho de pie o tareas) o muy (trabajo físico); son 50/150/300/450 kcal para 75 kg y se ajustan solos al peso de la persona. Pregúntalo al cerrar el día si no está.",
      _o({"nivel": {"type": "string", "enum": ["casa", "normal", "activo", "muy"]}, "fecha": FECHA}, ["nivel"]),
      lambda a: ["api", "PUT", "/api/days/%s" % (a.get("fecha") or _hoy()), json.dumps({"neat_kcal": {"casa": 50, "normal": 150, "activo": 300, "muy": 450}[a["nivel"]]})], False),
     ("dia_descanso", "Marca (o quita con quitar=true) el día como descanso de entreno.", _o({"fecha": FECHA, "quitar": {"type": "boolean"}}),
      lambda a: ["descanso"] + (["--fecha", a["fecha"]] if a.get("fecha") else []) + (["--no"] if a.get("quitar") else []), False),
-    ("registrar_actividad", "Actividad sin Hevy para el gasto (si conoces las kcal netas, pásalas).",
+    ("registrar_actividad", "Actividad sin Hevy para el gasto. No pases kcal: el servidor las estima igual para todos (MET neto según tipo, minutos, intensidad y peso). Solo si las mide un pulsómetro y la persona lo pide.",
      _o({"tipo": {"type": "string", "enum": ["fuerza", "calistenia", "hyrox", "carrera", "bici", "caminata", "natacion", "otro"]},
          "minutos": N, "intensidad": {"type": "string", "enum": ["suave", "normal", "dura", "muy dura"]}, "kcal_netas": N,
          "pasos_de_la_sesion": I, "descripcion": U, "fecha": FECHA}, ["tipo", "minutos"]),

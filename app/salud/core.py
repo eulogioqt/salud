@@ -932,6 +932,10 @@ def energy(conn, d, intake_kcal=None, day=None, acts=None):
     # Días cerrados de antes de esto, sin elegir: el valor base (normal).
     neat_pending = day["neat_kcal"] is None and day.get("status") != "cerrado"
     neat = day["neat_kcal"] if day["neat_kcal"] is not None else (0.0 if neat_pending else float(s["neat_base_kcal"]))
+    # Los niveles (50/150/300/450) son para unos 75 kg: moverse cuesta en proporción al peso, así que se ajustan a cada persona
+    neat_f = 1.0 if kg is None else max(0.6, min(1.4, kg / 75))
+    if any(abs(neat - v) < 1 for _k, _l, v in NEAT_LEVELS) or abs(neat - float(s["neat_base_kcal"])) < 1:
+        neat *= neat_f
     stride_m = (h or 170) * float(s["factor_zancada"]) / 100
     steps_in_acts = sum(a["steps_in_activity"] or 0 for a in acts)
     if day["steps"] is None or kg is None:
@@ -950,7 +954,7 @@ def energy(conn, d, intake_kcal=None, day=None, acts=None):
         "missing_profile": missing,
         "bmr": None if bmr is None else round(bmr), "tef": round(tef), "neat": round(neat),
         "neat_source": (neat_label(day["neat_kcal"]) or "elegido para el día") if day["neat_kcal"] is not None else ("por definir al cerrar el día" if neat_pending else "normal"),
-        "neat_pending": neat_pending,
+        "neat_pending": neat_pending, "neat_factor": round(neat_f, 2),
         "neat_set": day["neat_kcal"] is not None,
         "steps": day["steps"], "steps_effective": eff_steps, "steps_in_activities": steps_in_acts,
         "steps_kcal": None if steps_kcal is None else round(steps_kcal),
@@ -991,7 +995,7 @@ def day_state(conn, d=None):
         "balance": None if totals["kcal"] is None or en["total"] is None else round(totals["kcal"] - en["total"]),
         "activities": acts, "avg7": None if a7 is None else round(a7, 2), "avg7_n": n7,
         "entry_count": len(entries), "closure": closure, "closure_count": n_closures, "rev": rev(conn),
-        "steps_hours": steps_hours(conn, d), "neat_levels": [{"key": k, "label": l, "kcal": v} for k, l, v in NEAT_LEVELS],
+        "steps_hours": steps_hours(conn, d), "neat_levels": [{"key": k, "label": l, "kcal": v, "kcal_adj": round(v * (en.get("neat_factor") or 1))} for k, l, v in NEAT_LEVELS],
     }
 
 

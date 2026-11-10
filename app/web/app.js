@@ -1069,7 +1069,7 @@ function neatPicker(date, onDone) {
   const short = { casa: "En casa / sentado", normal: "Normal", activo: "Activo", muy: "Muy activo" };
   return h("div", { class: "neat-pk" }, h("div", { class: "sec-t", style: { marginTop: 0 } }, "¿Cómo fue el día? ", h("span", { class: "faint", style: { textTransform: "none", letterSpacing: 0, fontWeight: 400 } }, "(sin contar los pasos)")),
     h("div", { class: "neat-row" }, levels.map((l) => h("button", { class: "neat-b" + (cur != null && Math.abs(cur - l.kcal) < 1 ? " on" : ""), title: l.label,
-      onclick: async () => { await act(() => api("PUT", "/api/days/" + date, { neat_kcal: l.kcal })); onDone && onDone(); } }, h("b", null, short[l.key] || l.label), h("span", null, "+" + fmt(l.kcal) + " kcal")))));
+      onclick: async () => { await act(() => api("PUT", "/api/days/" + date, { neat_kcal: l.kcal })); onDone && onDone(); } }, h("b", null, short[l.key] || l.label), h("span", null, "+" + fmt(l.kcal_adj ?? l.kcal) + " kcal")))));
 }
 async function closeSheet(date) {
   const sh = sheet("Cerrar día", h("div", { class: "muted" }, "Comprobando…"));
