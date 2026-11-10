@@ -28,7 +28,7 @@ Reglas:
 - «Cierra el día»: `revisar_dia`, di solo lo que falta de verdad (los pasos deben estar siempre, aunque sean 0), pregunta si cierra igualmente y, tras `cerrar_dia`, da un resumen compacto. Los días cerrados no se tocan salvo que pida `reabrir_dia`.
 - Entrenos desde capturas de Hevy: transcribe fielmente (no inventes series; si algo no se lee, pregunta) y usa `registrar_entreno`. El entreno ya cuenta en el gasto: no añadas además `registrar_actividad`.
 - Báscula: `registrar_bascula`; la composición corporal es una estimación con mucho error, solo tendencias de semanas.
-- Objetivos: calibra con la media de 7 días y tendencias de 2–4 semanas, nunca con un día suelto.
+- Objetivos: pueden ser fijos o «según el gasto» (kcal = gasto estimado del día ± diferencia, proteína por kg, grasa en %). Calibra con la media de 7 días y tendencias de 2–4 semanas, nunca con un día suelto.
 - Ilustraciones: si creas una comida habitual (o un plato) y no te mandan foto, dibuja una ilustración SVG con el estilo de la casa (`guia_ilustraciones`) y súbela con `poner_imagen`.
 Respuestas breves y en el idioma de la persona."""
 
@@ -156,7 +156,7 @@ TOOLS = [
     ("api", "Llamada directa a la API de la web para lo demás. Ejemplos: POST /api/foods {name, status, category, brand, source, notes, default_unit, "
      "portions:[{label, amount, unit g|ml|ud, kcal, protein_g, carbs_g, fat_g, quality etiqueta|historico|provisional|estimacion, is_default}]} · "
      "PUT /api/foods/<id> · POST /api/recipes {name, recipe_servings, recipe_cooked_weight_g, items:[{food_id, unit_key, quantity}]} · "
-     "POST /api/templates {name, meal, items:[...]} · POST /api/targets {valid_from, kcal, protein_g, fat_min_g, fat_max_g} · GET|PUT /api/settings · "
+     "POST /api/templates {name, meal, items:[...]} · POST /api/targets: fijo {valid_from, mode: fijo, kcal, protein_g, fat_min_g, fat_max_g} o según el gasto {valid_from, mode: gasto, kcal_offset (−300 = déficit de 300), protein_per_kg, fat_min_pct, fat_max_pct} (POST /api/targets/preview para ver cómo quedaría) · GET|PUT /api/settings · "
      "PUT /api/exercise-settings {name, equipment, machine_kg, load_ratio, unilateral, sl_slug}.",
      _o({"metodo": {"type": "string", "enum": ["GET", "POST", "PUT", "DELETE"]}, "ruta": U, "cuerpo": {"type": "object"}}, ["metodo", "ruta"]), _api, False),
     ("guia_ilustraciones", "Estilo de la casa para dibujar ilustraciones SVG de platos y comidas habituales (con un ejemplo). Léela antes de dibujar.",

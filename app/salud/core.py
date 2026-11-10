@@ -159,6 +159,45 @@ def targets_list(conn):
     return rows(conn.execute("SELECT * FROM targets ORDER BY valid_from"))
 
 
+def _carbs(t):
+    fat_mid = ((t["fat_min_g"] or 0) + (t["fat_max_g"] or t["fat_min_g"] or 0)) / 2
+    t["fat_mid_g"] = fat_mid
+    t["carbs_g"] = None
+    if t["kcal"] and t["protein_g"] is not None:
+        t["carbs_g"] = round(max(0, (t["kcal"] - t["protein_g"] * 4 - fat_mid * 9) / 4))
+    return t
+
+
+def _avg_steps(conn, d, n=7):
+    r = conn.execute("SELECT AVG(steps), COUNT(steps) FROM days WHERE date<? AND date>=date(?, ?) AND steps IS NOT NULL",
+                     (d, d, "-%d days" % n)).fetchone()
+    return (round(r[0]) if r and r[1] else None)
+
+
+def resolve_dynamic(conn, d, t):
+    """Objetivo «según tu gasto»: kcal = (gasto sin digestión + diferencia) / (1 − TEF), así lo comido menos el gasto queda en la diferencia.
+    Si aún no hay pasos del día, usa la media de los últimos 7 días (se ajusta al apuntarlos)."""
+    day = get_day_row(conn, d)
+    acts = day_activities(conn, d)
+    proj, no_steps = None, day["steps"] is None
+    if no_steps:
+        proj = _avg_steps(conn, d)
+        day = dict(day, steps=proj if proj is not None else 0)
+    en = energy(conn, d, 0, day, acts)
+    tef = float(settings(conn)["tef_pct"])
+    t = dict(t)
+    if en["bmr"] is None or en["total"] is None:
+        t.update({"kcal": None, "protein_g": None, "fat_min_g": None, "fat_max_g": None, "dynamic_error": "Completa tu perfil (peso, altura, edad y sexo) en Ajustes"})
+        return _carbs(t)
+    base = en["total"]  # sin TEF: se calculó con 0 kcal ingeridas
+    kcal = round((base + (t["kcal_offset"] or 0)) / (1 - tef))
+    kg = en["weight_used_kg"]
+    t.update({"kcal": kcal, "base_kcal": round(base), "weight_kg": kg, "projected_steps": proj if no_steps else None, "steps_pending": no_steps,
+              "protein_g": round((t["protein_per_kg"] or 2.0) * kg) if kg else None,
+              "fat_min_g": round(kcal * (t["fat_min_pct"] or 25) / 100 / 9), "fat_max_g": round(kcal * (t["fat_max_pct"] or 35) / 100 / 9)})
+    return _carbs(t)
+
+
 def target_for(conn, d):
     t = conn.execute("SELECT * FROM targets WHERE valid_from<=? ORDER BY valid_from DESC LIMIT 1", (d,)).fetchone()
     if not t:
@@ -166,29 +205,57 @@ def target_for(conn, d):
     if not t:
         return None
     t = row(t)
-    fat_mid = ((t["fat_min_g"] or 0) + (t["fat_max_g"] or t["fat_min_g"] or 0)) / 2
-    t["carbs_g"] = None
-    if t["kcal"] and t["protein_g"] is not None:
-        t["carbs_g"] = round(max(0, (t["kcal"] - t["protein_g"] * 4 - fat_mid * 9) / 4))
-    t["fat_mid_g"] = fat_mid
-    return t
+    t["dynamic"] = t.get("mode") == "gasto"
+    return resolve_dynamic(conn, d, t) if t["dynamic"] else _carbs(t)
 
 
-def set_target(conn, data, source="web"):
-    vf = _date(data.get("valid_from"))
+def preview_target(conn, data, d=None):
+    """Lo que saldría hoy con estos ajustes (sin guardar)."""
+    d = _date(d)
+    v = _target_values(data)
+    t = {"valid_from": d, "provisional": 1, "note": None, **v}
+    t["dynamic"] = v["mode"] == "gasto"
+    return resolve_dynamic(conn, d, t) if t["dynamic"] else _carbs(t)
+
+
+def _target_values(data):
+    mode = data.get("mode") or "fijo"
+    if mode not in ("fijo", "gasto"):
+        raise ValidationError("Modo de objetivo no válido")
+    if mode == "gasto":
+        off = _num(data.get("kcal_offset"), "diferencia de kcal", -1500, 1500)
+        ppk = _num(data.get("protein_per_kg"), "proteína por kg", 0.8, 3.5)
+        a = _num(data.get("fat_min_pct"), "grasa mínima %", 10, 60)
+        b = _num(data.get("fat_max_pct"), "grasa máxima %", 10, 60)
+        if a is not None and b is not None and a > b:
+            raise ValidationError("Grasa mínima mayor que máxima")
+        return {"mode": "gasto", "kcal_offset": off or 0, "protein_per_kg": ppk or 2.0, "fat_min_pct": a or 25, "fat_max_pct": b or 35,
+                "kcal": None, "protein_g": None, "fat_min_g": None, "fat_max_g": None}
     kcal = _num(data.get("kcal"), "kcal", 1000, 6000)
     p = _num(data.get("protein_g"), "proteína", 0, 400)
     fmin = _num(data.get("fat_min_g"), "grasa mínima", 0, 300)
     fmax = _num(data.get("fat_max_g"), "grasa máxima", 0, 300)
     if fmin is not None and fmax is not None and fmin > fmax:
         raise ValidationError("Grasa mínima mayor que máxima")
+    if kcal and (p or 0) * 4 + (fmin or 0) * 9 > kcal:
+        raise ValidationError("No cuadra: la proteína (%s kcal) y la grasa mínima (%s kcal) ya suman más que %s kcal"
+                              % (_fmt((p or 0) * 4), _fmt((fmin or 0) * 9), _fmt(kcal)))
+    return {"mode": "fijo", "kcal_offset": None, "protein_per_kg": None, "fat_min_pct": None, "fat_max_pct": None,
+            "kcal": kcal, "protein_g": p, "fat_min_g": fmin, "fat_max_g": fmax}
+
+
+def set_target(conn, data, source="web"):
+    vf = _date(data.get("valid_from"))
+    v = _target_values(data)
     with tx(conn, "set_target", source, vf, payload=data):
         conn.execute(
-            "INSERT INTO targets(valid_from,kcal,protein_g,fat_min_g,fat_max_g,provisional,note,created_at) "
-            "VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(valid_from) DO UPDATE SET kcal=excluded.kcal, "
+            "INSERT INTO targets(valid_from,kcal,protein_g,fat_min_g,fat_max_g,provisional,note,created_at,mode,kcal_offset,protein_per_kg,fat_min_pct,fat_max_pct) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(valid_from) DO UPDATE SET kcal=excluded.kcal, "
             "protein_g=excluded.protein_g, fat_min_g=excluded.fat_min_g, fat_max_g=excluded.fat_max_g, "
-            "provisional=excluded.provisional, note=excluded.note",
-            (vf, kcal, p, fmin, fmax, 1 if data.get("provisional", True) else 0, data.get("note"), ts()))
+            "provisional=excluded.provisional, note=excluded.note, mode=excluded.mode, kcal_offset=excluded.kcal_offset, "
+            "protein_per_kg=excluded.protein_per_kg, fat_min_pct=excluded.fat_min_pct, fat_max_pct=excluded.fat_max_pct",
+            (vf, v["kcal"], v["protein_g"], v["fat_min_g"], v["fat_max_g"], 1 if data.get("provisional", True) else 0, data.get("note"), ts(),
+             v["mode"], v["kcal_offset"], v["protein_per_kg"], v["fat_min_pct"], v["fat_max_pct"]))
     return target_for(conn, vf)
 
 

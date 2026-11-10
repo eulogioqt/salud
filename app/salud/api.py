@@ -292,6 +292,11 @@ def _settings_upd(c, q, b, s):
     return core.update_settings(c, b, s)
 
 
+@route("POST", r"/api/targets/preview")
+def _target_preview(c, q, b, s):
+    return core.preview_target(c, b, b.get("date"))
+
+
 @route("POST", r"/api/targets")
 def _target(c, q, b, s):
     return core.set_target(c, b, s)

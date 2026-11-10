@@ -414,3 +414,22 @@ class TestNotes(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDynamicTarget(Base):
+    def test_balance_queda_en_la_diferencia(self):
+        core.set_target(self.conn, {"valid_from": D1, "mode": "gasto", "kcal_offset": -300, "protein_per_kg": 2, "fat_min_pct": 25, "fat_max_pct": 35}, "test")
+        core.update_day(self.conn, D2, {"steps": 8000}, "test")
+        st = core.day_state(self.conn, D2)
+        tg = st["target"]
+        self.assertTrue(tg["dynamic"])
+        # si come exactamente el objetivo, el balance (comido − gasto con su TEF) queda en −300
+        tef = float(core.settings(self.conn)["tef_pct"])
+        gasto = tg["base_kcal"] + tef * tg["kcal"]
+        self.assertAlmostEqual(tg["kcal"] - gasto, -300, delta=2)
+        self.assertEqual(tg["protein_g"], round(2 * 81.5))
+
+    def test_fijo_que_no_cuadra(self):
+        from salud.db import ValidationError
+        with self.assertRaises(ValidationError):
+            core.set_target(self.conn, {"valid_from": D1, "kcal": 1200, "protein_g": 250, "fat_min_g": 60}, "test")

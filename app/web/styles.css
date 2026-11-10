@@ -1104,3 +1104,21 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .bd-d.off { color: var(--warn); font-weight: 600; }
 .bd-vsr i.burn { background: var(--e-neat); }
 .bd-vsr i { min-width: 0; }
+
+/* ---- Objetivo diario */
+.tg-card { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: var(--surface-2); border: 1px solid transparent; border-radius: 14px; padding: 12px 14px; cursor: pointer; color: var(--text); font: inherit; }
+.tg-card:hover { border-color: var(--line-2); }
+.tg-card b { font-size: 14.5px; } .tg-card .faint { font-size: 12.5px; margin-top: 2px; } .tg-card .lnk { color: var(--accent); font-weight: 650; font-size: 13.5px; white-space: nowrap; }
+.tg-seg { width: 100%; margin-bottom: 12px; } .tg-seg button { flex: 1; }
+.tg-help { font-size: 13px; margin: 0 0 10px; }
+.tg-pre { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+.tg-p { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 9px 10px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); cursor: pointer; text-align: left; color: var(--text); font: inherit; }
+.tg-p b { font-size: 13.5px; } .tg-p span { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; } .tg-p em { font-style: normal; font-size: 11px; color: var(--faint); }
+.tg-p.on { border-color: var(--accent); background: var(--accent-soft); }
+.tg-g { margin-bottom: 6px; } .tg-g .row .input { min-width: 0; }
+.tg-prev { margin-top: 14px; background: var(--surface-2); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.tg-prev .tg-big { font-size: 26px; font-weight: 750; letter-spacing: -.02em; } .tg-prev .tg-big small { font-size: 14px; font-weight: 500; color: var(--muted); }
+.tg-prev .mchips { font-size: 13px; gap: 10px; } .tg-prev .mchips i::before { width: 17px; height: 17px; }
+.tg-why { font-size: 12px; line-height: 1.45; margin-top: 4px; }
+.tg-prev.err { background: var(--danger-soft); color: var(--danger); font-size: 13.5px; }
+@media (max-width: 640px) { .tg-pre { grid-template-columns: 1fr 1fr; } .tg-g { grid-template-columns: 1fr 1fr; } .tg-g > div:last-child { grid-column: 1 / -1; } }

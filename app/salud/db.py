@@ -250,6 +250,14 @@ MIGRATIONS = [
     """
     ALTER TABLE exercise_settings ADD COLUMN sl_slug TEXT;
     """,
+    # v8 — objetivo según el gasto: kcal = gasto estimado del día ± diferencia; proteína por kg y grasa en % de las kcal
+    """
+    ALTER TABLE targets ADD COLUMN mode TEXT NOT NULL DEFAULT 'fijo';
+    ALTER TABLE targets ADD COLUMN kcal_offset REAL;
+    ALTER TABLE targets ADD COLUMN protein_per_kg REAL;
+    ALTER TABLE targets ADD COLUMN fat_min_pct REAL;
+    ALTER TABLE targets ADD COLUMN fat_max_pct REAL;
+    """,
 ]
 
 
