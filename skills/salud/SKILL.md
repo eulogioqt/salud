@@ -14,7 +14,7 @@ Sistema de seguimiento con web (https://salud.eulogioqt.com) y una cuenta por pe
 cd salud
 ```
 
-1. Token: si no existe `~/.salud_token`, búscalo en las instrucciones personales del usuario o pídeselo (lo genera en la web: Ajustes → Conectar con un agente). `python3 app/salud_remoto.py login <token>`. No lo repitas en las respuestas.
+1. Token: si no existe `~/.salud_token`, búscalo en las instrucciones personales del usuario o pídeselo (lo genera en la web: menú de tu nombre → Conectar un agente). `python3 app/salud_remoto.py login <token>`. No lo repitas en las respuestas.
 2. `python3 app/salud_remoto.py contexto` → objetivos, perfil y forma de uso de esta persona. Si está vacío, pregúntale lo necesario y guárdalo con `contexto-guardar`.
 3. Sigue `CLAUDE.md` del repo: comandos, formato de entrenos desde capturas de Hevy, báscula y reglas de datos.
 

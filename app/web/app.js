@@ -1078,7 +1078,7 @@ function bodyPanel(list) {
   const latest = list[0];
   const ref = latest ? list.find((b) => b.date <= addDays(latest.date, -25)) : null;
   const head = h("div", { class: "row" }, h("h3", { style: { margin: 0 } }, "Báscula", h("span", { class: "faint", style: { fontWeight: 400 } }, " · composición por bioimpedancia: estimación, mira tendencias")),
-    h("span", { class: "grow" }), h("button", { class: "btn sm", onclick: () => bodySheet() }, "+ Medición"));
+    h("span", { class: "grow" }), h("button", { class: "btn sm", style: { whiteSpace: "nowrap" }, onclick: () => bodySheet() }, "+ Medición"));
   if (!latest) return h("div", { class: "card panel" }, head, h("div", { class: "muted", style: { padding: "14px 0 4px" } }, "Sin mediciones. Mándame la captura de la app de Xiaomi o añádela aquí."));
   const tiles = BODY_ROWS.filter(([k]) => latest[k] != null).map(([k, l, u, nd]) => {
     const d = ref && ref[k] != null ? latest[k] - ref[k] : null;
@@ -1141,7 +1141,7 @@ function viewProgress() {
 function weightChart(ws) {
   const pts = ws.filter((w) => w.weight_kg != null || w.avg7 != null);
   if (!pts.length) return h("div", { class: "muted", style: { padding: "30px 0", textAlign: "center" } }, "Aún no hay pesajes. Registra el peso cada mañana en Hoy.");
-  const W = 900, H = 220, L = 40, R = 10, T = 10, B = 24;
+  const W = Math.max(300, Math.min(900, ($("#view") ? $("#view").clientWidth : 900) - 34)), H = 220, L = 40, R = 10, T = 10, B = 24;
   const vals = pts.flatMap((p) => [p.weight_kg, p.avg7]).filter((x) => x != null);
   let lo = Math.min(...vals), hi = Math.max(...vals); if (hi - lo < 2) { const m = (hi + lo) / 2; lo = m - 1; hi = m + 1; }
   lo = Math.floor(lo * 2) / 2 - 0.5; hi = Math.ceil(hi * 2) / 2 + 0.5;
@@ -1153,7 +1153,7 @@ function weightChart(ws) {
     svg.append(el("line", { x1: L, x2: W - R, y1: y(g), y2: y(g), class: "grid" }));
     const t = el("text", { x: L - 6, y: y(g) + 4, "text-anchor": "end", class: "axis" }); t.textContent = fmt(g, 1); svg.append(t);
   }
-  const ticks = Math.min(6, n); for (let k = 0; k < ticks; k++) { const i = Math.round((k * (n - 1)) / Math.max(1, ticks - 1)); const t = el("text", { x: x(i), y: H - 6, "text-anchor": k === 0 ? "start" : k === ticks - 1 ? "end" : "middle", class: "axis" }); t.textContent = dateLabel(ws[i].date, { day: "numeric", month: "short" }); svg.append(t); }
+  const ticks = Math.min(W < 500 ? 4 : 6, n); for (let k = 0; k < ticks; k++) { const i = Math.round((k * (n - 1)) / Math.max(1, ticks - 1)); const t = el("text", { x: x(i), y: H - 6, "text-anchor": k === 0 ? "start" : k === ticks - 1 ? "end" : "middle", class: "axis" }); t.textContent = dateLabel(ws[i].date, { day: "numeric", month: "short" }); svg.append(t); }
   // Curva de peso: pesajes unidos; los días sin pesaje entre dos pesajes se interpolan en línea recta.
   let dc = ""; ws.forEach((w, i) => { const v = w.weight_kg ?? w.interp; if (v != null) dc += (dc ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1); else dc += ""; });
   if (dc) svg.append(el("path", { d: dc, class: "wline", "vector-effect": "non-scaling-stroke" }));
@@ -1215,51 +1215,72 @@ function hevyBox() {
   return box;
 }
 
-// Token personal para que un agente (Claude, Codex, Gemini…) use tu cuenta, con el mensaje de arranque listo para pegar.
+// ---- Conectar un agente (Claude, Codex, Gemini…): token personal + mensaje de arranque; la web detecta cuándo se conecta.
+// Colores de cada marca para el botón (sin logotipos).
 const AGENTS = [
-  ["cowork", "Claude (app / Cowork)", "Pégalo en Claude → Ajustes → Perfil → «Instrucciones personales» para que valga en todas las conversaciones (o en un chat de Cowork para probar)."],
-  ["claude-code", "Claude Code", "Pégalo en Claude Code desde una carpeta de trabajo vacía."],
-  ["codex", "ChatGPT Codex", "Pégalo en Codex (CLI o web) con acceso a internet."],
-  ["gemini", "Gemini CLI", "Pégalo en Gemini CLI desde una carpeta de trabajo vacía."],
-  ["otro", "Otro agente", "Sirve cualquier agente que pueda ejecutar comandos (Python 3) con internet."],
+  { k: "claude", n: "Claude", sub: "app, móvil o Cowork", c1: "#d97757", c2: "#b85a3c", fg: "#fff", ini: "C",
+    where: "Abre Claude → Ajustes → Perfil → «Instrucciones personales» y pégalo ahí (así vale en todas las conversaciones). Luego escribe en un chat nuevo: «conecta mi salud»." },
+  { k: "claude-code", n: "Claude Code", sub: "terminal", c1: "#2b2a27", c2: "#d97757", fg: "#fff", ini: ">_",
+    where: "Abre Claude Code en una carpeta vacía y pega el mensaje." },
+  { k: "codex", n: "ChatGPT Codex", sub: "CLI o web", c1: "#0d0d0d", c2: "#10a37f", fg: "#fff", ini: "◎",
+    where: "Abre Codex con acceso a internet y pega el mensaje." },
+  { k: "gemini", n: "Gemini CLI", sub: "terminal", c1: "#4285f4", c2: "#9b72cb", fg: "#fff", ini: "✦",
+    where: "Abre Gemini CLI en una carpeta vacía y pega el mensaje." },
+  { k: "otro", n: "Otro agente", sub: "que ejecute código", c1: "#8a8f98", c2: "#5b6068", fg: "#fff", ini: "…",
+    where: "Pégalo en tu agente. Necesita poder ejecutar Python con internet." },
 ];
-function agentPrompt(kind, tok) {
-  const site = location.origin, repo = "https://github.com/eulogioqt/salud";
-  const doc = kind === "codex" || kind === "otro" ? "AGENTS.md" : kind === "gemini" ? "GEMINI.md" : "CLAUDE.md";
-  const where = kind === "cowork"
-    ? "Usa tu entorno de ejecución en la nube (no necesitas mi ordenador, funciona aunque esté apagado). Si no puedes salir a internet, dime que active en Ajustes → Capacidades el acceso a salud.eulogioqt.com y github.com (o «Todos los dominios»)."
-    : kind === "otro" ? "Necesitas poder ejecutar comandos (Python 3) con acceso a internet; si no puedes, dímelo." : "Trabaja en una carpeta de trabajo propia.";
-  return `Usa mi sistema de salud (comida, peso y entrenos): ${site}\n${where}\n` +
-    `1. Al empezar cada conversación en la que te pida algo de salud: clona ${repo} (o haz git pull si ya está) y sigue sus instrucciones (${doc}).\n` +
-    `2. Mi token personal: ${tok}\n   Guárdalo con: python3 app/salud_remoto.py login ${tok}   (no lo repitas en tus respuestas)\n` +
-    `3. Lee mi contexto: python3 app/salud_remoto.py contexto — si está vacío, pregúntame mis objetivos y guárdalos.`;
+function agentPrompt(ag, tok) {
+  const doc = ag.k === "codex" || ag.k === "otro" ? "AGENTS.md" : ag.k === "gemini" ? "GEMINI.md" : "CLAUDE.md";
+  const env = ag.k === "claude"
+    ? "Trabaja en tu entorno en la nube (no hace falta mi ordenador). Si no puedes salir a internet, dime que active en Ajustes → Capacidades el acceso a salud.eulogioqt.com y github.com.\n" : "";
+  return `Usa mi sistema de salud (comida, peso y entrenos): ${location.origin}\n${env}` +
+    `Cuando te pida algo de salud: clona https://github.com/eulogioqt/salud (o git pull) y sigue ${doc}.\n` +
+    `Mi token: ${tok} — guárdalo con «python3 app/salud_remoto.py login ${tok}» y no lo repitas.\n` +
+    `Después lee mi contexto con «python3 app/salud_remoto.py contexto» (si está vacío, pregúntame mis objetivos).`;
 }
-function aiBox() {
-  const box = h("div");
-  let kind = "cowork", tok = null;
-  const copy = async (txt) => { try { await navigator.clipboard.writeText(txt); toast("Copiado"); } catch (e) { toast("No se pudo copiar: selecciónalo y cópialo a mano", { error: true }); } };
-  const draw = async () => {
-    const info = tok ? {} : await api("GET", "/api/token").catch(() => ({}));
-    const gen = async () => {
-      if (info.has_token && !confirm("Se creará un token nuevo y el anterior dejará de funcionar (también en los agentes que ya lo usen). ¿Seguir?")) return;
-      tok = (await api("POST", "/api/token", {})).token; draw();
-    };
-    const picker = h("div", { class: "seg", style: { flexWrap: "wrap", marginBottom: "8px" } },
-      AGENTS.map(([k, l]) => h("button", { class: kind === k ? "on" : "", onclick: () => { kind = k; draw(); } }, l)));
-    const ag = AGENTS.find((x) => x[0] === kind);
-    box.replaceChildren(
-      h("div", { class: "note", style: { marginTop: 0 } }, "Tu agente usa un token personal que solo da acceso a tu cuenta. Elige cuál usas y te preparo el mensaje para pegarle."),
-      picker,
-      tok ? h("div", null,
-        h("div", { class: "note" }, ag[2] + " El token solo se muestra ahora; si lo pierdes, genera otro."),
-        h("textarea", { class: "input", rows: 8, readonly: true, style: { fontFamily: "ui-monospace, monospace", fontSize: "12.5px" }, onclick: (e) => e.target.select() }, agentPrompt(kind, tok)),
-        h("div", { class: "row", style: { marginTop: "8px", justifyContent: "flex-end" } }, h("button", { class: "btn", onclick: () => copy(tok) }, "Copiar solo el token"), h("button", { class: "btn primary", onclick: () => copy(agentPrompt(kind, tok)) }, "Copiar mensaje")))
-      : h("div", { class: "row" }, h("span", { class: "grow muted" }, info.has_token ? `Tienes un token activo${info.created_at ? " (creado " + info.created_at + ")" : ""}. Para ver el mensaje hay que generar uno nuevo.` : "Aún no tienes token."),
-          info.has_token ? h("button", { class: "btn", onclick: async () => { if (!confirm("¿Desactivar el token? Tu agente dejará de tener acceso.")) return; await api("DELETE", "/api/token"); draw(); } }, "Desactivar") : null,
-          h("button", { class: "btn primary", onclick: gen }, info.has_token ? "Generar uno nuevo" : "Generar token y mensaje")));
+const agentConnected = () => !!(S.me && S.me.agente && S.me.agente.connected);
+function agentBtn(ag, onclick, big) {
+  return h("button", { class: "agent-btn" + (big ? " big" : ""), style: { "--a1": ag.c1, "--a2": ag.c2, "--af": ag.fg }, onclick },
+    h("span", { class: "ag-ic" }, ag.ini), h("span", { class: "ag-t" }, h("b", null, ag.n), h("span", null, ag.sub)));
+}
+function connectAgent() {
+  let timer = null;
+  const sh = sheet("Conectar un agente", null, null, { onClose: () => clearInterval(timer) });
+  const step1 = () => sh.set("Conectar un agente", [
+    h("p", { class: "muted", style: { marginTop: 0 } }, "Tu agente (Claude u otro) podrá apuntar y consultar tus comidas, peso y entrenos. Solo tendrá acceso a tu cuenta."),
+    h("div", { class: "agent-grid" }, AGENTS.map((ag) => agentBtn(ag, () => step2(ag)))),
+    S.me && S.me.agente && S.me.agente.has_token ? h("div", { class: "note" }, agentConnected() ? `Ya tienes un agente conectado (último uso: ${S.me.agente.last_used}). Si conectas otro, el anterior deja de tener acceso.` : "Tienes un token sin usar todavía; al conectar se crea uno nuevo.") : null]);
+  const step2 = async (ag) => {
+    let tok;
+    try { tok = (await api("POST", "/api/token", {})).token; } catch (e) { toast(e.message, { error: true }); return; }
+    const msg = agentPrompt(ag, tok);
+    const copied = h("span", { class: "faint" });
+    const status = h("div", { class: "agent-wait" }, h("span", { class: "spin" }), "Esperando a que tu agente se conecte…");
+    sh.set("Conectar " + ag.n, [
+      h("div", { class: "agent-steps" },
+        h("div", { class: "ast" }, h("span", { class: "n" }, "1"), h("div", null, h("b", null, "Copia el mensaje"), h("div", { class: "muted" }, "Lleva tu token personal (solo se muestra ahora)."),
+          h("div", { class: "row", style: { marginTop: "8px", gap: "8px" } }, h("button", { class: "btn primary", onclick: async () => { try { await navigator.clipboard.writeText(msg); copied.textContent = "✓ Copiado"; } catch (e) { copied.textContent = "Cópialo a mano de abajo"; } } }, "Copiar mensaje"), copied),
+          h("details", { style: { marginTop: "6px" } }, h("summary", { class: "faint" }, "Ver mensaje"), h("textarea", { class: "input mono-ta", rows: 6, readonly: true, onclick: (e) => e.target.select() }, msg)))),
+        h("div", { class: "ast" }, h("span", { class: "n" }, "2"), h("div", null, h("b", null, "Pégalo en " + ag.n), h("div", { class: "muted" }, ag.where))),
+        h("div", { class: "ast" }, h("span", { class: "n" }, "3"), h("div", null, h("b", null, "Listo"), status)))],
+      null, { back: step1 });
+    clearInterval(timer);
+    timer = setInterval(async () => {
+      const r = await api("GET", "/api/token").catch(() => null);
+      if (r && r.connected) {
+        clearInterval(timer); S.me.agente = r; drawAccount();
+        status.replaceChildren(h("span", { class: "ok-dot" }, "✓"), `Conectado (${r.last_used}). Ya puedes pedirle cosas a ${ag.n}.`); status.classList.add("done");
+      }
+    }, 3000);
   };
-  draw();
-  return box;
+  step1();
+}
+function agentRow() {
+  const a = (S.me && S.me.agente) || {};
+  return h("div", { class: "row" },
+    h("span", { class: "grow" }, a.connected ? h("span", null, h("span", { class: "ok-dot" }, "✓"), ` Agente conectado · último uso ${a.last_used}`) : h("span", { class: "warn-t" }, "⚠ Ningún agente conectado")),
+    a.has_token ? h("button", { class: "btn", onclick: async () => { if (!confirm("¿Desconectar? Tu agente dejará de tener acceso.")) return; await api("DELETE", "/api/token"); S.me.agente = { has_token: false, connected: false }; drawAccount(); toast("Agente desconectado"); } }, "Desconectar") : null,
+    h("button", { class: "btn primary", onclick: connectAgent }, a.connected ? "Conectar otro" : "Conectar"));
 }
 
 async function settingsSheet() {
@@ -1295,15 +1316,15 @@ async function settingsSheet() {
     S.me ? h("div", { class: "sec-t" }, "Cuenta") : null,
     S.me ? h("div", { class: "row" }, h("span", null, "Sesión iniciada como ", h("b", null, S.me.nombre || S.me.usuario)), h("span", { class: "grow" }),
       h("button", { class: "btn", onclick: async () => { await api("POST", "/api/logout", {}); location.href = "/login"; } }, "Cerrar sesión")) : null,
-    S.me ? h("div", { class: "sec-t" }, "Conectar con un agente (Claude, Codex, Gemini…)") : null,
-    S.me ? aiBox() : null,
+    S.me ? h("div", { class: "sec-t" }, "Agente (Claude, Codex, Gemini…)") : null,
+    S.me ? agentRow() : null,
   ], null, { wide: true });
 }
 // Menú de cuenta (arriba a la derecha): nombre, Ajustes y Cerrar sesión
 function drawAccount() {
   const b = $("#btn-acct"); if (!b) return;
   const name = S.me ? (S.me.nombre || S.me.usuario) : "Local";
-  b.replaceChildren(h("span", { class: "av" + (S.me ? "" : " local") }, S.me ? name[0].toUpperCase() : icon("lock")), h("span", { class: "an" }, name), icon("chev"));
+  b.replaceChildren(h("span", { class: "av" + (S.me ? "" : " local") }, S.me ? name[0].toUpperCase() : icon("lock"), S.me && !agentConnected() ? h("span", { class: "av-alert", title: "Conecta tu agente" }, "!") : null), h("span", { class: "an" }, name), icon("chev"));
 }
 function accountMenu() {
   const old = document.querySelector(".acct-menu"); if (old) { old.remove(); return; }
@@ -1311,6 +1332,8 @@ function accountMenu() {
   const menu = h("div", { class: "acct-menu" },
     h("div", { class: "am-h" }, h("span", { class: "av big" + (S.me ? "" : " local") }, S.me ? name[0].toUpperCase() : icon("lock")),
       h("div", null, h("b", null, name), h("span", null, S.me ? "Sesión iniciada · @" + S.me.usuario : "Versión local (sin cuentas)"))),
+    S.me ? h("button", { class: agentConnected() ? "" : "warn", onclick: () => { menu.remove(); connectAgent(); } }, h("span", { class: "ag-mini" }, "✦"),
+      agentConnected() ? "Agente conectado" : "Conectar un agente", agentConnected() ? h("span", { class: "ok-dot sm" }, "✓") : h("span", { class: "alert-dot" }, "!")) : null,
     h("button", { onclick: () => { menu.remove(); settingsSheet().catch((e) => toast(e.message, { error: true })); } }, icon("gear"), "Ajustes"),
     S.me ? h("button", { class: "danger", onclick: async () => { await api("POST", "/api/logout", {}); location.href = "/login"; } }, icon("out"), "Cerrar sesión") : null);
   document.body.append(menu);

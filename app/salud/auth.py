@@ -139,6 +139,9 @@ def new_api_token(base, username):
             raise AuthError("No existe la cuenta")
         users[username]["api_token"] = hashlib.sha256(token.encode()).hexdigest()
         users[username]["api_token_at"] = time.strftime("%Y-%m-%d %H:%M")
+        users[username]["api_token_at_ts"] = time.time()
+        users[username].pop("api_token_used", None)
+        users[username].pop("api_token_used_ts", None)
         _write(users_path(base), users)
     return token
 
@@ -147,8 +150,8 @@ def revoke_api_token(base, username):
     with _LOCK:
         users = list_users(base)
         if username in users:
-            users[username].pop("api_token", None)
-            users[username].pop("api_token_at", None)
+            for k in ("api_token", "api_token_at", "api_token_at_ts", "api_token_used", "api_token_used_ts"):
+                users[username].pop(k, None)
             _write(users_path(base), users)
 
 
@@ -158,8 +161,22 @@ def token_user(base, token):
     h = hashlib.sha256(token.encode()).hexdigest()
     for k, v in list_users(base).items():
         if v.get("api_token") and hmac.compare_digest(v["api_token"], h):
+            _touch_token(base, k, v)
             return k
     return None
+
+
+def _touch_token(base, username, info):
+    """Apunta cuándo se usó el token por última vez (como mucho una escritura por minuto): así la web sabe que el agente está conectado."""
+    now = time.time()
+    if now - info.get("api_token_used_ts", 0) < 60:
+        return
+    with _LOCK:
+        users = list_users(base)
+        if username in users:
+            users[username]["api_token_used_ts"] = now
+            users[username]["api_token_used"] = time.strftime("%Y-%m-%d %H:%M")
+            _write(users_path(base), users)
 
 
 class RateLimit:

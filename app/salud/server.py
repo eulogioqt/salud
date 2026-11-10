@@ -136,6 +136,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True}, extra_headers={"Set-Cookie": "%s=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0" % COOKIE})
         return False
 
+    @staticmethod
+    def _agent_info(info):
+        return {"has_token": bool(info.get("api_token")), "created_at": info.get("api_token_at"),
+                "last_used": info.get("api_token_used"), "connected": bool(info.get("api_token") and info.get("api_token_used"))}
+
     CLI_BLOCKED = {"usuario-crear", "usuario-password", "usuario-token", "usuarios", "foto", "init", "importar-hevy"}
 
     def _cli(self, body, lock, user):
@@ -182,7 +187,8 @@ class Handler(BaseHTTPRequestHandler):
             ctx = self._ctx()
             if not ctx:
                 return self._send(401, {"error": "Sin sesión"})
-            return self._send(200, {"usuario": ctx[2], "nombre": auth.list_users(MULTI).get(ctx[2], {}).get("name")})
+            info = auth.list_users(MULTI).get(ctx[2], {})
+            return self._send(200, {"usuario": ctx[2], "nombre": info.get("name"), "agente": self._agent_info(info)})
         if MULTI and u.path == "/api/token":
             # Token personal para Claude u otra IA: solo con la sesión de la web (no con otro token).
             user = auth.session_user(MULTI, self._cookie_token())
@@ -190,7 +196,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(401, {"error": "Inicia sesión en la web para gestionar tu token", "login": True})
             if method == "GET":
                 info = auth.list_users(MULTI).get(user, {})
-                return self._send(200, {"has_token": bool(info.get("api_token")), "created_at": info.get("api_token_at")})
+                return self._send(200, self._agent_info(info))
             if method == "POST":
                 return self._send(200, {"token": auth.new_api_token(MULTI, user), "usuario": user})
             if method == "DELETE":

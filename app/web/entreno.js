@@ -277,6 +277,18 @@ const STD = [
   [/^fondos$/, "reps", "dips.reps", ["corporal"]],
   [/^muscle up$/, "reps", "muscle-ups.reps", ["corporal"]],
   [/^flexiones$/, "reps", "push-ups.reps", ["corporal"]],
+  [/curl martillo \(cable\)/, "1rm", "cable-hammer-curl", ["peso"], true],
+  [/chin up \(con peso|supinas? \(con peso/, "add", "chin-ups.add", ["lastre"]],
+  [/chin up|dominadas? supinas?/, "reps", "chin-ups.reps", ["corporal"]],
+  [/levantamiento de piernas en barra|hanging leg raise/, "reps", "hanging-leg-raise.reps", ["corporal"]],
+  [/levantamiento de rodillas en barra|hanging knee raise/, "reps", "hanging-knee-raise.reps", ["corporal"]],
+  [/curl de muneca palmas arriba|^curl de muneca \((barra|mancuerna)\)|wrist curl/, "1rm", "wrist-curl", ["peso"]],
+  [/flexiones diamante|diamond push/, "reps", "diamond-push-ups.reps", ["corporal"]],
+  [/flexion a una mano|one arm push/, "reps", "one-arm-push-ups.reps", ["corporal"]],
+  [/^sit ?ups?$/, "reps", "sit-ups.reps", ["corporal"]],
+  [/^abdominal corto$|^crunch/, "reps", "crunches.reps", ["corporal"]],
+  [/remo en t/, "1rm", "t-bar-row", ["peso"], true],
+  [/^fondos? de triceps$|^fondos? en banco|bench dip/, "reps", "bench-dips.reps", ["corporal"]],
 ];
 // Percentil a partir de los cortes de Strength Level, interpolando en escala normal (z) con la carga en logaritmo.
 // Principiante 5 % · Novato 20 % · Intermedio 50 % · Avanzado 80 % · Élite 95 % · Leyenda 99 % (top 1 %, extrapolado).
@@ -791,7 +803,56 @@ function tNivel(st) {
       h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, h("span", null, e.name)), h("div", { class: "exr-s" }, e.level.valTxt), lvlBar(e.level)),
       h("div", { class: "exr-v" }, h("div", { class: "lvr click", onclick: (ev) => { ev.stopPropagation(); levelSheet(e.name, e.level); } }, lvlBadge(e.level.idx, 20), lvlPill(e.level)), h("span", null, topTxt(e.level.pct)))))
       : h("div", { class: "muted" }, "Nada con estos filtros."))),
+    h("div", { class: "row", style: { marginTop: "10px" } }, h("button", { class: "btn", onclick: () => levelsInfoSheet(st) }, "ⓘ Cómo funcionan los niveles · tablas y gráficas")),
     h("div", { class: "note" }, `Fuente: Strength Level (strengthlevel.com), tablas de ${sexWord()} por peso corporal. Cada entreno se compara con tu peso de ese día (pesajes; los días sin pesaje se interpolan entre el anterior y el siguiente). Último pesaje: ${fmt(S.bw, 1)} kg (${dateLabel(S.bwDate, { day: "numeric", month: "short" })}). Niveles por percentil: Novato 20 %, Intermedio 50 %, Avanzado 80 %, Élite 95 % (top 5 %), Leyenda 99 % (top 1 %, extrapolado). Se compara tu mejor 1RM estimado con la tabla de Hevy, tus reps máximas o tu lastre. Mancuernas: entre dos. Poleas que pesan la mitad: × 0,5. Máquinas (etiqueta punteada): orientativo.`));
+}
+
+// Información general de los niveles: cómo se calculan y las tablas de cada ejercicio (por peso corporal y sexo).
+function levelsInfoSheet(st) {
+  const slugs = Object.keys(SL_TABLES).sort((a, b) => SL_NAMES[a].localeCompare(SL_NAMES[b], "es"));
+  let cur = S.lvInfo && SL_TABLES[S.lvInfo] ? S.lvInfo : "bench-press";
+  const mine = (st && st.list) || [];
+  const without = mine.filter((e) => !e.level && ["peso", "lastre", "corporal"].includes(e.kind)).map((e) => e.name);
+  const unitOf = (k) => (k.endsWith(".reps") ? "reps" : k.endsWith(".add") ? "kg de lastre" : "kg (1RM)");
+  const body = h("div");
+  const draw = () => {
+    S.lvInfo = cur;
+    const T = SL_TABLES[cur], unit = unitOf(cur);
+    const W = Math.max(300, Math.min(760, window.innerWidth - 60)), H = 260, L = 40, R = 12, Tp = 10, B = 26;
+    const all = ["H", "M"].flatMap((sx) => T[sx].flatMap((r) => r.slice(1)));
+    let lo = Math.min(0, ...all), hi = Math.max(...all) * 1.05;
+    const x = (bw) => L + ((bw - 40) / 100) * (W - L - R), y = (v) => Tp + ((hi - v) / (hi - lo)) * (H - Tp - B);
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, class: "lvinfo" });
+    const step = hi - lo > 200 ? 50 : hi - lo > 80 ? 20 : hi - lo > 30 ? 10 : 5;
+    for (let g = Math.ceil(lo / step) * step; g <= hi; g += step) { svg.append(svgEl("line", { x1: L, x2: W - R, y1: y(g), y2: y(g), class: "grid" })); const t = svgEl("text", { x: L - 6, y: y(g) + 4, "text-anchor": "end", class: "axis" }); t.textContent = fmt(g); svg.append(t); }
+    for (let bw = 40; bw <= 140; bw += 20) { const t = svgEl("text", { x: x(bw), y: H - 8, "text-anchor": "middle", class: "axis" }); t.textContent = bw + " kg"; svg.append(t); }
+    ["H", "M"].forEach((sx) => [0, 1, 2, 3, 4].forEach((lv) => {
+      const d = T[sx].map((r, i) => (i ? "L" : "M") + x(r[0]).toFixed(1) + " " + y(r[lv + 1]).toFixed(1)).join("");
+      const pth = svgEl("path", { d, class: "lvl-line t" + lv + (sx === "M" ? " fem" : ""), fill: "none" });
+      const tt = svgEl("title", {}); tt.textContent = `${sx === "H" ? "Hombres" : "Mujeres"} · ${LVL[lv]}`; pth.append(tt); svg.append(pth);
+    }));
+    const e = mine.find((x_) => x_.level && STD.some(([rx, , sl]) => sl === cur && rx.test(exKeyName(x_.name))));
+    if (e && e.level) { const c = svgEl("circle", { cx: x(Math.min(140, Math.max(40, e.level.bw))), cy: y(e.level.raw), r: 5.5, class: "me-pt" }); const tt = svgEl("title", {}); tt.textContent = `Tú: ${e.level.valTxt} con ${fmt(e.level.bw, 1)} kg`; c.append(tt); svg.append(c); }
+    const sx = S.sex === "M" ? "M" : "H";
+    const tbl = h("div", { class: "tbl-wrap" }, h("table", { class: "t" }, h("tr", null, h("th", null, "Peso corporal"), LVL.slice(0, 5).map((l) => h("th", { class: "r" }, l))),
+      T[sx].map((r) => h("tr", { class: S.bw && Math.abs(r[0] - S.bw) < 2.5 ? "hl" : "" }, h("td", null, r[0] + " kg"), r.slice(1).map((v) => h("td", { class: "r num" }, v === 0.5 ? "<1" : fmt(v)))))));
+    body.replaceChildren(
+      h("p", { class: "muted", style: { marginTop: 0 } }, "Los niveles comparan tu mejor marca con la de miles de personas de tu mismo sexo y peso corporal (datos públicos de Strength Level). Cada nivel es un percentil: Principiante 5 %, Novato 20 %, Intermedio 50 %, Avanzado 80 %, Élite 95 % y Leyenda 99 % (este último lo extrapolamos)."),
+      h("ul", { class: "info-l" },
+        h("li", null, h("b", null, "Peso corporal: "), "Strength Level publica una fila cada 5 kg (hombres 50–140 kg, mujeres 40–120 kg); entre filas se interpola, así que vale para cualquier peso. Cada entreno se compara con tu peso de ese día (los días sin pesaje se interpolan)."),
+        h("li", null, h("b", null, "Sexo: "), "hay tablas separadas para hombres y mujeres; se usa el sexo de tu perfil."),
+        h("li", null, h("b", null, "Altura y edad: "), "no se usan. Strength Level no tiene tablas por altura; por edad sí publica, pero no las aplicamos."),
+        h("li", null, h("b", null, "Cálculo: "), "1RM estimado con la tabla de Hevy; mancuernas = una mancuerna; poleas que pesan la mitad × 0,5; a las máquinas se les resta su peso; lastre = peso corporal + lastre. En máquinas es orientativo (cada máquina es distinta)."),
+        h("li", null, h("b", null, "Ejercicios sin tabla: "), `${Object.keys(SL_TABLES).length} tablas cargadas. Los que no tienen tabla no muestran nivel, pero sí récords, 1RM y progreso.` + (without.length ? ` Tuyos sin nivel: ${without.join(", ")}.` : ""))),
+      h("div", { class: "sec-t" }, "Tabla por ejercicio"),
+      h("select", { class: "input", onchange: (ev) => { cur = ev.target.value; draw(); } }, slugs.map((k) => h("option", { value: k, selected: k === cur }, SL_NAMES[k]))),
+      h("div", { class: "lv-legend" }, LVL.slice(0, 5).map((l, i) => h("span", { class: "lg t" + i }, l)), h("span", { class: "lg solid" }, "— hombres"), h("span", { class: "lg dash" }, "- - mujeres"), e && e.level ? h("span", { class: "lg me" }, "● tú") : null),
+      h("div", { class: "chart-scroll" }, svg),
+      h("div", { class: "faint", style: { fontSize: "12.5px", margin: "4px 0 10px" } }, `Eje vertical: ${unit}. Eje horizontal: peso corporal.`),
+      h("div", { class: "sec-t" }, `Valores para ${sx === "M" ? "mujeres" : "hombres"} (${unit})`), tbl);
+  };
+  draw();
+  sheet("Niveles de fuerza", body, null, { wide: true });
 }
 
 // ------------------------------------------------------------- hojas
