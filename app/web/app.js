@@ -223,36 +223,50 @@ function viewHoy() {
   return wrap;
 }
 
+// Resumen del día (prototipo B): anillo de kcal + anillos de macros; al tocarlo, el desglose completo.
+const NS_SVG = "http://www.w3.org/2000/svg";
+const svgE = (t, a) => { const e = document.createElementNS(NS_SVG, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
+function ringSvg(size, r, w, p, cls, center) {
+  const C = 2 * Math.PI * r, svg = svgE("svg", { width: size, height: size, viewBox: `${-size / 2} ${-size / 2} ${size} ${size}`, class: "ring " + cls });
+  svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-bg" }),
+    svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${Math.max(0.001, C * Math.min(1, p))} ${C}`, transform: "rotate(-90)" }));
+  for (const [y, txt, c] of center) { const t = svgE("text", { y, "text-anchor": "middle", class: c }); t.textContent = txt; svg.append(t); }
+  return svg;
+}
 function summaryCard(st) {
   const t = st.totals, tg = st.target || {}, en = st.energy;
-  const kcalT = tg.kcal || 0, pct = kcalT ? Math.min(100, ((t.kcal || 0) / kcalT) * 100) : 0;
-  const rest = kcalT && t.kcal != null ? kcalT - t.kcal : null;
+  const kcalT = tg.kcal || 0, rest = kcalT && t.kcal != null ? kcalT - t.kcal : null, over = rest != null && rest < 0;
+  const open = () => energySheet(st);
+  const big = ringSvg(232, 98, 16, kcalT ? (t.kcal || 0) / kcalT : 0, "big" + (over ? " over" : ""), [
+    [-34, "Consumido", "rg-l"], [14, v(t, "kcal"), "rg-v"], [40, kcalT ? "/ " + fmt(kcalT) + " kcal" + (tg.provisional ? " · prov." : "") : "kcal · sin objetivo", "rg-o"],
+    [68, rest == null ? "" : rest >= 0 ? `quedan ${fmt(rest)}` : `exceso ${fmt(-rest)}`, "rg-r"]]);
   const macro = (cls, label, f, target, unitT) => {
-    const val = t[f], p = target ? Math.min(100, ((val || 0) / target) * 100) : 0;
-    return h("div", { class: "macro " + cls },
-      h("div", { class: "lbl" }, h("span", null, label), (t.missing || []).includes(f) ? h("span", { class: "miss miss-l", title: "Hay valores desconocidos: el total es un mínimo" }, "incompleto") : null),
-      h("div", { class: "val num" }, v(t, f), h("small", null, " / " + unitT + " g")),
-      h("div", { class: "mbar" }, h("i", { style: { width: p + "%" } })));
+    const miss = (t.missing || []).includes(f);
+    return h("div", { class: "mring " + cls }, ringSvg(96, 38, 9, target ? (t[f] || 0) / target : 0, cls, [[3, v(t, f) + (miss ? "+" : ""), "rg-mv"], [20, "/ " + unitT + " g", "rg-mo"]]),
+      h("div", { class: "mr-l" }, label, miss ? h("span", { class: "miss", title: "Hay valores desconocidos: el total es un mínimo" }, " *") : null));
   };
-  const etog = h("div", { class: "energy-toggle" + (S.energyOpen ? " open" : ""), onclick: () => { S.energyOpen = !S.energyOpen; render(); } },
-    h("span", null, "Gasto est. ", h("b", { class: "num" }, fmt(en.total)), en.complete ? "" : h("span", { class: "miss", title: "Faltan los pasos" }, " *")),
-    h("span", null, "Balance ", h("b", { class: "num" }, signed(st.balance))),
-    h("span", { class: "chev" }, icon("chev")));
-  const card = h("div", { class: "card summary" },
-    h("div", { class: "kcal-line" },
-      h("span", { class: "kcal-big num" }, v(t, "kcal")),
-      h("span", { class: "kcal-of num" }, "/ " + fmt(kcalT) + " kcal" + (tg.provisional ? " · prov." : "")),
-      h("div", { class: "kcal-rest" }, rest == null ? "" : rest >= 0 ? ["Restan", h("b", { class: "num" }, fmt(rest))] : ["Exceso", h("b", { class: "num" }, fmt(-rest))])),
-    h("div", { class: "bar" + (rest != null && rest < 0 ? " over" : "") }, h("i", { style: { width: pct + "%" } })),
-    h("div", { class: "macros" },
+  return h("div", { class: "card summary b" },
+    h("button", { class: "ring-btn", onclick: open, "aria-label": "Ver desglose" }, big),
+    h("div", { class: "mrings" },
       macro("p", "Proteína", "protein_g", tg.protein_g, fmt(tg.protein_g)),
       macro("c", "Carbohidratos", "carbs_g", tg.carbs_g, fmt(tg.carbs_g)),
       macro("g", "Grasas", "fat_g", tg.fat_max_g, `${fmt(tg.fat_min_g)}–${fmt(tg.fat_max_g)}`)),
-    etog);
-  if (S.energyOpen) card.append(energyTable(en, st.balance));
-  return card;
+    h("div", { class: "sum-chips" },
+      h("button", { class: "schip", onclick: open }, "Gasto ", h("b", { class: "num" }, fmt(en.total)), en.complete ? null : h("span", { class: "miss", title: "Faltan datos" }, " *")),
+      h("button", { class: "schip", onclick: open }, "Balance ", h("b", { class: "num" }, signed(st.balance))),
+      h("button", { class: "schip lnk", onclick: open }, "Desglose ›")));
 }
-
+// Desglose único: lo consumido (con macros) y el gasto con sus partes, hasta el balance.
+function energySheet(st) {
+  const t = st.totals, tg = st.target || {};
+  sheet("Cómo se calcula", [
+    h("table", { class: "t sumtbl v2" },
+      h("tr", { class: "main" }, h("td", null, "Consumido"), h("td", { class: "r num" }, v(t, "kcal") + " kcal"), h("td", { class: "r faint" }, tg.kcal ? "objetivo " + fmt(tg.kcal) : "")),
+      h("tr", { class: "sub" }, h("td", null, "Proteína"), h("td", { class: "r num" }, v(t, "protein_g") + " g"), h("td", { class: "r faint num" }, tg.protein_g != null ? fmt(tg.protein_g) + " g" : "")),
+      h("tr", { class: "sub" }, h("td", null, "Carbohidratos"), h("td", { class: "r num" }, v(t, "carbs_g") + " g"), h("td", { class: "r faint num" }, tg.carbs_g != null ? fmt(tg.carbs_g) + " g" : "")),
+      h("tr", { class: "sub" }, h("td", null, "Grasas"), h("td", { class: "r num" }, v(t, "fat_g") + " g"), h("td", { class: "r faint num" }, tg.fat_min_g != null ? `${fmt(tg.fat_min_g)}–${fmt(tg.fat_max_g)} g` : ""))),
+    energyTable(st.energy, st.balance)]);
+}
 function energyTable(en, balance) {
   const r = (a, b, c) => h("tr", null, h("td", null, a, c ? h("span", { class: "faint" }, " · " + c) : null), h("td", { class: "num" }, b));
   return h("div", { class: "energy" }, h("table", null,
@@ -279,17 +293,17 @@ function bodyStrip(st) {
     await act(() => api("PUT", "/api/days/" + st.date, { weight_kg: n }), "Peso guardado").catch(() => { el.value = day.weight_kg ?? ""; });
   });
   const weight = h("div", { class: "stat" },
-    h("div", { class: "lbl" }, h("span", null, "Peso"), h("span", { class: "faint" }, st.avg7 != null ? `media 7d ${fmt(st.avg7, 2)}` : "")),
-    h("div", { class: "v" }, el, h("small", null, "kg")));
+    h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic w" }, "⚖"), "Peso")),
+    h("div", { class: "v" }, el, h("small", null, "kg")), h("div", { class: "s" }, st.avg7 != null ? `media 7 d ${fmt(st.avg7, 1)}` : ""));
   const steps = h("div", { class: "stat clickable", onclick: closed ? null : () => stepsSheet(st) },
-    h("div", { class: "lbl" }, h("span", null, "Pasos"), closed ? null : h("span", { class: "lnk" }, day.steps == null ? "+ Añadir" : "Editar")),
+    h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic s" }, "👟"), "Pasos"), closed ? null : h("span", { class: "lnk" }, day.steps == null ? "+ Añadir" : "Editar")),
     day.steps == null ? h("div", { class: "v" }, h("small", null, "Sin registrar"))
-      : h("div", { class: "v" }, fmt(day.steps), h("small", null, en.steps_kcal != null ? ` · ${fmt(en.steps_kcal)} kcal` : "")));
+      : h("div", { class: "v" }, fmt(day.steps)), h("div", { class: "s" }, day.steps != null && en.steps_kcal != null ? `${fmt(en.steps_kcal)} kcal` : ""));
   const ws = st.workouts || [];
   const other = st.activities.filter((a) => !ws.some((w) => w.activity_id === a.id));
   const kc = (id) => fmt((en.exercise.find((x) => x.id === id) || {}).kcal);
   const train = h("div", { class: "stat clickable", onclick: () => trainingDaySheet(st) },
-    h("div", { class: "lbl" }, h("span", null, "Entreno"), h("span", { class: "lnk" }, ws.length ? "Ver" : "+ Añadir")),
+    h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic e" }, "🏋"), "Entreno"), h("span", { class: "lnk" }, ws.length ? "Ver" : "+ Añadir")),
     h("div", { class: "acts" }, ws.length || other.length
       ? [...ws.map((w) => h("div", { class: "a wk" },
           h("div", { class: "wk-t" }, h("b", null, w.title), w.prs_count ? h("span", { class: "prc", title: "Récords batidos en este entreno" }, icon("trophy"), String(w.prs_count)) : null),
@@ -373,15 +387,18 @@ function mealBlock(st, meal, closed) {
   if (meal === "otro" && !m.entries.length && closed) return null;
   const head = h("div", { class: "meal-h" }, h("h3", null, m.label),
     m.entries.length ? h("span", { class: "mt num" }, h("b", null, v(m.totals, "kcal")), " kcal") : null,
-    m.entries.length ? h("span", { class: "mtm num" }, h("span", { class: "p" }, "P ", v(m.totals, "protein_g")), h("span", { class: "c" }, "C ", v(m.totals, "carbs_g")), h("span", { class: "g" }, "G ", v(m.totals, "fat_g"))) : null,
+    m.entries.length ? h("span", { class: "mchips num" }, h("i", { class: "p" }, v(m.totals, "protein_g")), h("i", { class: "c" }, v(m.totals, "carbs_g")), h("i", { class: "g" }, v(m.totals, "fat_g"))) : null,
     closed ? null : h("button", { class: "add-btn add", onclick: () => addSheet(meal) }, "+ Añadir"));
   if (!m.entries.length) return h("div", { class: "meal" }, head, closed ? h("div", { class: "empty-meal" }, "—") : h("div", { class: "empty-meal", onclick: () => addSheet(meal) }, "Añadir " + m.label.toLowerCase()));
   const list = h("div", { class: "list" });
-  const itemEl = (e, child) => h("div", { class: "item" + (child ? " child" : ""), onclick: closed ? null : (ev) => { ev.stopPropagation(); entrySheet(e); } },
-    h("div", { class: "nm" }, h("span", { style: { overflow: "hidden", textOverflow: "ellipsis" } }, e.name), qBadge(e.quality)),
-    h("div", { class: "kc num" }, v(e, "kcal")),
-    h("div", { class: "sub" }, [e.time, e.unit_label, e.kind === "estimacion" && e.kcal_min != null ? `rango ${fmt(e.kcal_min)}–${fmt(e.kcal_max)}` : null].filter(Boolean).join(" · ")),
-    macroTxt(e));
+  const foodOf = (id) => (S.catalog && S.catalog.foods || []).find((f) => f.id === id) || {};
+  const chips = (n) => h("div", { class: "mchips num" }, h("i", { class: "p" }, v(n, "protein_g")), h("i", { class: "c" }, v(n, "carbs_g")), h("i", { class: "g" }, v(n, "fat_g")));
+  const itemEl = (e, child) => { const fo = foodOf(e.food_id);
+    return h("div", { class: "item b" + (child ? " child" : ""), onclick: closed ? null : (ev) => { ev.stopPropagation(); entrySheet(e); } },
+      mono(e.name, fo.category, fo.image),
+      h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, e.name), qBadge(e.quality)),
+        h("div", { class: "sub" }, [e.time, e.unit_label, e.kind === "estimacion" && e.kcal_min != null ? `rango ${fmt(e.kcal_min)}–${fmt(e.kcal_max)}` : null].filter(Boolean).join(" · ")), chips(e)),
+      h("div", { class: "kc num" }, v(e, "kcal"), h("small", null, "kcal"))); };
   // Las comidas habituales se muestran como un solo plato (desplegable con sus ingredientes)
   const es = m.entries;
   for (let i = 0; i < es.length; i++) {
@@ -399,11 +416,11 @@ function mealBlock(st, meal, closed) {
     const key = e.date + ":" + e.template_id + ":" + e.id;
     S.openTpl = S.openTpl || {};
     const kids = h("div", { class: "tpl-kids" + (S.openTpl[key] ? "" : " hidden") }, grp.map((x) => itemEl(x, true)));
-    const row = h("div", { class: "item tpl" + (S.openTpl[key] ? " open" : ""), onclick: () => { S.openTpl[key] = !S.openTpl[key]; kids.classList.toggle("hidden"); row.classList.toggle("open"); } },
-      h("div", { class: "nm" }, h("span", { class: "chev" }, "›"), h("span", { style: { overflow: "hidden", textOverflow: "ellipsis" } }, tpl ? tpl.name : "Comida habitual"), qBadge(worst)),
-      h("div", { class: "kc num" }, v(tot, "kcal")),
-      h("div", { class: "sub" }, [e.time, `comida habitual · ${grp.length} ${grp.length === 1 ? "alimento" : "alimentos"}`].filter(Boolean).join(" · ")),
-      macroTxt(tot));
+    const row = h("div", { class: "item b tpl" + (S.openTpl[key] ? " open" : ""), onclick: () => { S.openTpl[key] = !S.openTpl[key]; kids.classList.toggle("hidden"); row.classList.toggle("open"); } },
+      mono(tpl ? tpl.name : "Comida habitual", "comida", tpl && tpl.image),
+      h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, tpl ? tpl.name : "Comida habitual"), qBadge(worst), h("span", { class: "chev" }, "›")),
+        h("div", { class: "sub" }, [e.time, `comida habitual · ${grp.length} ${grp.length === 1 ? "alimento" : "alimentos"}`].filter(Boolean).join(" · ")), chips(tot)),
+      h("div", { class: "kc num" }, v(tot, "kcal"), h("small", null, "kcal")));
     list.append(h("div", { class: "tpl-grp" }, row, kids));
   }
   return h("div", { class: "meal" }, head, list);

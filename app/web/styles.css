@@ -963,3 +963,44 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .chips-l { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .chips-l .chip { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; padding: 4px 10px; font-size: 12.5px; cursor: pointer; color: var(--text); }
 .chips-l .chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ===== Hoy · prototipo B (anillos) ===== */
+.summary.b { display: flex; flex-direction: column; align-items: center; padding: 18px 12px 14px; }
+.ring-btn { border: 0; background: none; padding: 0; cursor: pointer; border-radius: 50%; }
+.ring .rg-bg { stroke: var(--surface-2); }
+.ring.big .rg-fg { stroke: var(--accent); transition: stroke-dasharray .5s; } .ring.big.over .rg-fg { stroke: #e0a915; }
+.ring.p .rg-fg { stroke: var(--p); } .ring.c .rg-fg { stroke: var(--c); } .ring.g .rg-fg { stroke: var(--g); }
+.ring text { fill: var(--text); font-family: var(--font); }
+.ring .rg-l { font-size: 13px; fill: var(--muted); } .ring .rg-v { font-size: 46px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.ring .rg-o { font-size: 14.5px; fill: var(--faint); } .ring .rg-r { font-size: 13px; font-weight: 650; fill: var(--accent); }
+.ring.over .rg-r { fill: #b45309; }
+.ring .rg-mv { font-size: 19px; font-weight: 750; font-variant-numeric: tabular-nums; } .ring .rg-mo { font-size: 10.5px; fill: var(--faint); }
+.mrings { display: flex; justify-content: space-around; width: 100%; max-width: 440px; margin-top: 4px; }
+.mring { text-align: center; } .mring .mr-l { font-size: 13px; font-weight: 600; margin-top: 2px; }
+.sum-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 12px; }
+.schip { border: 0; background: var(--surface-2); color: var(--text); border-radius: 99px; padding: 6px 13px; font-size: 13px; cursor: pointer; }
+.schip b { font-weight: 700; } .schip.lnk { background: none; color: var(--accent); font-weight: 650; }
+/* tarjetas de peso, pasos y entreno */
+.stat { border-radius: 16px; }
+.stat .lbl > span:first-child { display: inline-flex; align-items: center; gap: 6px; }
+.sic { width: 20px; height: 20px; border-radius: 6px; display: inline-grid; place-items: center; font-size: 11px; }
+.sic.w { background: color-mix(in srgb, var(--p) 14%, transparent); } .sic.s { background: color-mix(in srgb, var(--c) 16%, transparent); } .sic.e { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.stat .s { font-size: 11.5px; color: var(--faint); }
+/* comidas: miniatura, nombre, cantidad, chips P/C/G y kcal */
+.item.b { grid-template-columns: auto 1fr auto; gap: 12px; padding: 10px 12px; }
+.item.b .mono { width: 44px; height: 44px; border-radius: 12px; font-size: 15px; }
+.item.b .it-m { min-width: 0; }
+.item.b .ell { overflow: hidden; text-overflow: ellipsis; }
+.item.b .kc { font-size: 16px; font-weight: 650; text-align: right; line-height: 1.1; } .item.b .kc small { display: block; font-size: 10.5px; color: var(--faint); font-weight: 500; }
+.item.b.child { padding-left: 30px; } .item.b.child .mono { width: 34px; height: 34px; border-radius: 10px; font-size: 12px; }
+.item.b.tpl .chev { margin-left: 2px; }
+.mchips { display: inline-flex; gap: 6px; font-size: 11.5px; font-weight: 600; margin-top: 3px; }
+.mchips i { font-style: normal; display: inline-flex; align-items: center; gap: 3px; color: var(--text); }
+.mchips i::before { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 4px; color: #fff; font-size: 9.5px; font-weight: 800; }
+.mchips .p::before { content: "P"; background: var(--p); } .mchips .c::before { content: "C"; background: var(--c); } .mchips .g::before { content: "G"; background: var(--g); }
+.meal-h .mchips { margin: 0; font-weight: 600; }
+.list { border-radius: 16px; }
+@media (max-width: 640px) {
+  .item.b { padding: 9px 11px; gap: 10px; } .item.b .mono { width: 40px; height: 40px; }
+  .strip { grid-template-columns: 1fr 1fr; } .strip > .stat:last-child { grid-column: 1 / -1; }
+}
