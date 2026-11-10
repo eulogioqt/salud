@@ -297,15 +297,13 @@ function energySheet(st) {
   };
   const meals = MEALS.map(([m, l]) => [l, (st.meals[m] && st.meals[m].totals && st.meals[m].totals.kcal) || 0]).filter((x) => x[1] > 0);
   const eaten = h("div", { class: "bd-sec" },
-    h("div", { class: "bd-st" }, h("span", { class: "sic c" }, "🍽️"), h("span", { class: "grow" }, "Lo que has comido"),
+    h("div", { class: "bd-st" }, h("span", { class: "grow" }, "Lo que has comido"),
       h("span", { class: "num bd-tot" }, h("b", null, v(t, "kcal")), tg.kcal ? h("span", { class: "faint" }, " / " + fmt(tg.kcal) + " kcal") : " kcal")),
-    tg.kcal ? h("div", { class: "bd-bar k" }, h("i", { class: kc > tg.kcal ? "over" : "", style: { width: pct(kc, tg.kcal) + "%" } })) : null,
     tg.kcal ? h("div", { class: "bd-cap" }, kc <= tg.kcal ? `Te quedan ${fmt(tg.kcal - kc)} kcal` : `${fmt(kc - tg.kcal)} kcal por encima`,
       tg.dynamic ? ` · objetivo según tu gasto (${goalName(tg.kcal_offset)})` : tg.provisional ? " · objetivo provisional" : "") : null,
     h("div", { class: "bd-macros" },
       macroRow("p", "Proteína", "protein_g", tg.protein_g), macroRow("c", "Carbohidratos", "carbs_g", tg.carbs_g), macroRow("g", "Grasas", "fat_g", tg.fat_mid_g)),
-    meals.length > 1 ? h("div", { class: "bd-meals" }, h("div", { class: "bd-sub" }, "Por comidas"), h("div", { class: "bd-stack" }, meals.map(([l, k], i) => h("i", { class: "m" + i, style: { flex: k }, title: `${l}: ${fmt(k)} kcal` }))),
-      h("div", { class: "bd-leg" }, meals.map(([l, k], i) => h("span", null, h("i", { class: "m" + i }), l + " ", h("b", { class: "num" }, fmt(k)))))) : null,
+    meals.length > 1 ? h("div", { class: "bd-meals-t" }, meals.map(([l, k]) => h("span", null, l + " ", h("b", { class: "num" }, fmt(k))))) : null,
     (t.missing || []).length ? h("div", { class: "note warn" }, "Hay valores desconocidos: los totales son un mínimo.") : null);
   // Lo gastado
   const parts = [
@@ -317,15 +315,15 @@ function energySheet(st) {
   ];
   const tot = en.total || parts.reduce((a, p) => a + (p[2] || 0), 0) || 1;
   const burned = h("div", { class: "bd-sec" },
-    h("div", { class: "bd-st" }, h("span", { class: "sic e" }, "🔥"), h("span", { class: "grow" }, "Lo que has gastado"), h("span", { class: "num bd-tot" }, h("b", null, en.total == null ? "?" : fmt(en.total)), " kcal")),
+    h("div", { class: "bd-st" }, h("span", { class: "grow" }, "Lo que has gastado"), h("span", { class: "num bd-tot" }, h("b", null, en.total == null ? "?" : fmt(en.total)), " kcal")),
     h("div", { class: "bd-stack big" }, parts.filter((p) => p[2]).map((p) => h("i", { class: "e-" + p[0], style: { flex: p[2] }, title: `${p[1]}: ${fmt(p[2])} kcal` }))),
     h("div", { class: "bd-parts" }, parts.map(([k, l, val, sub]) => h("div", { class: "bd-p" }, h("i", { class: "dot e-" + k }),
       h("div", { class: "bd-pl" }, h("span", null, l), h("small", null, sub)),
       val == null ? (k === "steps" && !closed ? h("button", { class: "btn sm", onclick: () => stepsSheet(st) }, "Añadir") : k === "neat" ? h("span", { class: "faint", style: { fontSize: "12.5px" } }, "por definir") : h("span", { class: "miss" }, "falta"))
-        : h("div", { class: "bd-pv num" }, h("b", null, fmt(val)), h("span", null, fmt((100 * val) / tot) + " %"))))));
+        : h("div", { class: "bd-pv num" }, h("b", null, fmt(val)))))));
   const closedNote = closed && c ? h("div", { class: "bd-closed" }, icon("lock"), ` Cerrado el ${dateLabel(c.closed_at.slice(0, 10), { day: "numeric", month: "short" })} a las ${c.closed_at.slice(11, 16)}` + (c.version > 1 ? ` · versión ${c.version}` : "") + (c.forced ? " · con datos incompletos" : "")) : null;
   const obs = closed && c && c.summary && (c.summary.observations || []).length
-    ? h("div", { class: "bd-sec" }, h("div", { class: "bd-st" }, h("span", { class: "sic s" }, "📝"), "Observaciones del cierre"), h("ul", { class: "bd-obs" }, c.summary.observations.map((o) => h("li", null, o)))) : null;
+    ? h("div", { class: "bd-sec" }, h("div", { class: "bd-st" }, "Observaciones del cierre"), h("ul", { class: "bd-obs" }, c.summary.observations.map((o) => h("li", null, o)))) : null;
   sheet(closed ? "Resumen del día" : "Desglose del día", [closedNote, hero, eaten, burned, obs,
     h("div", { class: "faint bd-foot" }, "El gasto es una estimación: tu metabolismo en reposo (según peso, altura, edad y sexo) + la digestión (10 % de lo que comes) + lo que te mueves en el día + tus pasos + tus entrenos.")], null, { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }) });
 }

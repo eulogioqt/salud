@@ -1245,3 +1245,17 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .bd-goal-l { position: relative; height: 15px; }
 .bd-goal-l span { position: absolute; top: 3px; transform: translateX(-50%); font-size: 10.5px; color: var(--faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .bd-macros { gap: 8px; }
+/* Desglose más tranquilo: menos color y más aire */
+.bd-hero { background: var(--surface-2); }
+.bd-sec { border-top: 1px solid var(--line); margin-top: 20px; padding-top: 18px; }
+.bd-st { font-size: 14.5px; margin-bottom: 8px; }
+.bd-cap { margin: 0 0 14px; }
+.bd-bar { height: 5px; background: var(--surface-2); }
+.bd-m .bd-bar > i { opacity: .75; }
+.bd-chip { width: 16px; height: 16px; font-size: 9.5px; border-radius: 4px; }
+.bd-meals-t { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--muted); margin-top: 12px; }
+.bd-meals-t b { color: var(--text); font-weight: 650; }
+.bd-stack.big { height: 8px; opacity: .8; }
+.bd-p { padding: 9px 0; } .bd-p + .bd-p { border-top: 1px dashed var(--line); }
+.bd-p .dot { width: 8px; height: 8px; border-radius: 50%; }
+.bd-pv b { font-size: 14.5px; font-weight: 650; }
