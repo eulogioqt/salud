@@ -213,7 +213,7 @@ def main(argv=None):
     p.add_argument("--clave", default="claude")
     p = sp.add_parser("contexto-guardar", help="Sustituir las notas personales para Claude")
     p.add_argument("texto", nargs="?"); p.add_argument("--archivo"); p.add_argument("--contenido"); p.add_argument("--clave", default="claude")
-    p = sp.add_parser("niveles-descargar", help="(servidor) Descargar todas las tablas de Strength Level a la caché")
+    p = sp.add_parser("rangos-descargar", aliases=["niveles-descargar"], help="(servidor) Descargar todas las tablas de Strength Level a la caché")
     p.add_argument("--pausa", type=float, default=3.0)
     p = sp.add_parser("foto", help="Asignar foto a un alimento"); p.add_argument("alimento"); p.add_argument("ruta")
     p = sp.add_parser("importar-hevy", help="Importar el CSV exportado de Hevy o un JSON con formato de la API"); p.add_argument("ruta")
@@ -221,7 +221,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     if a.cmd in ("usuario-crear", "usuario-password", "usuarios", "usuario-token"):
         return _accounts(a)
-    if a.cmd == "niveles-descargar":
+    if a.cmd in ("rangos-descargar", "niveles-descargar"):
         from . import strengthlevel as SL
         datadir = a.datos or os.path.dirname(os.path.abspath(a.db or DEFAULT_DB))
         from . import xlevel as XL
