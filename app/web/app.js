@@ -39,7 +39,7 @@ const norm = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCa
 const FIELDS = ["kcal", "protein_g", "carbs_g", "fat_g"];
 const MEALS = [["desayuno", "Desayuno"], ["almuerzo", "Almuerzo"], ["merienda", "Merienda"], ["cena", "Cena"], ["otro", "Otro"]];
 // Lo que no viene de una etiqueta o del histórico es «Aprox.» (aproximado, estimación de comida fuera o sin datos oficiales)
-const QUAL = { etiqueta: "Etiqueta", historico: "Histórico", provisional: "Aprox.", estimacion: "Aprox.", pendiente: "Aprox." };
+const QUAL = { etiqueta: "Etiqueta", historico: "Histórico", provisional: "Sin etiqueta", estimacion: "Estimado", pendiente: "Sin etiqueta" };
 const QORDER = ["etiqueta", "historico", "provisional", "estimacion", "pendiente"];
 const ACT_TYPES = [["fuerza", "Fuerza"], ["calistenia", "Calistenia"], ["hyrox", "HYROX"], ["carrera", "Carrera"], ["bici", "Bici"], ["natacion", "Natación"], ["caminata", "Caminata"], ["otro", "Otro"]];
 const STEP_TYPES = ["carrera", "hyrox", "caminata"];
