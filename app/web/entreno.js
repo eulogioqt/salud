@@ -763,7 +763,7 @@ function viewTraining() {
   if (!ws.length) return h("div", { class: "training" }, head, h("div", { class: "card empty" }, icon("dumbbell"), h("h3", null, "Aún no hay entrenos"),
     h("p", { class: "muted" }, "Dime «entreno hecho» por el chat y lo traigo de Hevy, o importa el CSV de Hevy.")));
   const st = S.tStats && S.tStats._src === ws && S.tStats._bw === S.weights && S.tStats._set === S.exSet ? S.tStats : (S.tStats = Object.assign(trainingStats(ws, S.bw), { _src: ws, _bw: S.weights, _set: S.exSet }));
-  const tabs = h("div", { class: "seg tabs2" }, [["resumen", "Resumen"], ["historial", "Historial"], ["ejercicios", "Ejercicios"], ["records", "Récords"], ["nivel", "Nivel"]]
+  const tabs = h("div", { class: "seg tabs2" }, [["resumen", "Resumen"], ["historial", "Historial"], ["ejercicios", "Ejercicios"], ["records", "Récords"], ["nivel", "Rango"]]
     .map(([k, l]) => h("button", { class: S.tTab === k ? "on" : "", onclick: () => { S.tTab = k; render(); } }, l)));
   const body = { resumen: tResumen, historial: tHistorial, ejercicios: tEjercicios, records: tRecords, nivel: tNivel }[S.tTab](st, ws);
   return h("div", { class: "training" }, head, tabs, body);
@@ -977,7 +977,7 @@ function lvAgg(L) {
   return { pct, idx: zToIdx(pct) };
 }
 function tNivel(st) {
-  if (!S.bw) return h("div", { class: "card panel muted" }, "Para calcular niveles hace falta tu peso: apúntalo en Hoy (o la báscula en Progreso) y tu sexo en Ajustes.");
+  if (!S.bw) return h("div", { class: "card panel muted" }, "Para calcular rangos hace falta tu peso: apúntalo en Hoy (o la báscula en Progreso) y tu sexo en Ajustes.");
   const xs = st.list.filter((e) => e.level).sort((a, b) => b.level.pct - a.level.pct);
   if (!xs.length) return h("div", { class: "card panel muted" }, "Aún no hay ejercicios con estándares.");
   const G = lvAgg(xs);
@@ -992,7 +992,7 @@ function tNivel(st) {
   return h("div", null,
     h("div", { class: "card lvhero" },
       h("div", { class: "lvh-b" }, lvlBadge(G.idx, 64)),
-      h("div", { class: "lvh-t" }, h("span", { class: "faint" }, "Tu nivel global"), h("b", { class: "tn t" + G.idx }, LVL[G.idx]),
+      h("div", { class: "lvh-t" }, h("span", { class: "faint" }, "Tu rango global"), h("b", { class: "tn t" + G.idx }, LVL[G.idx]),
         h("span", { class: "muted" }, `${topTxt(G.pct)} · media de ${xs.length} ejercicios (las máquinas cuentan la mitad)`),
         h("div", { class: "dist" }, counts.map((n, i) => n ? tip(h("i", { class: "t" + i, style: { flex: n } }), `${LVL[i]}: ${n} ejercicios`) : null)),
         h("div", { class: "dleg" }, counts.map((n, i) => h("button", { class: "chip t" + i + (fT === i ? " on" : ""), onclick: () => setF("lvTier", i) }, h("i"), `${LVL[i]} ${n}`))))),
@@ -1010,8 +1010,8 @@ function tNivel(st) {
       h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, h("span", null, e.name)), h("div", { class: "exr-s" }, e.level.valTxt), lvlBar(e.level)),
       h("div", { class: "exr-v" }, h("div", { class: "lvr click", onclick: (ev) => { ev.stopPropagation(); levelSheet(e.name, e.level); } }, lvlShield(e.level, 22), h("b", { class: "lvname l" + e.level.idx }, LVL[e.level.idx])), h("span", null, topTxt(e.level.pct)))))
       : h("div", { class: "muted" }, "Nada con estos filtros."))),
-    h("div", { class: "row", style: { marginTop: "10px" } }, h("button", { class: "btn lvinfo", onclick: () => levelsInfoSheet(st) }, h("span", { class: "lvinfo-i" }, "ⓘ"), "Cómo funcionan los niveles")),
-    h("div", { class: "note" }, `Fuente: Strength Level (strengthlevel.com), tablas de ${sexWord()} por peso corporal. Cada entreno se compara con tu peso de ese día (pesajes; los días sin pesaje se interpolan entre el anterior y el siguiente). Último pesaje: ${fmt(S.bw, 1)} kg (${dateLabel(S.bwDate, { day: "numeric", month: "short" })}). Niveles por percentil: Novato 20 %, Intermedio 50 %, Avanzado 80 %, Élite 95 % (top 5 %), Leyenda 99 % (top 1 %, extrapolado). Se compara tu mejor 1RM estimado con la tabla de Hevy, tus reps máximas o tu lastre. Mancuernas: entre dos. Poleas que pesan la mitad: × 0,5. A las máquinas se les resta su peso si lo indicas.`));
+    h("div", { class: "row", style: { marginTop: "10px" } }, h("button", { class: "btn lvinfo", onclick: () => levelsInfoSheet(st) }, h("span", { class: "lvinfo-i" }, "ⓘ"), "Cómo funcionan los rangos")),
+    h("div", { class: "note" }, `Fuente: Strength Level (strengthlevel.com), tablas de ${sexWord()} por peso corporal. Cada entreno se compara con tu peso de ese día (pesajes; los días sin pesaje se interpolan entre el anterior y el siguiente). Último pesaje: ${fmt(S.bw, 1)} kg (${dateLabel(S.bwDate, { day: "numeric", month: "short" })}). Rangos por percentil: Novato 20 %, Intermedio 50 %, Avanzado 80 %, Élite 95 % (top 5 %), Leyenda 99 % (top 1 %, extrapolado). Se compara tu mejor 1RM estimado con la tabla de Hevy, tus reps máximas o tu lastre. Mancuernas: entre dos. Poleas que pesan la mitad: × 0,5. A las máquinas se les resta su peso si lo indicas.`));
 }
 
 // Información general de los niveles: cómo se calculan y las tablas de cada ejercicio (por peso corporal y sexo).
@@ -1055,13 +1055,13 @@ function strengthInfo(st, body) {
     const tbl = h("div", { class: "tbl-wrap" }, h("table", { class: "t" }, h("tr", null, h("th", null, "Peso corporal"), LVL.map((l) => h("th", { class: "r" }, l))),
       T[sx].map((r) => h("tr", { class: S.bw && Math.abs(r[0] - S.bw) < 2.5 ? "rowhl" : "" }, h("td", null, r[0] + " kg"), r.slice(1).map((v, i) => h("td", { class: "r num" + (i === 5 ? " faint" : "") }, v == null ? "—" : v === 0.5 ? "<1" : (i === 5 ? "≈" : "") + fmt(v, metric === "reps" ? 0 : 0)))))));
     body.replaceChildren(
-      h("p", { class: "muted", style: { marginTop: 0 } }, "Los niveles comparan tu mejor marca con la de miles de personas de tu mismo sexo y peso corporal (datos públicos de Strength Level). Cada nivel es un percentil: Principiante 5 %, Novato 20 %, Intermedio 50 %, Avanzado 80 %, Élite 95 % y Leyenda 99 % (este último lo extrapolamos)."),
+      h("p", { class: "muted", style: { marginTop: 0 } }, "Los rangos comparan tu mejor marca con la de miles de personas de tu mismo sexo y peso corporal (datos públicos de Strength Level). Cada rango es un percentil: Principiante 5 %, Novato 20 %, Intermedio 50 %, Avanzado 80 %, Élite 95 % y Leyenda 99 % (este último lo extrapolamos)."),
       h("ul", { class: "info-l" },
         h("li", null, h("b", null, "Peso corporal: "), "Strength Level publica una fila cada 5 kg (hombres 50–140 kg, mujeres 40–120 kg); entre filas se interpola, así que vale para cualquier peso. Cada entreno se compara con tu peso de ese día (los días sin pesaje se interpolan)."),
         h("li", null, h("b", null, "Sexo: "), "hay tablas separadas para hombres y mujeres; se usa el sexo de tu perfil."),
         h("li", null, h("b", null, "Altura y edad: "), "no se usan. Strength Level no tiene tablas por altura; por edad sí publica, pero no las aplicamos."),
         h("li", null, h("b", null, "Cálculo: "), "1RM estimado con la tabla de Hevy; mancuernas = una mancuerna; poleas que pesan la mitad × 0,5; a las máquinas se les resta su peso; lastre = peso corporal + lastre."),
-        h("li", null, h("b", null, "Ejercicios sin tabla: "), `${opts.length} tablas de Strength Level en el servidor (citadas a ellos: son sus datos). A cualquier ejercicio se le puede elegir su tabla de Strength Level en su ficha («Material, peso real y nivel»): se descarga de strengthlevel.com la primera vez y queda guardada. Sin tabla no hay nivel, pero sí récords, 1RM y progreso.` + (without.length ? ` Tuyos sin nivel: ${without.join(", ")}.` : ""))),
+        h("li", null, h("b", null, "Ejercicios sin tabla: "), `${opts.length} tablas de Strength Level en el servidor (citadas a ellos: son sus datos). A cualquier ejercicio se le puede elegir su tabla de Strength Level en su ficha («Material, peso real y rango»): se descarga de strengthlevel.com la primera vez y queda guardada. Sin tabla no hay rango, pero sí récords, 1RM y progreso.` + (without.length ? ` Tuyos sin rango: ${without.join(", ")}.` : ""))),
       h("div", { class: "sec-t" }, "Tabla por ejercicio"),
       h("select", { class: "input", onchange: (ev) => { cur = ev.target.value; draw(); } }, [...opts].sort((a, b) => a[1].localeCompare(b[1])).map(([k, n]) => h("option", { value: k, selected: k === cur }, n))),
       h("div", { class: "lv-legend" }, LVL.map((l, i) => h("span", { class: "lg t" + i }, l + (i === 5 ? " (extrapolada)" : ""))), h("span", { class: "lg solid" }, "— hombres"), h("span", { class: "lg dash" }, "- - mujeres"), e && e.level ? h("span", { class: "lg me" }, "● tú") : null),
@@ -1095,7 +1095,7 @@ function levelsInfoSheet(st) {
       const tbl = d ? h("div", { class: "tbl-wrap" }, h("table", { class: "t" }, h("tr", null, h("th", null, "Edad"), LVL.slice(0, 5).map((l) => h("th", { class: "r" }, l)), h("th", { class: "r faint" }, "Récord")),
         d[sx][0].map((r) => h("tr", null, h("td", null, r[0] + " años"), r.slice(1, 7).map((v, i) => h("td", { class: "r num" + (i === 5 ? " faint" : "") }, byTime ? fmtT(v) : v == null ? "—" : fmt(v) + " m")))))) : h("div", { class: "muted" }, "No disponible");
       body.replaceChildren(
-        h("p", { class: "muted", style: { marginTop: 0 } }, `Datos de `, h("a", { href: site.url, target: "_blank", rel: "noopener" }, site.name), `: tiempos de su comunidad por edad y sexo, con los mismos niveles por percentil que la fuerza (principiante 5 %, novato 20 %, intermedio 50 %, avanzado 80 %, élite 95 %). Más rápido = mejor nivel.` + (tab === "swimming" ? " No separa por estilos (braza, mariposa…)." : "")),
+        h("p", { class: "muted", style: { marginTop: 0 } }, `Datos de `, h("a", { href: site.url, target: "_blank", rel: "noopener" }, site.name), `: tiempos de su comunidad por edad y sexo, con los mismos rangos por percentil que la fuerza (principiante 5 %, novato 20 %, intermedio 50 %, avanzado 80 %, élite 95 %). Más rápido = mejor rango.` + (tab === "swimming" ? " No separa por estilos (braza, mariposa…)." : "")),
         h("div", { class: "row wrap", style: { gap: "8px" } }, h("select", { class: "input", style: { flex: 1, minWidth: "200px" }, onchange: (e) => { cur = e.target.value; draw(); } },
           site.items.map((x) => h("option", { value: x.slug, selected: x.slug === cur }, x.name))),
           h("div", { class: "seg" }, [["H", "Hombres"], ["M", "Mujeres"]].map(([k, l]) => h("button", { class: sx === k ? "on" : "", onclick: () => { sx = k; draw(); } }, l)))),
@@ -1106,7 +1106,7 @@ function levelsInfoSheet(st) {
     draw();
   };
   show();
-  sheet("Niveles", [seg, body], null, { wide: true });
+  sheet("Rangos", [seg, body], null, { wide: true });
 }
 
 // ------------------------------------------------------------- hojas
@@ -1246,7 +1246,7 @@ function levelSheet(name, L) {
       h("td", { class: "r num faint" }, i ? "más que el " + ["", "20 %", "50 %", "80 %", "95 %", "99 %"][i] : "—"),
       h("td", { class: "r num" }, falta != null ? "+" + fmt(falta, falta < 10 ? 1 : 0) + " " + unit : i <= L.idx ? "✓" : ""));
   })()));
-  sheet("Nivel · " + name, [
+  sheet("Rango · " + name, [
     h("div", { class: "lvhero mini" }, h("div", { class: "lvh-b" }, lvlBadge(L.idx, 54)), h("div", { class: "lvh-t" }, h("b", { class: "tn t" + L.idx }, LVL[L.idx]),
       h("span", { class: "muted" }, `${topTxt(L.pct)} · más fuerte que el ${fmt(L.pct)} % de los ${sexWord()} de ${fmt(L.bw, 1)} kg` + (L.date ? ` (tu peso el ${dateLabel(L.date, { day: "numeric", month: "short" })})` : "")), h("span", { class: "faint" }, L.valTxt + (L.need ? " · " + L.need : "")))),
     h("div", { class: "card panel flat" }, h("h3", null, L.metric === "reps" ? "Reps máximas → percentil" : L.metric === "secs" ? "Segundos → percentil" : L.metric === "add" ? "Lastre (1RM) → percentil" : "1RM → percentil"), svg),
@@ -1342,7 +1342,7 @@ function exSettingsPanel(name, kind, rec) {
   };
   const btn = h("button", { class: "btn sm", onclick: save }, "Guardar");
   return h("div", { class: "exset2" },
-    isMach ? [h("span", null, "Peso de la máquina"), h("div", { class: "exset2-in" }, mk, h("span", { class: "faint" }, "kg")), h("span", { class: "faint grow" }, "si lo incluyes al apuntar; para el nivel se cuenta solo lo cargado")]
+    isMach ? [h("span", null, "Peso de la máquina"), h("div", { class: "exset2-in" }, mk, h("span", { class: "faint" }, "kg")), h("span", { class: "faint grow" }, "si lo incluyes al apuntar; para el rango se cuenta solo lo cargado")]
       : [h("span", null, "Relación de la polea"), h("div", { class: "exset2-in" }, h("b", null, "1 :"), rN), h("span", { class: "faint grow" }, "1 : 2 = la polea pesa la mitad de lo que marca")],
     btn);
 }
@@ -1381,7 +1381,7 @@ function mergePicker(name, kind) {
         h("div", { class: "faint" }, `${x.sessions.length} sesiones · última ${dateLabel(x.last, { day: "numeric", month: "short", year: "2-digit" })}`)))));
   };
   q.oninput = draw; draw();
-  sheet("Unir con otro ejercicio", [q, box], null, { desc: `Si «${name}» es el mismo ejercicio (o la misma máquina) que otro con distinto nombre en Hevy, únelos: el historial, los récords, el nivel y el peso de la máquina se cuentan juntos. Se queda como nombre principal el que usas ahora. Se puede separar cuando quieras.` });
+  sheet("Unir con otro ejercicio", [q, box], null, { desc: `Si «${name}» es el mismo ejercicio (o la misma máquina) que otro con distinto nombre en Hevy, únelos: el historial, los récords, el rango y el peso de la máquina se cuentan juntos. Se queda como nombre principal el que usas ahora. Se puede separar cuando quieras.` });
   setTimeout(() => q.focus(), 50);
 }
 function exerciseSheet(name) { return onceOpen("ex:" + exKeyName(name), () => exerciseSheet_(USER_NAMES[exKeyName(name)] || name)); }
@@ -1433,7 +1433,7 @@ async function exerciseSheet_(name) {
         const how = L.metric === "reps" ? "reps seguidas" : L.metric === "add" ? "1RM con lastre" : L.metric === "db" ? "1RM por mancuerna" : "1RM";
         return h("div", { class: "exhero-next" },
           L.idx < 5 ? h("div", { class: "exn-ends" }, h("span", null, h("b", { class: "lvname l" + L.idx }, LVL[L.idx]), " " + u(lo)), h("span", null, h("b", { class: "lvname l" + (L.idx + 1) }, LVL[L.idx + 1]), " " + u(hi))) : null,
-          tip(h("div", { class: "click", onclick: () => levelSheet(name, L) }, lvlBar(L)), "Pulsa para ver la curva de niveles"),
+          tip(h("div", { class: "click", onclick: () => levelSheet(name, L) }, lvlBar(L)), "Pulsa para ver la curva de rangos"),
           h("div", { class: "exn-v" }, `Tu ${how}: `, h("b", null, u(L.raw)), L.idx < 5 && L.need ? ` · te faltan ${L.need.replace(/ para .*/, "").replace(" de 1RM", "")}` : " · rango máximo", ` · top ${fmt(Math.max(0.5, 100 - L.pct))} %`));
       })() : null)),
     h("div", { class: "kpis tight recs", style: { gridTemplateColumns: `repeat(${types.length}, 1fr)` } }, types.map((t) => { const r = rec[t];

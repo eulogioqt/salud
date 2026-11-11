@@ -2026,7 +2026,7 @@ async function welcomeSheet() {
       targetCard(data.current_target, async () => { const d2 = await api("GET", "/api/settings"); data.current_target = d2.current_target; draw(); })],
       [h("button", { class: "btn ghost", onclick: () => go("agente") }, "Atrás"), h("span", { class: "grow" }), h("button", { class: "btn primary", onclick: () => go("hevy") }, "Siguiente")]],
     hevy: () => ["Tus entrenos de Hevy", [
-      h("p", { class: "muted wz-p" }, "Opcional. Si usas Hevy, trae tu historial: récords, niveles y progreso salen de ahí."),
+      h("p", { class: "muted wz-p" }, "Opcional. Si usas Hevy, trae tu historial: récords, rangos y progreso salen de ahí."),
       h("ol", { class: "wz-ol" }, h("li", null, "En Hevy: ", h("b", null, "Perfil → ⚙ Ajustes → Exportar e importar datos → Exportar entrenos"), "."), h("li", null, "Sube aquí el archivo .csv:")),
       h("button", { class: "btn", onclick: () => { const fi = h("input", { type: "file", accept: ".csv,.json,text/csv,application/json" });
         fi.addEventListener("change", async () => { const f = fi.files[0]; if (!f) return; hevyOut.textContent = "Importando…";
