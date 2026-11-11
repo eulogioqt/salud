@@ -1492,3 +1492,6 @@ img { -webkit-user-drag: none; user-select: none; }
 .cal-n { margin: 0 0 10px; }
 @media (max-width: 640px) { .kpis.k3 .kpi .l { white-space: nowrap; } .cal-r { padding: 10px; } }
 .pbars { justify-content: space-between; }
+.cal-fi { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; max-width: 320px; }
+.cal-fi .cal-bar { flex: 1; margin-top: 0; }
+.cal-fi b { font-size: 12px; font-weight: 600; color: var(--muted); min-width: 34px; text-align: right; }

@@ -1671,8 +1671,10 @@ function calPanel(cal) {
   if (!cal) return null;
   const ap = cal.applied || {}, est = cal.estimate, sd = cal.sd || {}, lr = cal.learned || {};
   const rows = CAL_ROWS.map(([k, l, f]) => h("div", { class: "cal-r" },
-    h("div", { class: "grow" }, h("b", null, l), est ? h("div", { class: "faint sm" }, `tus datos dicen ${f(est[k])} ± ${k === "cal_ajuste_kcal" ? fmt(sd[k]) : fmt(sd[k], 2)} · fiabilidad ${Math.round(Math.max(0, lr[k] || 0) * 100)} %`) : null,
-      est ? h("div", { class: "cal-bar", title: "Cuánto han aprendido tus datos (0 % = todavía nada, se usa el modelo tal cual)" }, h("i", { style: { width: Math.round(Math.max(0, lr[k] || 0) * 100) + "%" } })) : null),
+    h("div", { class: "grow" }, h("b", null, l), est ? h("div", { class: "faint sm" }, `tus datos dicen ${f(est[k])} ± ${k === "cal_ajuste_kcal" ? fmt(sd[k]) : fmt(sd[k], 2)}`) : null,
+      est ? h("div", { class: "cal-fi", title: "Cuánto se ha reducido el margen de error desde el principio. 0 %: aún no hay datos y se usa el modelo tal cual; 100 %: el valor está claro." },
+        h("span", { class: "faint" }, "Fiabilidad"), h("div", { class: "cal-bar" }, h("i", { style: { width: Math.round(Math.max(0, lr[k] || 0) * 100) + "%" } })),
+        h("b", { class: "num" }, Math.round(Math.max(0, lr[k] || 0) * 100) + " %")) : null),
     h("div", { class: "cal-v num" }, f(ap[k] ?? (k === "cal_ajuste_kcal" ? 0 : 1)))));
   const reload = async (p) => { await act(() => p); await refresh(); };
   return h("div", { class: "card panel" },
