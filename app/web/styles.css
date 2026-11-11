@@ -1539,3 +1539,10 @@ img { -webkit-user-drag: none; user-select: none; }
 @media (prefers-color-scheme: dark) { .wchips .upchip { background: rgba(255,140,50,.18); color: #ffad66; } }
 .wchips .cl, .wchips .cs, .wk-hd .cl, .wk-hd .cs { background: none; padding: 0; border-radius: 0; color: inherit; font: inherit; }
 .datec { text-transform: none; } .datec.dt { text-transform: capitalize; }
+.chart .sel-ring { fill: var(--accent); opacity: .22; }
+.chart .sel-pt { fill: var(--accent); stroke: var(--surface, #fff); stroke-width: 2; }
+.chart .sel-pt.est { fill: var(--surface, #fff); stroke: var(--accent); stroke-width: 2; }
+.est-pill { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; margin-left: 8px; border-radius: 99px; background: var(--surface-2); color: var(--muted); font-size: 11.5px; font-weight: 600; vertical-align: middle; position: relative; top: -3px; }
+.stat .v.sv { gap: 4px; align-items: center; }
+.stat .v.sv > span:first-child { line-height: 1; }
+.stat .v .skc { margin-left: 6px; height: 20px; display: inline-flex; align-items: center; padding: 0 7px; border-radius: 99px; background: var(--surface-2); color: var(--muted); font-size: 11.5px; font-weight: 600; white-space: nowrap; }

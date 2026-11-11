@@ -358,9 +358,9 @@ function energyTable(en, balance) {
 
 function bodyStrip(st) {
   const day = st.day, closed = st.status === "cerrado", en = st.energy;
-  const el = h("input", { class: "inline num", inputMode: "decimal", placeholder: "—", value: day.weight_kg == null ? "" : String(day.weight_kg).replace(".", ","), disabled: closed });
+  const el = h("input", { class: "inline num", inputMode: "decimal", placeholder: day.weight_kg == null && st.weight_interp != null && st.date !== st.today ? fmt(st.weight_interp, 1) : "—", value: day.weight_kg == null ? "" : String(day.weight_kg).replace(".", ","), disabled: closed });
   el.addEventListener("keydown", (e) => { if (e.key === "Enter") el.blur(); });
-  const fit = () => { el.style.width = Math.max(2, (el.value || "—").length + 0.6) + "ch"; };  // «kg» pegado al número
+  const fit = () => { el.style.width = Math.max(2, (el.value || el.placeholder || "—").length + 0.6) + "ch"; };  // «kg» pegado al número
   el.addEventListener("input", fit); fit();
   el.addEventListener("change", async () => {
     const n = parseNum(el.value);
@@ -374,11 +374,11 @@ function bodyStrip(st) {
     h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic w" }, "⚖"), "Peso"),
       scale ? h("span", { class: "lnk" }, "Ver") : S.me && !closed ? h("button", { class: "lnk-btn", title: "Que los pesajes de tu báscula lleguen solos", onclick: (e) => { e.stopPropagation(); stepsConnectSheet("bascula"); } }, "🔗 Conectar") : null),
     scale ? (day.weight_kg == null ? (st.weight_interp != null && st.date !== st.today
-        ? h("div", { class: "v" }, h("span", { class: "interp", title: "Sin pesaje ese día: interpolado entre el anterior y el siguiente" }, "≈ " + fmt(st.weight_interp, 1)), h("small", null, "kg"))
+        ? h("div", { class: "v" }, h("span", { class: "interp", title: "Sin pesaje ese día: estimado entre el anterior y el siguiente" }, fmt(st.weight_interp, 1)), h("small", null, "kg"))
         : h("div", { class: "v none" }, h("small", null, "Aún sin pesaje")))
         : h("div", { class: "v" }, h("span", null, fmt(day.weight_kg, 1)), h("small", null, "kg")))
       : h("div", { class: "v" }, el, h("small", null, "kg")),
-    h("div", { class: "s" }, day.weight_kg == null && st.weight_interp != null && st.date !== st.today ? "sin pesaje · interpolado" : st.avg7 != null ? `media 7 d ${fmt(st.avg7, 1)}` : ""));
+    h("div", { class: "s" }, day.weight_kg == null && st.weight_interp != null && st.date !== st.today ? "estimado · sin pesaje" : st.avg7 != null ? `media 7 d ${fmt(st.avg7, 1)}` : ""));
   // Pasos: conectados al móvil → solo «Ver» (ficha con estadísticas); si no, se apuntan a mano y se ofrece conectar
   const auto = !!(S.pasos || {}).conectado && !((S.pasos || {}).off || []).includes("pasos");
   const skc = day.steps != null && en.steps_kcal != null ? fmt(en.steps_kcal) + " kcal" : null;
@@ -387,7 +387,7 @@ function bodyStrip(st) {
       auto ? h("span", { class: "lnk" }, "Ver") : closed ? null : S.me ? h("button", { class: "lnk-btn", onclick: (e) => { e.stopPropagation(); stepsConnectSheet(); } }, "🔗 Conectar")
         : h("span", { class: "lnk" }, day.steps == null ? "+ Añadir" : "Editar")),
     day.steps == null ? h("div", { class: "v none" }, h("small", null, auto ? "Aún sin datos" : "Sin registrar"))
-      : h("div", { class: "v sv" }, h("span", null, fmt(day.steps)), skc ? h("small", { class: "skc" }, skc) : null),
+      : h("div", { class: "v sv" }, h("span", null, fmt(day.steps)), h("small", null, "pasos"), skc ? h("span", { class: "skc" }, skc) : null),
     st.steps_hours ? blockBars(st.steps_hours, st.date === st.today) : null);
   const ws = st.workouts || [];
   if (ws.length && !S.tStats) ensureTStats();
@@ -430,15 +430,15 @@ async function weightSheet(st) {
     sh.set("Peso", [
       h("div", { class: "wday" },
         h("div", { class: "wday-v" }, dayW != null ? [h("b", { class: "num" }, fmt(dayW, 1)), h("span", null, " kg")]
-          : st.weight_interp != null ? [h("b", { class: "num interp" }, "≈ " + fmt(st.weight_interp, 1)), h("span", null, " kg")] : h("span", { class: "muted" }, "Sin pesaje")),
+          : st.weight_interp != null ? [h("b", { class: "num interp" }, fmt(st.weight_interp, 1)), h("span", null, " kg"), h("span", { class: "est-pill" }, "Estimado")] : h("span", { class: "muted" }, "Sin pesaje")),
         h("div", { class: "wday-s" }, dayW != null ? [main && main.time ? "a las " + main.time : null, src].filter(Boolean).join(" · ")
-          : st.weight_interp != null ? "Sin pesaje ese día: interpolado entre el anterior y el siguiente" : scale ? "Pésate al levantarte: llegará solo" : "Pésate al levantarte, después del baño y antes de comer"),
+          : st.weight_interp != null ? "Sin pesaje ese día: se estima entre el anterior y el siguiente" : scale ? "Pésate al levantarte: llegará solo" : "Pésate al levantarte, después del baño y antes de comer"),
         w7.avg7 != null ? h("div", { class: "wday-s" }, `Media de 7 días ${fmt(w7.avg7, 2)} kg` + (prev.avg7 != null ? ` · ${signed(w7.avg7 - prev.avg7, 2)} kg en 7 días` : "")) : null),
       tiles.length ? h("div", { class: "btiles" }, tiles) : null,
       others.length ? h("div", { class: "note" }, "Otros pesajes de ese día (no cuentan para la tendencia): ", others.map((b) => `${fmt(b.weight_kg, 1)} kg${b.time ? " a las " + b.time : ""}`).join(", ")) : null,
       h("div", { class: "row", style: { margin: "14px 0 6px" } }, h("b", null, "Evolución"), h("span", { class: "grow" }),
         h("div", { class: "seg" }, [[30, "30 d"], [90, "90 d"]].map(([d, l]) => h("button", { class: days === d ? "on" : "", onclick: () => { days = d; draw(); } }, l)))),
-      h("div", { class: "card panel" }, weightChart(ws, P.body))],
+      h("div", { class: "card panel" }, weightChart(ws, P.body, st.date))],
       [h("span", { class: "grow" }), h("button", { class: "btn", onclick: () => { sh.close(); location.hash = "#/progreso"; } }, "Ver todo en Progreso")], { sub });
   };
   draw();
@@ -1618,9 +1618,9 @@ function viewProgress() {
     h("div", { class: "card panel" }, h("h3", null, "Días"), daysTable(P.history)));
 }
 
-function weightChart(ws, bodies) {
+function weightChart(ws, bodies, sel) {
   const first = ws.findIndex((w) => w.weight_kg != null || w.avg7 != null);
-  if (first > 3) ws = ws.slice(Math.max(0, Math.min(first - 3, ws.length - 14)));  // sin semanas vacías delante: empieza cerca del primer pesaje
+  if (first > 0) ws = ws.slice(Math.min(first, ws.length - 2));  // sin días vacíos delante: la gráfica empieza en el primer pesaje
   const pts = ws.filter((w) => w.weight_kg != null || w.avg7 != null);
   if (!pts.length) return h("div", { class: "muted", style: { padding: "30px 0", textAlign: "center" } }, "Aún no hay pesajes. Registra el peso cada mañana en Hoy.");
   const W = Math.max(300, Math.min(900, ($("#view") ? $("#view").clientWidth : 900) - 34)), H = 220, L = 40, R = 10, T = 10, B = 24;
@@ -1648,6 +1648,9 @@ function weightChart(ws, bodies) {
     const v = w.weight_kg ?? w.interp; if (v == null) return;
     svg.append(el("circle", { cx: x(i), cy: y(v), r: w.weight_kg != null ? 3.2 : 2, class: w.weight_kg != null ? "pt" : "ipt" }));
   });
+  // El día que se está mirando: punto grande con aro
+  const si = sel ? ws.findIndex((w) => w.date === sel) : -1, sv = si >= 0 ? ws[si].weight_kg ?? ws[si].interp : null;
+  if (sv != null) { svg.append(el("circle", { cx: x(si), cy: y(sv), r: 11, class: "sel-ring" })); svg.append(el("circle", { cx: x(si), cy: y(sv), r: 6, class: "sel-pt" + (ws[si].weight_kg == null ? " est" : "") })); }
   // Al pasar el ratón (o el dedo): línea vertical y los datos de ese día
   const vline = el("line", { y1: T, y2: H - B, class: "hov hidden" }); svg.append(vline);
   const box = h("div", { class: "wc" }, svg), tip_ = h("div", { class: "wc-tip hidden" }); box.append(tip_);
@@ -1659,7 +1662,7 @@ function weightChart(ws, bodies) {
     if (v == null && w.avg7 == null && w.expected == null) { vline.classList.add("hidden"); tip_.classList.add("hidden"); return; }
     vline.setAttribute("x1", x(i)); vline.setAttribute("x2", x(i)); vline.classList.remove("hidden");
     tip_.replaceChildren(h("b", null, dateLabel(w.date, { weekday: "short", day: "numeric", month: "short" })),
-      v != null ? h("div", null, w.weight_kg != null ? "Pesaje " : "Sin pesaje (interpolado) ", h("b", { class: "num" }, fmt(v, 1) + " kg")) : null,
+      v != null ? h("div", null, w.weight_kg != null ? "Pesaje " : "Estimado (sin pesaje) ", h("b", { class: "num" }, fmt(v, 1) + " kg")) : null,
       w.avg7 != null ? h("div", null, "Media 7 días ", h("b", { class: "num" }, fmt(w.avg7, 2))) : null,
       w.expected != null ? h("div", null, "Esperado ", h("b", { class: "num" }, fmt(w.expected, 2))) : null,
       ...(bodies || []).filter((b) => b.date === w.date && b.weight_kg != null && (w.weight_kg == null || Math.abs(b.weight_kg - w.weight_kg) >= 0.05))
