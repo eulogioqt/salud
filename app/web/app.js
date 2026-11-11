@@ -285,7 +285,9 @@ function gastoTip(st) {
   if (en.neat_pending) falta.push("el día a día (de pie, tareas…), que eliges al cerrar el día");
   const lines = ["Gasto de hoy hasta ahora", "Metabolismo + digestión de lo comido + pasos y entrenos apuntados."];
   if (falta.length) lines.push("## * Falta", ...falta.map((f) => "· " + f));
-  if (tg.dynamic) lines.push("## El objetivo ya cuenta con", tg.steps_pending ? `tus pasos previstos: ${fmt(tg.projected_steps || 0)} (media de los ${dateLabel(st.date, { weekday: "long" })}; si llevas menos, cuenta con estos)` : "tus pasos de hoy", "un día a día normal", "los entrenos que ya estén apuntados");
+  lines.push("## Día a día", `Lo que te mueves sin contar pasos ni entrenos (de pie, tareas de casa…). Al cerrar eliges cómo fue; «normal» ≈ ${fmt(Math.round(150 * (en.neat_factor || 1)))} kcal para tu peso (150 para 75 kg, proporcional al peso).`);
+  if (tg.dynamic) lines.push("## Cómo sale tu objetivo de comida", "(metabolismo + día a día + pasos + entrenos " + (tg.kcal_offset < 0 ? "− " : "+ ") + fmt(Math.abs(tg.kcal_offset || 0)) + ") ÷ 0,9", "El ÷ 0,9 es la digestión: comer gasta un 10 % de lo que comes.");
+  if (tg.dynamic) lines.push("## Ya cuenta con", tg.steps_pending ? `tus pasos previstos: ${fmt(tg.projected_steps || 0)} (media de los ${dateLabel(st.date, { weekday: "long" })}; si llevas menos, cuenta con estos)` : "tus pasos de hoy", "un día a día normal", "los entrenos que ya estén apuntados");
   return lines.join("\n");
 }
 // El anillo compara lo comido con lo que «toca» comer; el balance, lo comido con lo gastado.
