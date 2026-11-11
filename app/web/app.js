@@ -266,13 +266,18 @@ function ringSvg(size, r, w, p, cls, center, laps) {
   svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-bg" }));
   if (p > 0) svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${C * Math.min(1, p)} ${C}`, transform: "rotate(-90)" }));
   if (laps && p > 1) {
-    // Lo que te pasas: otra vuelta encima en ámbar; si pasas del doble, otra en rojo (con sombrita donde empieza)
+    // Lo que te pasas: otra vuelta encima, rayada en verde oscuro; si pasas del doble, otra rayada en rojo (con sombrita donde empieza)
     const id = Math.random().toString(36).slice(2, 7), defs = svgE("defs", {});
     const f = svgE("filter", { id: "rsh" + id, x: "-30%", y: "-30%", width: "160%", height: "160%" });
-    f.append(svgE("feDropShadow", { dx: 0, dy: 0, stdDeviation: 2, "flood-opacity": 0.4 })); defs.append(f); svg.prepend(defs);
+    f.append(svgE("feDropShadow", { dx: 0, dy: 0, stdDeviation: 2, "flood-opacity": 0.4 })); defs.append(f);
+    [["a", "--ring-over1", "--ring-over1b"], ["r", "--ring-over3", "--ring-over3b"]].forEach(([k, c1, c2]) => {
+      const pt = svgE("pattern", { id: `rh${k}${id}`, width: 6, height: 6, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" });
+      pt.append(svgE("rect", { width: 6, height: 6, style: `fill:var(${c1})` }), svgE("rect", { width: 3, height: 6, style: `fill:var(${c2})` })); defs.append(pt);
+    });
+    svg.prepend(defs);
     for (let k = 1; k < 3 && p > k; k++) {
       const ex = Math.min(1, p - k);
-      svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, style: `stroke:var(${k === 1 ? "--ring-over1" : "--ring-over3"})`, "stroke-linecap": "round", "stroke-dasharray": `${C * ex} ${C}`, transform: "rotate(-90)", filter: `url(#rsh${id})` }));
+      svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, stroke: `url(#rh${k === 1 ? "a" : "r"}${id})`, "stroke-linecap": "round", "stroke-dasharray": `${C * ex} ${C}`, transform: "rotate(-90)", filter: `url(#rsh${id})` }));
     }
   }
   for (const [y, txt, c] of center) { const t = svgE("text", { y, "text-anchor": "middle", class: c }); t.textContent = txt; svg.append(t); }
@@ -359,6 +364,7 @@ function energySheet(st) {
   const tot = en.total || parts.reduce((a, p) => a + (p[2] || 0), 0) || 1;
   const burned = h("div", { class: "bd-sec" },
     h("div", { class: "bd-st" }, h("span", { class: "grow" }, "Lo que has gastado"), h("span", { class: "num bd-tot" }, h("b", null, en.total == null ? "?" : fmt(en.total)), " kcal")),
+    h("div", { class: "bd-sub" }, "Por partes"),
     h("div", { class: "bd-stack big" }, parts.filter((p) => p[2]).map((p) => h("i", { class: "e-" + p[0], style: { flex: p[2] }, title: `${p[1]}: ${fmt(p[2])} kcal` }))),
     h("div", { class: "bd-parts" }, parts.map(([k, l, val, sub]) => h("div", { class: "bd-p" }, h("i", { class: "dot e-" + k }),
       h("div", { class: "bd-pl" }, h("span", null, l), h("small", null, sub)),

@@ -1290,7 +1290,7 @@ function levelSheet(name, L) {
     h("div", { class: "lvhero mini" }, h("div", { class: "lvh-b" }, lvlBadge(L.idx, 54)), h("div", { class: "lvh-t" }, h("b", { class: "tn t" + L.idx }, LVL[L.idx]),
       h("span", { class: "muted" }, `${topTxt(L.pct)} · más fuerte que el ${fmt(L.pct)} % de los ${sexWord()} de ${fmt(L.bw, 1)} kg` + (L.date ? ` (tu peso el ${dateLabel(L.date, { day: "numeric", month: "short" })})` : "")), h("span", { class: "faint" }, L.valTxt + (L.need ? " · " + L.need : "")))),
     (() => { ensureTierDefs(); return h("div", { class: "card panel flat rl-card" }, rankLadder(L)); })(),
-    (() => { const pr = rankProgress(name, L); return pr ? h("div", { class: "card panel flat" }, h("h3", null, "Tu progreso", h("span", { class: "faint", style: { fontWeight: 400 } }, " · el rango de cada sesión, con tu peso de ese día")), pr) : null; })(),
+    (() => { const pr = rankProgress(name, L); return pr ? h("div", { class: "card panel flat" }, h("h3", null, "Tu progreso", h("span", { class: "faint", style: { fontWeight: 400 } }, " · " + (L.metric === "reps" ? "reps máximas" : L.metric === "secs" ? "segundos" : L.metric === "add" ? "lastre (1RM)" : "1RM estimado") + " de cada sesión" + (L.metric === "secs" ? "" : "; los cortes siguen tu peso de cada día"))), pr) : null; })(),
     h("table", { class: "t lvtable" }, h("tr", null, h("th", null, "Rango"), h("th", { class: "r" }, L.metric === "reps" ? "Reps" : L.metric === "secs" ? "Segundos" : "1RM"), h("th", { class: "r" }, "Percentil"), h("th", { class: "r" }, "Te falta")), rows),
     L.floor ? h("div", { class: "note" }, `Habilidad: ${L.metric === "add" ? "con cualquier lastre" : L.metric === "secs" ? "con sostenerlo en estricto (sin goma ni pierna)" : "con 1 repetición estricta"} ya es ${LVL[L.floor]}. ${L.model.metric === "secs" ? "No hay tabla de Strength Level: cortes propios." : "Strength Level compara solo con quien registra este ejercicio (casi nadie lo registra si no lo hace), así que sus rangos bajos no tienen sentido para la gente que entrena en general."}`) : null,
     L.model.metric === "secs" ? null : h("div", { class: "note" }, "Strength Level publica los cortes de principiante a élite para " + sexWord() + " de cada peso corporal; la curva entre ellos y el corte de Leyenda (top 1 %) están interpolados. "),
@@ -1316,29 +1316,41 @@ function rankLadder(L) {
   const t = svgEl("text", { x: Math.max(40, Math.min(W - 40, pos)), y: 9, "text-anchor": "middle", class: "rl-yt" }); t.textContent = "Tú · " + rankFmt(L, L.raw); svg.append(t);
   return svg;
 }
-// B · Tu progreso: cada rango ocupa la misma altura y no se mueve; cada punto es el rango que sacaste ESE día (con tu peso de entonces)
-// más lo que llevabas hacia el siguiente. Así lo de atrás no cambia aunque cambie tu peso.
+// B · Tu progreso: tu marca REAL de cada sesión (kg, reps o segundos; eje lineal) sobre las franjas de los rangos.
+// Los cortes dependen del peso corporal: las franjas siguen tu peso de cada día, así cada punto cae en el rango que sacó ese día
+// y lo de atrás nunca cambia. En habilidades (muscle-up, front lever…) el suelo es el primer rango posible: por debajo no hay rango.
 function rankProgress(name, L) {
   const e = S.tStats && S.tStats.list.find((x) => exKeyName(x.name) === exKeyName(name));
   if (!e) return null;
   const hist = e.sessions.map((x) => ({ date: x.date, bw: bwAt(x.date), L: exLevel({ name: e.name, kind: e.kind, sessions: [x] }, bwAt) })).filter((x) => x.L);
   if (hist.length < 2) return null;
-  const from = L.model.skill || 0;
-  const W = Math.max(300, Math.min(660, window.innerWidth - 72)), H = 220, PL = 38, PR = W < 420 ? 70 : 88, PT = 8, PB = 22;
-  const X = (i) => PL + (i / (hist.length - 1)) * (W - PL - PR), Y = (sc) => PT + (6 - sc) / (6 - from) * (H - PT - PB);
-  const sc = (x) => Math.min(5.92, x.L.idx + (x.L.idx === 5 ? 0.5 : Math.max(0, Math.min(0.98, x.L.frac || 0))));
+  const from = L.model.skill || 0, fixed = L.metric === "secs";
+  const cutsAt = (bw) => { const M = fixed ? L.model : slModel(L.slug, L.metric, bw) || L.model; return M.all.map((x) => x - M.off); };
+  const cs = hist.map((x) => cutsAt(x.bw));
+  const W = Math.max(300, Math.min(660, window.innerWidth - 72)), H = 230, PL = 40, PR = W < 420 ? 70 : 88, PT = 10, PB = 22;
+  const X = (i) => PL + (i / (hist.length - 1)) * (W - PL - PR);
+  const vs = hist.map((x) => x.L.raw), top = Math.max(...hist.map((x) => x.L.idx)), low = Math.min(...hist.map((x) => x.L.idx));
+  let lo = from ? Math.min(...cs.map((c) => c[from])) : Math.min(...vs, ...cs.map((c) => c[Math.max(1, low)])), hi = Math.max(...vs, ...cs.map((c) => c[Math.min(5, top + 1)]));
+  const pad = (hi - lo) * 0.08 || 1; hi += pad; lo = from ? lo - pad * 0.4 : lo - pad;
+  if (L.metric !== "add") lo = Math.max(0, lo);
+  const Y = (v) => PT + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * (H - PT - PB);
   const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, class: "rprog" });
-  const lbl = (x, y, txt, cls, anchor = "start", fill) => { const t = svgEl("text", { x, y, "text-anchor": anchor, class: cls }); if (fill) t.setAttribute("fill", fill); t.textContent = txt; svg.append(t); };
+  const lbl = (x, y, txt, cls, anchor = "start") => { const t = svgEl("text", { x, y, "text-anchor": anchor, class: cls }); t.textContent = txt; svg.append(t); };
   for (let i = from; i < 6; i++) {
-    svg.append(svgEl("rect", { x: PL, y: Y(i + 1), width: W - PL - PR, height: Y(i) - Y(i + 1), fill: TCOL(i), opacity: 0.13 }));
-    if (i > from) svg.append(svgEl("line", { x1: PL, x2: W - PR, y1: Y(i), y2: Y(i), stroke: TCOL(i), "stroke-width": 1, opacity: 0.6 }));
-    lbl(W - PR + 10, (Y(i) + Y(i + 1)) / 2 + 4, LVL[i], "rl-n lvname l" + i);
-    if (i > from || (i && from)) lbl(PL - 6, Y(i) + 4, ["", "20 %", "50 %", "80 %", "95 %", "99 %"][i], "rl-c", "end");
+    let tp = "", bt = "";
+    hist.forEach((x, k) => { const a = i === from ? lo : cs[k][i], b = i === 5 ? hi : cs[k][i + 1]; tp += (k ? "L" : "M") + X(k).toFixed(1) + " " + Y(b).toFixed(1); bt = "L" + X(k).toFixed(1) + " " + Y(a).toFixed(1) + bt; });
+    svg.append(svgEl("path", { d: tp + bt + "Z", fill: TCOL(i), opacity: 0.13 }));
+    if (i > from) { let dl = ""; hist.forEach((x, k) => { dl += (k ? "L" : "M") + X(k).toFixed(1) + " " + Y(cs[k][i]).toFixed(1); });
+      svg.append(svgEl("path", { d: dl, fill: "none", stroke: TCOL(i), "stroke-dasharray": "4 3", "stroke-width": 1.2 }));
+      const last = cs[hist.length - 1][i]; if (last > lo && last < hi) lbl(PL - 6, Y(last) + 4, fmt(last), "rl-c", "end"); }
+    const ya = Y(i === from ? lo : cs[hist.length - 1][i]), yb = Y(i === 5 ? hi : cs[hist.length - 1][i + 1]);
+    if (ya - yb > 13) lbl(W - PR + 12, (ya + yb) / 2 + 4, LVL[i], "rl-n lvname l" + i);
   }
-  let d = ""; hist.forEach((x, i) => { d += (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(sc(x)).toFixed(1); });
+  if (from) lbl(PL - 6, Y(cs[hist.length - 1][from]) + 4, fmt(cs[hist.length - 1][from]), "rl-c", "end");  // el suelo: lo mínimo para tener rango
+  let d = ""; hist.forEach((x, i) => { d += (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(x.L.raw).toFixed(1); });
   svg.append(svgEl("path", { d, fill: "none", stroke: "var(--text)", "stroke-width": 1.8 }));
-  hist.forEach((x, i) => svg.append(tip(svgEl("circle", { cx: X(i), cy: Y(sc(x)), r: i === hist.length - 1 ? 5 : 3.4, fill: TCOL(x.L.idx), stroke: "var(--surface, #fff)", "stroke-width": 1.5, class: "rp-pt" }),
-    `${dateLabel(x.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}\n${x.L.valTxt}\nRango | ${LVL[x.L.idx]}` + (x.L.idx < 5 ? `\nHacia ${LVL[x.L.idx + 1]} | ${fmt(Math.round((x.L.frac || 0) * 100))} %` : "") + `\nTu peso | ${fmt(x.bw, 1)} kg`)));
+  hist.forEach((x, i) => svg.append(tip(svgEl("circle", { cx: X(i), cy: Y(x.L.raw), r: i === hist.length - 1 ? 5 : 3.4, fill: TCOL(x.L.idx), stroke: "var(--surface, #fff)", "stroke-width": 1.5, class: "rp-pt" }),
+    `${dateLabel(x.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}\n${x.L.valTxt}\nRango | ${LVL[x.L.idx]}\nTu peso | ${fmt(x.bw, 1)} kg`)));
   [0, hist.length - 1].forEach((i, k) => lbl(X(i), H - 6, dateLabel(hist[i].date, { day: "numeric", month: "short", year: "2-digit" }), "rl-c", k ? "end" : "start"));
   return svg;
 }
