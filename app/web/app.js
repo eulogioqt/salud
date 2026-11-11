@@ -265,15 +265,21 @@ function ringSvg(size, r, w, p, cls, center, laps) {
   const C = 2 * Math.PI * r, svg = svgE("svg", { width: size, height: size, viewBox: `${-size / 2} ${-size / 2} ${size} ${size}`, class: "ring " + cls });
   svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-bg" }));
   if (p > 0) svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${C * Math.min(1, p)} ${C}`, transform: "rotate(-90)" }));
-  // Al pasarte: lo que sobra da otra vuelta encima (con sombra al empezar) en verde oscuro; si pasas del doble, la tercera en rojo
   if (laps && p > 1) {
-    const sid = "rsh" + Math.random().toString(36).slice(2, 7), f = svgE("filter", { id: sid, x: "-30%", y: "-30%", width: "160%", height: "160%" });
-    f.append(svgE("feDropShadow", { dx: 0, dy: 0, stdDeviation: 2, "flood-opacity": 0.4 })); const defs = svgE("defs", {}); defs.append(f); svg.prepend(defs);
+    // Lo que te pasas: una vuelta rayada en ámbar encima; si pasas del doble, otra rayada en rojo encima de esa
+    const id = Math.random().toString(36).slice(2, 7), defs = svgE("defs", {});
+    const f = svgE("filter", { id: "rsh" + id, x: "-30%", y: "-30%", width: "160%", height: "160%" });
+    f.append(svgE("feDropShadow", { dx: 0, dy: 0, stdDeviation: 2, "flood-opacity": 0.4 })); defs.append(f);
+    [["a", "var(--ring-over1)", "var(--ring-over1b)"], ["r", "var(--ring-over3)", "var(--ring-over3b)"]].forEach(([k, c1, c2]) => {
+      const pt = svgE("pattern", { id: `rh${k}${id}`, width: 6, height: 6, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" });
+      pt.append(svgE("rect", { width: 6, height: 6, style: `fill:${c1}` }), svgE("rect", { width: 3, height: 6, style: `fill:${c2}` })); defs.append(pt);
+    });
+    svg.prepend(defs);
     for (let k = 1; k < 3 && p > k; k++) {
-      const ex = Math.min(1, p - k), col = k === 1 ? "var(--ring-over1)" : "var(--ring-over3)";
-      svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, stroke: col, "stroke-linecap": "round", "stroke-dasharray": `${C * ex} ${C}`, transform: "rotate(-90)", filter: `url(#${sid})` }));
+      const ex = Math.min(1, p - k);
+      svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, stroke: `url(#rh${k === 1 ? "a" : "r"}${id})`, "stroke-linecap": "round", "stroke-dasharray": `${C * ex} ${C}`, transform: "rotate(-90)", filter: `url(#rsh${id})` }));
     }
-  }  // a 0, anillo vacío (sin puntito)
+  }
   for (const [y, txt, c] of center) { const t = svgE("text", { y, "text-anchor": "middle", class: c }); t.textContent = txt; svg.append(t); }
   return svg;
 }

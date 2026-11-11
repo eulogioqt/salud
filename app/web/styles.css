@@ -1600,3 +1600,7 @@ img { -webkit-user-drag: none; user-select: none; }
 .bd-meals { margin-top: 4px; }
 .ctip.anch::after { content: ""; position: absolute; left: var(--ax, 50%); bottom: -5px; width: 10px; height: 10px; background: var(--text); transform: translateX(-50%) rotate(45deg); border-radius: 1px; }
 .ctip.anch.below::after { bottom: auto; top: -5px; }
+:root { --ring-over1: #eaa43a; --ring-over1b: #c8700f; --ring-over3: #e5534b; --ring-over3b: #b3261e; }
+@media (prefers-color-scheme: dark) { :root { --ring-over1: #f0b45a; --ring-over1b: #c8801f; --ring-over3: #f06a62; --ring-over3b: #c23a32; } }
+.ring .rg-x { fill: var(--ring-over1b); } .ring .rg-x.hi { fill: var(--ring-over3b); }
+.rl-n.lvname { fill: currentColor; }

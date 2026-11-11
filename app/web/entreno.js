@@ -908,14 +908,14 @@ function eqTag(name) {
 function exRow(e, extra, sub) {
   const [, lbl] = exMetric(e.kind);
   return h("button", { class: "exrow", onclick: () => exerciseSheet(e.name) }, exIcon(e.name, 34),
-    h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, h("span", null, e.name), lvlShield(e.level, 18)),
+    h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, lvlShield(e.level, 18), h("span", null, e.name)),
       h("div", { class: "exr-s" }, sub || `${e.sessions.length} sesiones · última ${dateLabel(e.last, { day: "numeric", month: "short" })}`)),
     h("div", { class: "exr-v" }, h("b", { class: "num" }, metricTxt(e.kind, e.best)), h("span", null, extra || lbl)));
 }
 function prRow(p) {
   const setTxt = p.set && ["w", "e1", "sv"].includes(p.type) ? " · " + setShort(p.kind, p.set) : "";
   return h("button", { class: "exrow", onclick: () => exerciseSheet(p.name) }, exIcon(p.name, 34),
-    h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, h("span", null, dispName(p.name)), (() => { const e = (S.tStats && S.tStats.list || []).find((x) => exKeyName(x.name) === exKeyName(p.name)); return e && e.level ? lvlShield(e.level, 18) : null; })()),
+    h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, (() => { const e = (S.tStats && S.tStats.list || []).find((x) => exKeyName(x.name) === exKeyName(p.name)); return e && e.level ? lvlShield(e.level, 18) : null; })(), h("span", null, dispName(p.name))),
       h("div", { class: "exr-s" }, dateLabel(p.date, { weekday: "short", day: "numeric", month: "short" }) + ` · antes ${recTxt(p.type, p.prev, p.kind)}` + setTxt)),
     h("div", { class: "exr-v pr" }, h("b", { class: "num" }, h("span", { class: "trophy" }, icon("trophy")), recTxt(p.type, p.value, p.kind)), h("span", null, REC_LABEL[p.type])));
 }
@@ -1047,8 +1047,8 @@ function tNivel(st) {
     h("div", { class: "row wrap", id: "lv-list", style: { margin: "18px 2px 8px", scrollMarginTop: "70px" } }, h("div", { class: "sec-t", style: { margin: 0 } }, "Por ejercicio" + (fG ? " · " + fG : "") + (fT != null ? " · " + LVL[fT] : "")), h("span", { class: "grow" }),
       fG || fT != null ? h("button", { class: "btn sm ghost", onclick: () => { S.lvGroup = null; S.lvTier = null; render(); } }, "Quitar filtros") : null),
     h("div", { class: "card panel" }, h("div", { class: "exlist" }, shown.length ? shown.map((e) => h("button", { class: "exrow lvrow", onclick: () => exerciseSheet(e.name) }, exIcon(e.name, 34),
-      h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, h("span", null, e.name)), h("div", { class: "exr-s" }, e.level.valTxt), lvlBar(e.level)),
-      h("div", { class: "exr-v" }, h("div", { class: "lvr click", onclick: (ev) => { ev.stopPropagation(); levelSheet(e.name, e.level); } }, lvlShield(e.level, 22), h("b", { class: "lvname l" + e.level.idx }, LVL[e.level.idx])), h("span", null, topTxt(e.level.pct)))))
+      h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, lvlShield(e.level, 18), h("span", null, e.name)), h("div", { class: "exr-s" }, e.level.valTxt), lvlBar(e.level)),
+      h("div", { class: "exr-v" }, h("div", { class: "lvr click", onclick: (ev) => { ev.stopPropagation(); levelSheet(e.name, e.level); } }, h("b", { class: "lvname l" + e.level.idx }, LVL[e.level.idx])), h("span", null, topTxt(e.level.pct)))))
       : h("div", { class: "muted" }, "Nada con estos filtros."))),
     h("div", { class: "row", style: { marginTop: "10px" } }, h("button", { class: "btn lvinfo", onclick: () => levelsInfoSheet(st) }, h("span", { class: "lvinfo-i" }, "ⓘ"), "Cómo funcionan los rangos")),
     h("div", { class: "note" }, `Fuente: Strength Level (strengthlevel.com), tablas de ${sexWord()} por peso corporal. Cada entreno se compara con tu peso de ese día (pesajes; los días sin pesaje se interpolan entre el anterior y el siguiente). Último pesaje: ${fmt(S.bw, 1)} kg (${dateLabel(S.bwDate, { day: "numeric", month: "short" })}). Rangos por percentil: Novato 20 %, Intermedio 50 %, Avanzado 80 %, Élite 95 % (top 5 %), Leyenda 99 % (top 1 %, extrapolado). Se compara tu mejor 1RM estimado con la tabla de Hevy, tus reps máximas o tu lastre. Mancuernas: entre dos. Poleas que pesan la mitad: × 0,5. A las máquinas se les resta su peso si lo indicas.`));
@@ -1308,7 +1308,7 @@ function rankLadder(L) {
   for (let i = from; i < 6; i++) {
     const x = P + (i - from) * sw;
     svg.append(svgEl("rect", { x: x + 1, y: 30, width: sw - 2, height: 14, rx: 4, fill: `url(#tg${i})`, opacity: i <= L.idx ? 1 : 0.28 }));
-    const t = svgEl("text", { x: x + sw / 2, y: 62, "text-anchor": "middle", class: "rl-n", fill: TIER[i][2][2] }); t.textContent = sw < 64 ? LVL[i].slice(0, 5) + (LVL[i].length > 5 ? "." : "") : LVL[i]; svg.append(t);
+    const t = svgEl("text", { x: x + sw / 2, y: 62, "text-anchor": "middle", class: "rl-n lvname l" + i }); t.textContent = sw < 64 ? LVL[i].slice(0, 5) + (LVL[i].length > 5 ? "." : "") : LVL[i]; svg.append(t);
     if (i > from) { const c = svgEl("text", { x, y: 82, "text-anchor": "middle", class: "rl-c" }); c.textContent = rankFmt(L, cuts[i]); svg.append(c); }
   }
   const pos = P + (L.idx - from + (L.idx === 5 ? 0.5 : Math.max(0.04, Math.min(0.96, L.frac || 0)))) * sw;
@@ -1332,7 +1332,7 @@ function rankProgress(name, L) {
   for (let i = from; i < 6; i++) {
     svg.append(svgEl("rect", { x: PL, y: Y(i + 1), width: W - PL - PR, height: Y(i) - Y(i + 1), fill: TCOL(i), opacity: 0.13 }));
     if (i > from) svg.append(svgEl("line", { x1: PL, x2: W - PR, y1: Y(i), y2: Y(i), stroke: TCOL(i), "stroke-width": 1, opacity: 0.6 }));
-    lbl(W - PR + 10, (Y(i) + Y(i + 1)) / 2 + 4, LVL[i], "rl-n", "start", TIER[i][2][2]);
+    lbl(W - PR + 10, (Y(i) + Y(i + 1)) / 2 + 4, LVL[i], "rl-n lvname l" + i);
     if (i > from || (i && from)) lbl(PL - 6, Y(i) + 4, ["", "20 %", "50 %", "80 %", "95 %", "99 %"][i], "rl-c", "end");
   }
   let d = ""; hist.forEach((x, i) => { d += (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(sc(x)).toFixed(1); });
