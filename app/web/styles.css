@@ -1623,3 +1623,6 @@ img { -webkit-user-drag: none; user-select: none; }
 :root { --ring-over1: #12543d; --ring-over3: #d9473f; }
 @media (prefers-color-scheme: dark) { :root { --ring-over1: #1e7556; --ring-over3: #f06a62; } .ring .rg-x { fill: #6fd0a6; } .ring .rg-x.hi { fill: var(--ring-over3); } }
 .ring .rg-x { fill: var(--ring-over1); } .ring .rg-x.hi { fill: var(--ring-over3b, #b3261e); }
+:root { --ring-over1: #b8860b; --ring-over3: #a3261b; }
+.ring .rg-x { fill: #8a6300; } .ring .rg-x.hi { fill: #a3261b; }
+@media (prefers-color-scheme: dark) { :root { --ring-over1: #d4a72c; --ring-over3: #d9473f; } .ring .rg-x { fill: #e6bd4f; } .ring .rg-x.hi { fill: #f06a62; } }

@@ -266,7 +266,7 @@ function ringSvg(size, r, w, p, cls, center, laps) {
   svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-bg" }));
   if (p > 0) svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${C * Math.min(1, p)} ${C}`, transform: "rotate(-90)" }));
   if (laps && p > 1) {
-    // Lo que te pasas: otra vuelta encima en verde oscuro; si pasas del doble, otra en rojo (con sombrita donde empieza)
+    // Lo que te pasas: otra vuelta encima en amarillo oscuro; si pasas del doble, otra en rojo oscuro (con sombrita donde empieza)
     const id = Math.random().toString(36).slice(2, 7), defs = svgE("defs", {});
     const f = svgE("filter", { id: "rsh" + id, x: "-30%", y: "-30%", width: "160%", height: "160%" });
     f.append(svgE("feDropShadow", { dx: 0, dy: 0, stdDeviation: 2, "flood-opacity": 0.4 })); defs.append(f); svg.prepend(defs);
@@ -285,7 +285,7 @@ function gastoTip(st) {
   if (en.neat_pending) falta.push("el día a día (de pie, tareas…), que eliges al cerrar el día");
   const lines = ["Gasto de hoy hasta ahora", "Metabolismo + digestión de lo comido + pasos y entrenos apuntados."];
   if (falta.length) lines.push("## * Falta", ...falta.map((f) => "· " + f));
-  if (tg.dynamic) lines.push("## El objetivo ya cuenta con", tg.steps_pending ? `tus pasos medios (${fmt(tg.projected_steps || 0)}, últimos 7 días)` : "tus pasos de hoy", "un día a día normal", "los entrenos que ya estén apuntados");
+  if (tg.dynamic) lines.push("## El objetivo ya cuenta con", tg.steps_pending ? `tus pasos previstos: ${fmt(tg.projected_steps || 0)} (media de los ${dateLabel(st.date, { weekday: "long" })}; si llevas menos, cuenta con estos)` : "tus pasos de hoy", "un día a día normal", "los entrenos que ya estén apuntados");
   return lines.join("\n");
 }
 // El anillo compara lo comido con lo que «toca» comer; el balance, lo comido con lo gastado.

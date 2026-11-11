@@ -231,15 +231,25 @@ def _avg_steps(conn, d, n=7):
     return (round(r[0]) if r and r[1] else None)
 
 
+def _weekday_steps(conn, d, weeks=6):
+    """Pasos medios del mismo día de la semana (últimas semanas): un lunes se parece más a otros lunes que a la media."""
+    dd = parse_date(d)
+    vals = [r[0] for r in conn.execute("SELECT steps FROM days WHERE steps IS NOT NULL AND date IN (%s)" % ",".join("?" * weeks),
+                                       [(dd - timedelta(weeks=k)).isoformat() for k in range(1, weeks + 1)])]
+    return round(sum(vals) / len(vals)) if len(vals) >= 2 else None
+
+
 def resolve_dynamic(conn, d, t):
-    """Objetivo «según tu gasto»: kcal = (gasto sin digestión + diferencia) / (1 − TEF), así lo comido menos el gasto queda en la diferencia.
-    Si aún no hay pasos del día, usa la media de los últimos 7 días (se ajusta al apuntarlos)."""
+    """Objetivo «según tu gasto»: kcal = (metabolismo + día a día + pasos + entrenos + diferencia) / (1 − TEF),
+    así lo comido menos el gasto (que incluye la digestión de lo comido) queda en la diferencia.
+    Pasos: los previstos (media del mismo día de la semana; si no hay, de los últimos 7 días). Hoy, mientras los
+    pasos que llevas sean menos que los previstos, cuenta con los previstos (el objetivo no baja por la mañana)."""
     day = get_day_row(conn, d)
     acts = day_activities(conn, d)
-    proj, no_steps = None, day["steps"] is None
+    proj = _weekday_steps(conn, d) or _avg_steps(conn, d)
+    no_steps = day["steps"] is None or (d == today() and proj is not None and day["steps"] < proj)
     if no_steps:
-        proj = _avg_steps(conn, d)
-        day = dict(day, steps=proj if proj is not None else 0)
+        day = dict(day, steps=proj if proj is not None else (day["steps"] or 0))
     if day["neat_kcal"] is None:  # el objetivo cuenta con un día «normal» hasta que se elija al cerrar
         day = dict(day, neat_kcal=float(settings(conn)["neat_base_kcal"]))
     en = energy(conn, d, 0, day, acts)
