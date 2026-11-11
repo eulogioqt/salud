@@ -1530,7 +1530,7 @@ img { -webkit-user-drag: none; user-select: none; }
 .prc.lg, .upchip.lg, .wk-hd .datec, .wchips .datec { height: 26px; padding-top: 2.5px; padding-bottom: 0; }
 .prc.lg svg, .upchip.lg svg { margin-top: -2.5px; }
 .fitc { overflow: hidden; white-space: nowrap; flex-wrap: nowrap !important; min-width: 0; }
-.fitc .cs { display: none; } .fitc .short > .cl { display: none; } .fitc .short > .cs { display: inline; }
+.fitc .cs { display: none; } .fitc .short > .cl { display: none; } .fitc .short > .cs { display: block; }
 .wk-hd { max-width: 100%; }
 .title-row { flex-wrap: nowrap; }
 .title-row h2 { flex: 0 1 auto !important; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 65%; }
@@ -1554,3 +1554,22 @@ img { -webkit-user-drag: none; user-select: none; }
 /* centrado óptico: los números quedan a la misma altura que el icono (medido en píxeles) */
 .prc.lg, .upchip.lg, .wk-hd .datec, .wchips .datec { padding-top: 1.75px; }
 .prc.lg svg, .upchip.lg svg { margin-top: -1.75px; }
+/* Etiquetas con icono: el texto se recorta a la altura de las mayúsculas (text-box) y se centra con el icono;
+   así queda igual en Segoe UI (Windows), Roboto (Android) o San Francisco, sin ajustes a ojo */
+.tx { display: block; line-height: 1; text-box: trim-both cap alphabetic; white-space: nowrap; }
+.wchips .tx, .wk-hd .tx { background: none; padding: 0; border-radius: 0; color: inherit; font: inherit; }
+.prc, .prchip, .upchip, .datec, .prc.lg, .upchip.lg, .wk-hd .datec, .wchips .datec { padding-top: 0; padding-bottom: 0; align-items: center; }
+.prc svg, .prchip svg, .upchip svg, .prc.lg svg, .upchip.lg svg { margin-top: 0; display: block; flex: none; }
+.prc:not(.lg), .upchip:not(.lg), .prchip { height: 20px; }
+.prc.lg, .upchip.lg, .wk-hd .datec, .wchips .datec { height: 26px; }
+/* Menos colores: las comidas en tonos de gris cálido y el gasto en tonos del verde de la app (los macros conservan su color) */
+:root { --m0: #6f6a62; --m1: #938e85; --m2: #b5b0a7; --m3: #d2cdc4; --m4: #e2ded7;
+  --e-bmr: #1f7a5a; --e-tef: #4f9a7e; --e-neat: #7db6a0; --e-steps: #a9cfc0; --e-ex: #cfe4db; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --m0: #d8d3ca; --m1: #b3aea5; --m2: #8f8a82; --m3: #6d6962; --m4: #55524c;
+  --e-bmr: #3fae84; --e-tef: #35906e; --e-neat: #2c7559; --e-steps: #245d48; --e-ex: #1d4a3a; } }
+.bd-apx-t { margin-top: 10px; font-size: 12.5px; color: var(--faint); }
+.bd-apx-t b { color: var(--muted); font-weight: 650; }
+.kcb { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 99px; background: var(--surface-2); color: var(--muted); font-size: 11.5px; font-weight: 600; white-space: nowrap; flex: none; }
+.stat .v .skc { margin-left: 6px; }
+.bd-closed-x { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 10px; border-radius: 99px; background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 550; white-space: nowrap; }
+.bd-closed-x svg { width: 13px; height: 13px; display: block; }

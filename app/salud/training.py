@@ -421,9 +421,19 @@ def pr_map(conn):
     return out
 
 
+def _ups(conn):
+    from . import levels
+    try:
+        return levels.ups_by_workout(conn)
+    except Exception:  # nunca deja sin entrenos por un fallo en los niveles
+        import traceback; traceback.print_exc()
+        return {}
+
+
 def get_workout(conn, wid, with_previous=True):
     w = _get(conn, wid)
     w["exercises"] = _exercises(conn, wid)
+    w["ups"] = _ups(conn).get(w["id"], [])
     prs = pr_map(conn)
     for ex in w["exercises"]:
         ex["prs"] = prs.get(ex["id"], [])
@@ -455,11 +465,13 @@ def list_workouts(conn, a=None, b=None, limit=200):
         q += " AND date<=?"; args.append(b)
     out = []
     prs = pr_map(conn)
+    ups = _ups(conn)
     for w in rows(conn.execute(q + " ORDER BY date DESC, COALESCE(start_time,'') DESC, id DESC LIMIT ?", args + [limit])):
         w["exercises"] = _exercises(conn, w["id"])
         for ex in w["exercises"]:
             ex["prs"] = prs.get(ex["id"], [])
         w["prs_count"] = sum(len(ex["prs"]) for ex in w["exercises"])
+        w["ups"] = ups.get(w["id"], [])
         _summ(w)
         out.append(w)
     return out

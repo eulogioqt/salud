@@ -236,6 +236,8 @@ def main(argv=None):
         a.db = auth.user_db(a.datos, a.usuario)
         from . import training as _T
         _T.GLOBAL_SL = os.path.join(os.path.abspath(a.datos), "sl_asociaciones.json")
+        from . import levels as _L
+        _L.SL_DIR = os.path.abspath(a.datos)
     conn = connect(a.db)
     if a.cmd == "init":
         print("Importados: %d" % init_db(conn)); return

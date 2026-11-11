@@ -583,6 +583,11 @@ function trainingStats(ws, bw) {
       if (best == null || Li.idx > best) best = Li.idx;
     }
   }
+  const local = ups.splice(0);
+  for (const w of ws) for (const su of w.ups || []) {
+    const m = local.find((u) => u.wid === w.id && exKeyName(u.name) === exKeyName(su.name));
+    ups.push({ date: w.date, wid: w.id, name: su.name, kind: m && m.kind, from: su.from, to: su.to, L: m ? m.L : null });
+  }
   ups.sort((a, b) => b.date.localeCompare(a.date));
   // racha: semanas seguidas (la actual cuenta si ya hay entreno; si no, se mira desde la anterior)
   const weeksWith = new Set(ws.map((w) => mondayOf(w.date)));
@@ -842,45 +847,17 @@ function tResumen(st, ws) {
 function upRow(u) {
   return h("button", { class: "exrow", onclick: () => exerciseSheet(u.name) }, exIcon(u.name, 34),
     h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, h("span", null, dispName(u.name))),
-      h("div", { class: "exr-s" }, dateLabel(u.date, { weekday: "short", day: "numeric", month: "short" }) + " · " + u.L.valTxt)),
-    h("div", { class: "exr-v up" }, h("span", { class: "upfromto" }, h("span", { class: "upfrom" }, lvlBadge(u.from, 14), h("span", { class: "lvname sm l" + u.from }, LVL[u.from])), h("span", { class: "uparr" }, icon("up")), lvlShield(u.L, 18), h("b", { class: "lvname l" + u.to }, LVL[u.to]))));
+      h("div", { class: "exr-s" }, dateLabel(u.date, { weekday: "short", day: "numeric", month: "short" }) + (u.L ? " · " + u.L.valTxt : ""))),
+    h("div", { class: "exr-v up" }, h("span", { class: "upfromto" }, h("span", { class: "upfrom" }, lvlBadge(u.from, 14), h("span", { class: "lvname sm l" + u.from }, LVL[u.from])), h("span", { class: "uparr" }, icon("up")), u.L ? lvlShield(u.L, 18) : lvlBadge(u.to, 18), h("b", { class: "lvname l" + u.to }, LVL[u.to]))));
 }
-// Subidas de rango de un entreno (en la lista y en Hoy): flecha naranja y número
-// Subidas de rango: se calculan en el navegador con todo el historial y las tablas de Strength Level (tarda un poco);
-// mientras tanto se usa lo último calculado, guardado en este navegador, para que salgan al momento.
-const UPS_KEY = () => "salud.ups." + ((S.me && S.me.usuario) || "local");
-let UPS_CACHE = null, UPS_SEEN = null, SL_READY = false;
-function upsCache() { if (UPS_CACHE == null) { try { UPS_CACHE = JSON.parse(localStorage.getItem(UPS_KEY()) || "{}"); } catch (e) { UPS_CACHE = {}; } } return UPS_CACHE; }
-function upsOf(wid) {
-  const c = upsCache(), cur = S.tStats && S.tStats.ups;
-  if (cur && UPS_SEEN !== cur) {  // nuevo cálculo: actualiza la copia (solo los entrenos que ya tienen su tabla calculada)
-    UPS_SEEN = cur; const by = {};
-    for (const u of cur) (by[u.wid] = by[u.wid] || []).push({ wid: u.wid, name: u.name, from: u.from, to: u.to });
-    if (SL_READY) { UPS_CACHE = by; } else Object.assign(c, by);  // con las tablas ya cargadas, el cálculo es completo y sustituye a la copia
-    try { localStorage.setItem(UPS_KEY(), JSON.stringify(UPS_CACHE)); } catch (e) { /* sin almacenamiento: solo tarda un poco más */ }
-  }
-  const mine = cur ? cur.filter((u) => u.wid === wid) : [];
-  return mine.length ? mine : UPS_CACHE[wid] || [];
-}
-function upsChip(wid) {
-  const ups = upsOf(wid);
-  return ups.length ? tip(h("span", { class: "upchip" }, icon("up"), String(ups.length)), ups.map((u) => `${dispName(u.name)}: ${LVL[u.from]} → ${LVL[u.to]}`).join("\n")) : null;
-}
-// En Hoy no se cargan todos los entrenos: se calculan las estadísticas una vez, en segundo plano, para las subidas de rango
-let TSTATS_LOADING = false;
-async function ensureTStats() {
-  if (S.tStats || TSTATS_LOADING) return;
-  TSTATS_LOADING = true;
-  try {
-    if (!S.training) S.training = await api("GET", "/api/workouts?limit=5000");
-    await ensureTrainingMeta();
-    if (typeof loadSLTables === "function") await loadSLTables().catch(() => {});
-    if (!S.tStats && S.training.workouts.length) S.tStats = Object.assign(trainingStats(S.training.workouts, S.bw), { _src: S.training.workouts, _bw: S.weights, _set: S.exSet });
-    if (S.view === "hoy" && !S.sheetOpen) render();
-  } catch (e) { /* sin subidas de rango: no pasa nada */ } finally { TSTATS_LOADING = false; }
+// Subidas de rango de un entreno (en la lista y en Hoy): flecha naranja y número.
+// Las calcula y guarda el servidor con cada entreno (vienen en w.ups), igual que los récords.
+function upsChip(w) {
+  const ups = (w && w.ups) || [];
+  return ups.length ? tip(h("span", { class: "upchip" }, icon("up"), tx(String(ups.length))), ups.map((u) => `${dispName(u.name)}: ${LVL[u.from]} → ${LVL[u.to]}`).join("\n")) : null;
 }
 function upChip(u) {
-  return tip(h("span", { class: "upchip" }, icon("up"), LVL[u.to]), `Nuevo rango: ${LVL[u.from]} → ${LVL[u.to]}`);
+  return tip(h("span", { class: "upchip" }, icon("up"), tx(LVL[u.to])), `Nuevo rango: ${LVL[u.from]} → ${LVL[u.to]}`);
 }
 
 const EQ_LABEL = { barra: "Barra", mancuerna: "Mancuernas", maquina: "Máquina", discos: "Máquina de discos", cable: "Cable", polea: "Polea ×0,5", corporal: "Corporal", otro: "Otro" };
@@ -938,7 +915,7 @@ function workoutCard(w) {
   return h("div", { class: "card wcard v2", onclick: () => workoutSheet(w.id) },
     h("div", { class: "wdate" }, h("b", null, String(d)), h("span", null, dt.toLocaleDateString("es-ES", { weekday: "short" }))),
     h("div", { class: "wbody" },
-      h("div", { class: "wc-h" }, h("div", { class: "wc-t" }, w.title), upsChip(w.id), w.prs_count ? tip(h("span", { class: "prc" }, icon("trophy"), String(w.prs_count)), `${w.prs_count} récords en este entreno`) : null, h("span", { class: "grow" }), w.start_time ? h("span", { class: "faint" }, w.start_time) : null),
+      h("div", { class: "wc-h" }, h("div", { class: "wc-t" }, w.title), upsChip(w), w.prs_count ? tip(h("span", { class: "prc" }, icon("trophy"), tx(String(w.prs_count))), `${w.prs_count} récords en este entreno`) : null, h("span", { class: "grow" }), w.start_time ? h("span", { class: "faint" }, w.start_time) : null),
       w.notes ? h("div", { class: "wc-desc" }, w.notes) : null,
       h("div", { class: "wchips" }, w.duration_min ? h("span", null, fmt(w.duration_min) + " min") : null, w.volume_kg ? h("span", null, fmt(w.volume_kg) + " kg") : null, h("span", null, w.sets_count + " series")),
       h("div", { class: "wc-ex" }, w.exercises.map((ex) => { const b = ex.sets.length ? bestSetOf(ex) : null; return h("div", { class: "wc-exr" }, exIcon(ex.name, 22),
@@ -1174,10 +1151,9 @@ async function loadSLTables() {
   const want = new Set(STD.map(([, , k]) => k.replace(/\.(reps|add)$/, "")));
   for (const x of Object.values(S.exSet || {})) if (x.sl_slug) want.add(x.sl_slug);
   const slugs = [...want].filter((sl) => !SL_TABLES[sl] && !SL_TABLES[sl + ".reps"] && !SL_FAIL[sl]);
-  if (!slugs.length) { SL_READY = true; return; }
+  if (!slugs.length) return;
   const got = await api("GET", "/api/strength/varias?slugs=" + slugs.join(",")).catch(() => ({}));
   for (const sl of slugs) if (got[sl]) addSL(got[sl]);
-  SL_READY = true;
   // las que aún no estén en la caché del servidor se piden de una en una, sin bloquear la página
   for (const sl of slugs.filter((x) => !got[x])) api("GET", "/api/strength/" + sl).then((d) => { addSL(d); S.tStats = null; if (S.view === "entreno" && !S.sheetOpen) render(); }).catch(() => { SL_FAIL[sl] = "sin tabla"; });
 }
@@ -1190,7 +1166,7 @@ function addSL(d) {
 }
 function prChips(prs, lead) {
   if ((!prs || !prs.length) && !lead) return null;
-  return h("div", { class: "prchips" }, lead || null, (prs || []).map((t) => tip(h("span", { class: "prchip" }, icon("trophy"), PR_SHORT[t] || t), `Récord: ${REC_LABEL[t] || t}`)));
+  return h("div", { class: "prchips" }, lead || null, (prs || []).map((t) => tip(h("span", { class: "prchip" }, icon("trophy"), tx(PR_SHORT[t] || t)), `Récord: ${REC_LABEL[t] || t}`)));
 }
 function lvlInline(L, size = 20, ex) {
   if (!L) return null;
@@ -1287,7 +1263,7 @@ async function workoutSheet_(id) {
   try { [w] = await Promise.all([api("GET", "/api/workouts/" + id), ensureTrainingMeta()]); } catch (e) { toast(e.message, { error: true }); sh.close(); return; }
   // Cada ejercicio como tarjeta: series en filas sencillas (sin «anterior»)
   if (!S.tStats && S.training && S.training.workouts && S.training.workouts.length) S.tStats = Object.assign(trainingStats(S.training.workouts, S.bw), { _src: S.training.workouts, _bw: S.weights, _set: S.exSet });
-  const wUps = ((S.tStats && S.tStats.ups) || []).filter((u) => u.wid === w.id);
+  const wUps = w.ups || [];
   const exBlocks = w.exercises.map((ex) => {
     let n = 0;
     const rows_ = ex.sets.map((st) => {
@@ -1321,13 +1297,13 @@ async function workoutSheet_(id) {
   const prTip = w.exercises.filter((ex) => ex.prs && ex.prs.length).map((ex) => `${ex.name}: ${ex.prs.map((t) => PR_SHORT[t]).join(", ")}`).join("\n");
   // sm = versión reducida para el móvil: icono + número, fecha corta; la fecha siempre al final
   // Etiquetas con versión larga y corta: si en la cabecera no caben, se usa la corta (ver fitc)
-  const two = (l, sh_) => [h("span", { class: "cl" }, l), h("span", { class: "cs" }, sh_)];
+  const two = (l, sh_) => [h("span", { class: "cl tx" }, l), h("span", { class: "cs tx" }, sh_)];
   const mkChips = (sm) => [
-    wUps.length ? tip(h("span", { class: "upchip lg" }, icon("up"), ...(sm ? [String(wUps.length)] : two(`${wUps.length} ${wUps.length === 1 ? "rango nuevo" : "rangos nuevos"}`, String(wUps.length)))), upTip) : null,
-    nPR ? tip(h("span", { class: "prc lg" }, icon("trophy"), ...(sm ? [String(nPR)] : two(`${nPR} ${nPR === 1 ? "récord" : "récords"}`, String(nPR)))), prTip) : null,
-    bwAt(w.date) ? tip(h("span", { class: "datec" }, `${fmt(bwAt(w.date), 1)} kg`), bwExact(w.date) ? "Tu peso ese día (pesaje)" : "Tu peso ese día (interpolado entre pesajes)") : null,
+    wUps.length ? tip(h("span", { class: "upchip lg" }, icon("up"), ...(sm ? [tx(String(wUps.length))] : two(`${wUps.length} ${wUps.length === 1 ? "rango nuevo" : "rangos nuevos"}`, String(wUps.length)))), upTip) : null,
+    nPR ? tip(h("span", { class: "prc lg" }, icon("trophy"), ...(sm ? [tx(String(nPR))] : two(`${nPR} ${nPR === 1 ? "récord" : "récords"}`, String(nPR)))), prTip) : null,
+    bwAt(w.date) ? tip(h("span", { class: "datec" }, tx(`${fmt(bwAt(w.date), 1)} kg`)), bwExact(w.date) ? "Tu peso ese día (pesaje)" : "Tu peso ese día (interpolado entre pesajes)") : null,
     h("span", { class: "datec dt" }, ...(() => { const t = w.start_time ? " · " + w.start_time : "", s_ = dateLabel(w.date, { day: "numeric", month: "short" }) + t;
-      return sm ? [s_] : two(dateLabel(w.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) + t, s_); })())].filter(Boolean);
+      return sm ? [tx(s_)] : two(dateLabel(w.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) + t, s_); })())].filter(Boolean);
   sh.set(w.title, [
     fitc(h("div", { class: "wchips" }, mkChips())),
     h("div", { class: "wstats big" },

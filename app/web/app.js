@@ -204,6 +204,8 @@ function sheet(title, body, footer, opts = {}) {
   return ctl;
 }
 
+// Texto de una etiqueta con icono: recortado a la altura de las mayúsculas para que quede centrado con el icono en cualquier fuente
+const tx = (s) => h("span", { class: "tx" }, s);
 function icon(name) {
   const P = {
     x: "M6 6l12 12M18 6L6 18", back: "M15 18l-6-6 6-6", left: "M15 18l-6-6 6-6", right: "M9 18l6-6-6-6",
@@ -323,8 +325,8 @@ function energySheet(st) {
       h("div", { class: "bd-leg" }, meals.map(([l, k], i) => h("span", null, h("i", { class: "m" + i }), l + " ", h("b", { class: "num" }, fmt(k)))))) : null,
     h("div", { class: "bd-macros" },
       macroRow("p", "Proteína", "protein_g", tg.protein_g), macroRow("c", "Carbohidratos", "carbs_g", tg.carbs_g), macroRow("g", "Grasas", "fat_g", tg.fat_mid_g)),
-    st.approx_kcal && kc ? h("div", { class: "bd-apx" }, h("div", { class: "bd-apx-bar" }, h("i", { style: { width: pct(st.approx_kcal, kc) + "%" } })),
-      h("span", null, h("b", { class: "num" }, Math.round(pct(st.approx_kcal, kc)) + " %"), ` aproximado (${fmt(st.approx_kcal)} kcal): comidas fuera y productos sin etiqueta. El resto viene de etiquetas o de tu histórico.`)) : null,
+    st.approx_kcal && kc ? tip(h("div", { class: "bd-apx-t" }, h("b", { class: "num" }, Math.round(pct(st.approx_kcal, kc)) + " % aproximado"), ` · ${fmt(st.approx_kcal)} kcal sin etiqueta`),
+      "Aproximado: comidas fuera y productos sin etiqueta (estimaciones).\nEl resto viene de etiquetas o de tu histórico.\nCuando pongas la etiqueta de un producto, se corrige en todos los días.") : null,
     (t.missing || []).length ? h("div", { class: "note warn" }, "Hay valores desconocidos: los totales son un mínimo.") : null);
   // Lo gastado
   const parts = [
@@ -342,11 +344,11 @@ function energySheet(st) {
       h("div", { class: "bd-pl" }, h("span", null, l), h("small", null, sub)),
       val == null ? (k === "steps" && !closed ? h("button", { class: "btn sm", onclick: () => stepsSheet(st) }, "Añadir") : k === "neat" ? h("span", { class: "faint", style: { fontSize: "12.5px" } }, "por definir") : h("span", { class: "miss" }, "falta"))
         : h("div", { class: "bd-pv num" }, h("b", null, fmt(val)))))));
-  const closedNote = closed && c ? h("div", { class: "bd-closed" }, icon("lock"), ` Cerrado el ${dateLabel(c.closed_at.slice(0, 10), { day: "numeric", month: "short" })} a las ${c.closed_at.slice(11, 16)}` + (c.version > 1 ? ` · versión ${c.version}` : "") + (c.forced ? " · con datos incompletos" : "")) : null;
+  const closedNote = closed && c ? h("span", { class: "bd-closed-x", title: c.forced ? "Cerrado con datos incompletos" : "" }, icon("lock"), tx(`Cerrado el ${dateLabel(c.closed_at.slice(0, 10), { day: "numeric", month: "short" })} a las ${c.closed_at.slice(11, 16)}` + (c.version > 1 ? ` · v${c.version}` : ""))) : null;
   const obs = closed && c && c.summary && (c.summary.observations || []).length
     ? h("div", { class: "bd-sec" }, h("div", { class: "bd-st" }, "Observaciones del cierre"), h("ul", { class: "bd-obs" }, c.summary.observations.map((o) => h("li", null, o)))) : null;
-  sheet(closed ? "Resumen del día" : "Desglose del día", [closedNote, hero, eaten, burned, obs,
-    h("div", { class: "faint bd-foot" }, "El gasto es una estimación: tu metabolismo en reposo (según peso, altura, edad y sexo) + la digestión (10 % de lo que comes) + lo que te mueves en el día + tus pasos + tus entrenos.")], null, { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }) });
+  sheet(closed ? "Resumen del día" : "Desglose del día", [hero, eaten, burned, obs,
+    h("div", { class: "faint bd-foot" }, "El gasto es una estimación: tu metabolismo en reposo (según peso, altura, edad y sexo) + la digestión (10 % de lo que comes) + lo que te mueves en el día + tus pasos + tus entrenos.")], null, { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }), titleExtra: closedNote });
 }
 function energyTable(en, balance) {
   const r = (a, b, c) => h("tr", null, h("td", null, a, c ? h("span", { class: "faint" }, " · " + c) : null), h("td", { class: "num" }, b));
@@ -395,10 +397,9 @@ function bodyStrip(st) {
       auto ? h("span", { class: "lnk" }, "Ver") : closed ? null : S.me ? h("button", { class: "lnk-btn", onclick: (e) => { e.stopPropagation(); stepsConnectSheet(); } }, "🔗 Conectar")
         : h("span", { class: "lnk" }, day.steps == null ? "+ Añadir" : "Editar")),
     day.steps == null ? h("div", { class: "v none" }, h("small", null, auto ? "Aún sin datos" : "Sin registrar"))
-      : h("div", { class: "v sv" }, h("span", null, fmt(day.steps)), h("small", null, "pasos"), skc ? h("span", { class: "skc" }, skc) : null),
+      : h("div", { class: "v sv" }, h("span", null, fmt(day.steps)), h("small", null, "pasos"), skc ? h("span", { class: "kcb skc" }, skc) : null),
     st.steps_hours ? blockBars(st.steps_hours, st.date === st.today) : null);
   const ws = st.workouts || [];
-  if (ws.length && !S.tStats) ensureTStats();
   const pend = ws.length ? [] : (st.sessions || []).filter((x) => !x.registrada);  // entrenos que han llegado del móvil y faltan
   const trainOn = !!(S.pasos || {}).entreno_ultimo && !((S.pasos || {}).off || []).includes("entreno");
   const other = st.activities.filter((a) => !ws.some((w) => w.activity_id === a.id));
@@ -408,9 +409,10 @@ function bodyStrip(st) {
       ws.length ? h("span", { class: "lnk" }, "Ver") : pend.length ? h("span", { class: "det-badge", title: "Ha llegado del móvil y falta mandar el entreno" }, h("span", { class: "det-i" }, "!"), h("span", { class: "det-bt" }, "Falta mandarlo")) : S.me && !closed && !trainOn ? h("button", { class: "lnk-btn", title: "Que se sepa solo cuándo entrenas", onclick: (e) => { e.stopPropagation(); stepsConnectSheet("entreno"); } }, "🔗 Conectar") : null),
     h("div", { class: "acts" }, ws.length || other.length
       ? [...ws.map((w) => h("div", { class: "a wk" },
-          h("div", { class: "wk-t" }, h("b", null, w.title), upsChip(w.id), w.prs_count ? h("span", { class: "prc", title: "Récords batidos en este entreno" }, icon("trophy"), String(w.prs_count)) : null),
+          h("div", { class: "wk-t" }, h("b", null, w.title), upsChip(w), w.prs_count ? h("span", { class: "prc", title: "Récords batidos en este entreno" }, icon("trophy"), tx(String(w.prs_count))) : null,
+            w.activity_id ? h("span", { class: "kcb" }, kc(w.activity_id) + " kcal") : null),
           w.notes ? h("div", { class: "wk-d" }, w.notes) : null,
-          h("div", { class: "wk-s" }, [w.duration_min ? fmt(w.duration_min) + " min" : null, w.sets_count + " series", fmt(w.volume_kg) + " kg", w.activity_id ? kc(w.activity_id) + " kcal" : null].filter(Boolean).join(" · ")))),
+          h("div", { class: "wk-s" }, [w.duration_min ? fmt(w.duration_min) + " min" : null, w.sets_count + " series", fmt(w.volume_kg) + " kg"].filter(Boolean).join(" · ")))),
          ...other.map((a) => h("div", { class: "a" }, h("b", null, (ACT_TYPES.find((x) => x[0] === a.type) || [0, a.type])[1]), ` ${a.minutes ? fmt(a.minutes) + "′" : ""}`, h("span", { class: "faint" }, " · " + kc(a.id) + " kcal")))]
       : pend.length ? h("div", { class: "acts" }, pend.map((x) => h("div", { class: "a wk det" },
           h("div", { class: "wk-t" }, h("b", null, x.titulo || "Entreno")),
@@ -1395,7 +1397,7 @@ function foodEditor(f, opt = {}) {
     h("div", { class: "row", style: { marginTop: "6px" } }, h("button", { class: "btn sm", onclick: () => { const r = prow({ quality: status.value }); prows.push(r); tbody.append(r.el); r.label.focus(); } }, "+ Ración"),
       h("span", { class: "note", style: { margin: 0 } }, "Vacío = desconocido (no cuenta como 0). «Base» fija qué ración se usa para escalar por gramos.")),
     h("div", { style: { marginTop: "10px" } }, h("label", { class: "f" }, "Notas"), notes),
-    !isNew ? h("label", { class: "note row", style: { gap: "6px" } }, applyOpen, "Actualizar también los registros de días abiertos (los cerrados nunca cambian)") : null,
+    !isNew ? h("label", { class: "note row", style: { gap: "6px" } }, applyOpen, "Corregir también lo ya apuntado (todos los días, también los cerrados)") : null,
     orig];
   const save = async (accept) => {
     const portions = [];
@@ -1488,7 +1490,7 @@ function recipeEditor(r) {
     h("div", { class: "grid3" }, h("div", { style: { gridColumn: "span 1" } }, h("label", { class: "f" }, "Nombre"), name), h("div", null, h("label", { class: "f" }, "Raciones que salen"), serv), h("div", null, h("label", { class: "f" }, "Peso cocinado total (g)"), cooked)),
     h("div", { class: "sec-t" }, "Ingredientes (en crudo/seco, tal como los pesas)"), ed.el, perEl,
     h("div", { style: { marginTop: "10px" } }, h("label", { class: "f" }, "Notas"), notes),
-    !isNew ? h("label", { class: "note row", style: { gap: "6px" } }, applyOpen, "Recalcular registros de días abiertos (los cerrados nunca cambian)") : null];
+    !isNew ? h("label", { class: "note row", style: { gap: "6px" } }, applyOpen, "Corregir también lo ya apuntado (todos los días, también los cerrados)") : null];
   const save = async (accept) => {
     if (!items.length) return toast("Añade al menos un ingrediente", { error: true });
     if (items.some((i) => !(i.quantity > 0))) return toast("Cantidad no válida", { error: true });
@@ -1635,15 +1637,16 @@ function weightChart(ws, bodies, sel) {
   if (!pts.length) return h("div", { class: "muted", style: { padding: "30px 0", textAlign: "center" } }, "Aún no hay pesajes. Registra el peso cada mañana en Hoy.");
   const W = Math.max(300, Math.min(900, ($("#view") ? $("#view").clientWidth : 900) - 34)), H = 220, L = 40, R = 10, T = 10, B = 24;
   const vals = pts.flatMap((p) => [p.weight_kg, p.avg7]).filter((x) => x != null);
-  let lo = Math.min(...vals), hi = Math.max(...vals); if (hi - lo < 2) { const m = (hi + lo) / 2; lo = m - 1; hi = m + 1; }
-  lo = Math.floor(lo * 2) / 2 - 0.5; hi = Math.ceil(hi * 2) / 2 + 0.5;
+  // Eje Y ajustado a los datos: la variación ocupa la mayor parte del alto (mínimo 0,6 kg de margen para no exagerar el ruido)
+  let lo = Math.min(...vals), hi = Math.max(...vals); const span = Math.max(hi - lo, 0.6), pad = span * 0.25, mid = (hi + lo) / 2;
+  lo = mid - span / 2 - pad; hi = mid + span / 2 + pad;
   const n = ws.length, x = (i) => L + (n === 1 ? (W - L - R) / 2 : (i * (W - L - R)) / (n - 1)), y = (val) => T + ((hi - val) * (H - T - B)) / (hi - lo);
   const NS = "http://www.w3.org/2000/svg", el = (t, a) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
   const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, class: "chart", preserveAspectRatio: "none" });
-  const step = (hi - lo) > 6 ? 2 : (hi - lo) > 3 ? 1 : 0.5;
+  const rg = hi - lo, step = rg > 12 ? 2 : rg > 6 ? 1 : rg > 2.5 ? 0.5 : 0.2, nd = step < 1 ? 1 : 0;
   for (let g = Math.ceil(lo / step) * step; g <= hi; g += step) {
     svg.append(el("line", { x1: L, x2: W - R, y1: y(g), y2: y(g), class: "grid" }));
-    const t = el("text", { x: L - 6, y: y(g) + 4, "text-anchor": "end", class: "axis" }); t.textContent = fmt(g, 1); svg.append(t);
+    const t = el("text", { x: L - 6, y: y(g) + 4, "text-anchor": "end", class: "axis" }); t.textContent = fmt(g, nd); svg.append(t);
   }
   const ticks = Math.min(W < 500 ? 4 : 6, n); for (let k = 0; k < ticks; k++) { const i = Math.round((k * (n - 1)) / Math.max(1, ticks - 1)); const t = el("text", { x: x(i), y: H - 6, "text-anchor": k === 0 ? "start" : k === ticks - 1 ? "end" : "middle", class: "axis" }); t.textContent = dateLabel(ws[i].date, { day: "numeric", month: "short" }); svg.append(t); }
   // Curva de peso: pesajes unidos; los días sin pesaje entre dos pesajes se interpolan en línea recta.

@@ -517,15 +517,19 @@ def affected_foods(conn, food_ids):
 
 
 def refresh_open_entries(conn, food_ids):
-    """Recalcula entradas de días ABIERTOS. Los días cerrados nunca se tocan.
+    """Recalcula lo ya apuntado de esos alimentos (y de las recetas que los usan) en los días abiertos, y el propio producto
+    también en los cerrados: corregir un producto (p. ej. ponerle la etiqueta a algo aproximado) es retroactivo.
     Debe llamarse dentro de una transacción."""
     ids = affected_foods(conn, food_ids)
     if not ids:
         return 0
-    q = ("SELECT e.* FROM entries e LEFT JOIN days d ON d.date=e.date WHERE e.deleted_at IS NULL "
-         "AND COALESCE(d.status,'abierto')='abierto' AND e.food_id IN (%s)" % ",".join("?" * len(ids)))
+    # Días cerrados: solo los productos corregidos tal cual (una receta cambiada de ingredientes no reescribe lo que ya se cerró)
+    prods = [i for i in food_ids if (N.get_food(conn, i) or {}).get("kind") == "producto"]
+    q = ("SELECT e.* FROM entries e LEFT JOIN days d ON d.date=e.date WHERE e.deleted_at IS NULL AND "
+         "((COALESCE(d.status,'abierto')='abierto' AND e.food_id IN (%s)) OR e.food_id IN (%s))"
+         % (",".join("?" * len(ids)), ",".join("?" * len(prods)) or "NULL"))
     n = 0
-    for e in rows(conn.execute(q, list(ids))):
+    for e in rows(conn.execute(q, list(ids) + prods)):
         try:
             nu, qual, label, snap = N.compute(conn, e["food_id"], e["unit_key"], e["quantity"])
         except (ValidationError, NotFound):

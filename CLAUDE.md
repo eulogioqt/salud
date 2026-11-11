@@ -89,7 +89,7 @@ Pesos (para niveles y 1RM): mancuernas = el peso de las dos; a un brazo = peso n
 - Lo que se toma por unidad (lata, yogur, pack) se registra por unidad (`default_unit`); lo demás por peso.
 - Comidas fuera: estimar con rango y supuestos en `--nota`.
 - Aceite: una línea más en la comida donde se usó. Sin pesar: chorrito ≈ 8 g, cucharada ≈ 10 g. Plancha/salteado: contar el 100 %; fritura profunda: absorción ~10–15 % del peso del alimento.
-- Recetas en crudo/seco. Los días cerrados no cambian; no modificarlos sin `reabrir` pedido por el usuario.
+- Recetas en crudo/seco. Los días cerrados no cambian; no modificarlos sin `reabrir` pedido por el usuario. Excepción: corregir los datos de un producto (p. ej. ponerle la etiqueta) se aplica a lo apuntado en todos los días.
 - «Cierra el día»: `S check`, decir solo lo que falta de verdad, preguntar si cierra igualmente; tras cerrar, resumen compacto.
 - Fechas en hora de Madrid; si es de otro día, `--fecha`. Para «cuánto llevo»: `S hoy`.
 - El gasto es una estimación (BMR Mifflin-St Jeor + pasos + ejercicio neto + TEF). Calibrar objetivos con la media de 7 días y tendencias de 2–4 semanas, nunca con cambios de un día.

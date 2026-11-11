@@ -286,6 +286,11 @@ MIGRATIONS = [
     """
     UPDATE templates SET favorite = 0;
     """,
+    # v15 — subidas de rango (Strength Level) calculadas en el servidor y guardadas con cada entreno
+    """
+    CREATE TABLE rank_ups(id INTEGER PRIMARY KEY, workout_id INTEGER NOT NULL, ex_key TEXT, name TEXT, from_idx INTEGER, to_idx INTEGER);
+    CREATE INDEX rank_ups_w ON rank_ups(workout_id);
+    """,
 ]
 
 

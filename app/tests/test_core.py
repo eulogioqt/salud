@@ -136,7 +136,7 @@ class TestRecipes(Base):
         self.assertAlmostEqual(core.get_entry(self.conn, e2["id"])["kcal"], (250 + 361 * 0.8) / 2, places=3)
         self.assertEqual(json.loads(core.get_entry(self.conn, e1["id"])["snapshot"])["ingredients"][0]["quantity"], 2)
 
-    def test_label_update_refreshes_open_days_only(self):
+    def test_label_update_is_retroactive(self):  # poner la etiqueta corrige también los días cerrados
         hsn = self.food("alimento_01")
         pid = self.portion("alimento_01", "30 g (1 scoop)")["id"]
         e1 = self.add(hsn["id"], 1, "p:%d" % pid, d=D1)
@@ -146,7 +146,8 @@ class TestRecipes(Base):
         core.update_food(self.conn, hsn["id"], {"status": "etiqueta", "portions": [
             {"id": pid, "label": "30 g (1 scoop)", "amount": 30, "unit": "g", "kcal": 115, "protein_g": 23,
              "carbs_g": 2, "fat_g": 1.5, "quality": "etiqueta"}]})
-        self.assertIsNone(core.get_entry(self.conn, e1["id"])["kcal"])
+        self.assertEqual(core.get_entry(self.conn, e1["id"])["kcal"], 115)
+        self.assertEqual(core.get_entry(self.conn, e1["id"])["quality"], "etiqueta")
         self.assertEqual(core.get_entry(self.conn, e2["id"])["kcal"], 115)
 
     def test_template_apply_with_override(self):
