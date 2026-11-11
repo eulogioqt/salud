@@ -1648,19 +1648,22 @@ function weightChart(ws) {
   return box;
 }
 
-// Pasos en Progreso: un día por barra, la línea del objetivo y lo básico (media, días con el objetivo, mejor día)
+// Pasos en Progreso: un día por barra (los días sin datos quedan en hueco), la línea del objetivo y lo básico
 function stepsPanel(hist, goal) {
   const ds = (hist || []).filter((x) => x.steps != null);
   if (!ds.length) return null;
   goal = goal || 8000;
-  const mx = Math.max(goal, ...ds.map((x) => x.steps)), avg = ds.reduce((a, x) => a + x.steps, 0) / ds.length;
+  const by = Object.fromEntries(ds.map((x) => [x.date, x.steps]));
+  const n = Math.max(14, Math.min(S.progDays || 30, 90)), end = todayISO(), days = Array.from({ length: n }, (_, i) => addDays(end, i - n + 1));
+  const mx = Math.max(goal, ...ds.map((x) => x.steps)) * 1.08, avg = ds.reduce((a, x) => a + x.steps, 0) / ds.length;
   const best = ds.reduce((a, x) => (x.steps > a.steps ? x : a)), hit = ds.filter((x) => x.steps >= goal).length;
   const kpi = (l, v, s_) => h("div", { class: "kpi" }, h("div", { class: "l" }, l), h("div", { class: "v num" }, v), h("div", { class: "s" }, s_ || ""));
   return h("div", { class: "card panel" }, h("h3", null, "Pasos", h("span", { class: "faint", style: { fontWeight: 400 } }, ` · objetivo ${fmt(goal)}`)),
-    h("div", { class: "kpis k3" }, kpi("Media", fmt(avg), `${ds.length} días`), kpi("Con el objetivo", `${hit} de ${ds.length}`, Math.round((100 * hit) / ds.length) + " %"),
+    h("div", { class: "kpis k3" }, kpi("Media", fmt(avg), `${ds.length} ${ds.length === 1 ? "día" : "días"}`), kpi("Objetivo", `${hit} de ${ds.length}`, Math.round((100 * hit) / ds.length) + " % de los días"),
       kpi("Mejor día", fmt(best.steps), dateLabel(best.date, { day: "numeric", month: "short" }))),
     h("div", { class: "pbars" }, h("i", { class: "goal", style: { bottom: (100 * goal) / mx + "%" } }),
-      ds.map((x) => h("span", { class: x.steps >= goal ? "ok" : "", style: { height: Math.max(2, (100 * x.steps) / mx) + "%" }, title: `${dateLabel(x.date, { weekday: "short", day: "numeric", month: "short" })} · ${fmt(x.steps)} pasos` }))));
+      days.map((d) => { const v = by[d]; return h("span", { class: v == null ? "gap" : v >= goal ? "ok" : "", style: { height: v == null ? "0" : Math.max(2, (100 * v) / mx) + "%" }, title: `${dateLabel(d, { weekday: "short", day: "numeric", month: "short" })} · ${v == null ? "sin datos" : fmt(v) + " pasos"}` }); })),
+    h("div", { class: "pbars-x faint" }, h("span", null, dateLabel(days[0], { day: "numeric", month: "short" })), h("span", null, "hoy")));
 }
 // Calibración del gasto (Progreso): lo que dicen tus pesajes frente a lo que calcula el modelo
 const CAL_ROWS = [["cal_ajuste_kcal", "Base: metabolismo y día a día", (v) => signed(v) + " kcal/día"], ["cal_pasos_factor", "Pasos", (v) => "× " + fmt(v, 2)], ["cal_ejercicio_factor", "Entrenos", (v) => "× " + fmt(v, 2)]];
@@ -1674,25 +1677,24 @@ function calPanel(cal) {
   const reload = async (p) => { await act(() => p); await refresh(); };
   return h("div", { class: "card panel" },
     h("div", { class: "row" }, h("h3", { style: { margin: 0 } }, "Calibración del gasto"), h("span", { class: "grow" }),
-      h("span", { class: "pc-badge " + (cal.auto ? "ok" : "man") }, cal.auto ? "Se ajusta sola" : "A mano")),
-    h("p", { class: "faint sm", style: { margin: "6px 0 10px" } }, "Si apuntas todo lo que comes y te pesas por la mañana, el peso tiene que seguir al balance. La diferencia corrige el gasto: los días sin entreno separan los pasos de la base, los de pocos pasos separan la base de los pasos… Se mueve solo lo que tus datos justifican."),
-    cal.ready ? null : h("div", { class: "note" }, cal.reason || "Aún sin datos suficientes."),
+      h("span", { class: "pc-badge " + (cal.auto ? "ok" : "man") }, cal.auto ? "Automática" : "Manual")),
+    h("p", { class: "faint sm cal-p" }, "Si apuntas todo lo que comes y te pesas por la mañana, el peso tiene que seguir al balance. Con la diferencia se corrige el gasto: los días sin entreno separan los pasos de la base y los de pocos pasos, la base de los pasos. Solo cambia lo que tus datos justifican; se revisa cada semana."),
+    cal.ready ? null : h("div", { class: "note cal-n" }, cal.reason || "Aún sin datos suficientes."),
     h("div", { class: "cal-list" }, rows),
     cal.updated ? h("div", { class: "faint sm", style: { marginTop: "6px" } }, "Última actualización: " + dateLabel(cal.updated, { day: "numeric", month: "short" })) : null,
     h("div", { class: "row", style: { gap: "8px", marginTop: "12px", flexWrap: "wrap" } },
       h("button", { class: "btn sm", onclick: () => calEditSheet(cal) }, icon("edit"), "Editar"),
       est && !cal.auto ? h("button", { class: "btn sm", onclick: () => reload(api("POST", "/api/calibration/apply", {})) }, "Usar lo que dicen mis datos") : null,
-      !cal.auto ? h("button", { class: "btn sm ghost", onclick: () => reload(api("PUT", "/api/calibration", { cal_auto: "1" })) }, "Que se ajuste sola") : null,
+      !cal.auto ? h("button", { class: "btn sm ghost", onclick: () => reload(api("PUT", "/api/calibration", { cal_auto: "1" })) }, "Volver a automática") : null,
       h("span", { class: "grow" }),
       h("button", { class: "btn sm ghost danger", onclick: () => { if (confirm("¿Volver a los valores de fábrica? La calibración empieza de cero.")) reload(api("POST", "/api/calibration/reset", {})); } }, "Restablecer")));
 }
 function calEditSheet(cal) {
   const P = cal.params, D = cal.defaults;
-  const F = [["cal_ajuste_kcal", "Ajuste de la base (kcal/día)", "Metabolismo y día a día; + = gastas más de lo calculado"], ["cal_pasos_factor", "Factor de los pasos", "1 = tal cual"], ["cal_ejercicio_factor", "Factor de los entrenos", "1 = tal cual"],
-    ["neat_base_kcal", "Día a día «normal» (kcal)", "Lo que te mueves sin contar pasos, para 75 kg"], ["kcal_por_kg_km", "Caminar (kcal por kg y km)", "Coste neto sobre reposo"], ["factor_zancada", "Zancada (× altura)", "0,415 es lo típico"], ["tef_pct", "Digestión (fracción de lo comido)", "0,10 = 10 %"]];
+  const F = [["cal_ajuste_kcal", "Base: metabolismo y día a día (kcal/día)", "+ = gastas más de lo calculado"], ["cal_pasos_factor", "Pasos (factor)", "1 = tal cual; 1,10 = un 10 % más"], ["cal_ejercicio_factor", "Entrenos (factor)", "1 = tal cual"]];
   const ins = {};
   const sh = sheet("Parámetros del gasto", [
-    h("p", { class: "muted wz-p" }, "Si cambias los tres primeros, la calibración deja de ajustarse sola (puedes volver a activarla)."),
+    h("p", { class: "muted wz-p" }, "Si los cambias a mano, la calibración pasa a manual (puedes volver a automática cuando quieras)."),
     h("div", { class: "form" }, F.map(([k, l, d]) => h("label", { class: "fld" }, h("span", null, l, h("span", { class: "faint" }, ` · ${d} · de fábrica ${String(D[k]).replace(".", ",")}`)),
       ins[k] = h("input", { class: "input num", inputMode: "decimal", value: String(P[k]).replace(".", ",") }))))],
     [h("button", { class: "btn", onclick: () => sh.close() }, "Cancelar"), h("span", { class: "grow" }),

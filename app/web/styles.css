@@ -1484,3 +1484,11 @@ img { -webkit-user-drag: none; user-select: none; }
 .pbars span.ok { background: #e2bd6f; }
 .pbars .goal { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--faint); }
 .kpis.k3 { grid-template-columns: repeat(3, 1fr); }
+.pbars { gap: 2px; }
+.pbars span { max-width: 18px; }
+.pbars span.gap { background: none; }
+.pbars-x { display: flex; justify-content: space-between; font-size: 11px; margin-top: 4px; }
+.cal-p { margin: 6px 0 12px; line-height: 1.45; }
+.cal-n { margin: 0 0 10px; }
+@media (max-width: 640px) { .kpis.k3 .kpi .l { white-space: nowrap; } .cal-r { padding: 10px; } }
+.pbars { justify-content: space-between; }
