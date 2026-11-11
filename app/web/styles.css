@@ -1449,3 +1449,8 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .prc.lg { padding-top: 3px; } .prc.lg svg { margin-top: -2.5px; }
 .acts .a.det b { color: var(--warn); } .acts .a.det .faint { font-size: 12px; }
 .hcw-key { margin-top: 8px; } .hcw-key summary { cursor: pointer; font-size: 13px; } .hcw-key[open] summary { margin-bottom: 4px; }
+.zoom-ov { position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,.86); display: grid; place-items: center; cursor: zoom-out; animation: fadeIn .15s ease; }
+.zoom-ov img { max-width: 94vw; max-height: 90vh; border-radius: 12px; object-fit: contain; }
+img.zoomable { cursor: zoom-in; }
+button.pzoom { border: 0; cursor: pointer; }
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }

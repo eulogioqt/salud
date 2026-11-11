@@ -368,7 +368,7 @@ function bodyStrip(st) {
     await act(() => api("PUT", "/api/days/" + st.date, { weight_kg: n }), "Peso guardado").catch(() => { el.value = day.weight_kg ?? ""; });
   });
   el.addEventListener("click", (e) => e.stopPropagation());
-  const scale = !!(S.pasos || {}).bascula;  // báscula conectada: el peso llega solo y no se toca a mano
+  const scale = !!(S.pasos || {}).bascula && !((S.pasos || {}).off || []).includes("bascula");  // báscula conectada: el peso llega solo y no se toca a mano
   const weight = h("div", { class: "stat clickable", onclick: () => weightSheet(st) },
     h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic w" }, "⚖"), "Peso"),
       scale ? h("span", { class: "lnk" }, "Ver") : S.me && !closed ? h("button", { class: "lnk-btn", title: "Que los pesajes de tu báscula lleguen solos", onclick: (e) => { e.stopPropagation(); stepsConnectSheet("bascula"); } }, "🔗 Conectar") : null),
@@ -376,7 +376,7 @@ function bodyStrip(st) {
       : h("div", { class: "v" }, el, h("small", null, "kg")),
     h("div", { class: "s" }, st.avg7 != null ? `media 7 d ${fmt(st.avg7, 1)}` : ""));
   // Pasos: conectados al móvil → solo «Ver» (ficha con estadísticas); si no, se apuntan a mano y se ofrece conectar
-  const auto = !!(S.pasos || {}).conectado;
+  const auto = !!(S.pasos || {}).conectado && !((S.pasos || {}).off || []).includes("pasos");
   const skc = day.steps != null && en.steps_kcal != null ? fmt(en.steps_kcal) + " kcal" : null;
   const steps = h("div", { class: "stat clickable", onclick: auto ? () => stepsStatsSheet(st) : closed ? null : () => stepsSheet(st) },
     h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic s" }, "👟"), "Pasos"),
@@ -411,7 +411,7 @@ async function weightSheet(st) {
     const ws = P.weights, last = [...ws].reverse().find((w) => w.weight_kg != null), lastAvg = [...ws].reverse().find((w) => w.avg7 != null);
     const prevAvg = lastAvg ? ws.find((w) => w.date === addDays(lastAvg.date, -7)) : null, cal = P.calibration;
     const kpi = (l, v, s_) => h("div", { class: "kpi" }, h("div", { class: "l" }, l), h("div", { class: "v num" }, v), h("div", { class: "s" }, s_ || ""));
-    const scale = !!(S.pasos || {}).bascula;
+    const scale = !!(S.pasos || {}).bascula && !((S.pasos || {}).off || []).includes("bascula");
     sh.set("Peso", [
       h("div", { class: "row", style: { marginBottom: "10px" } }, h("span", { class: "faint" }, scale ? "Llega solo de tu báscula" : "Pésate al levantarte, después del baño y antes de comer"), h("span", { class: "grow" }),
         h("div", { class: "seg" }, [[30, "30 d"], [90, "90 d"]].map(([d, l]) => h("button", { class: days === d ? "on" : "", onclick: () => { days = d; draw(); } }, l)))),
@@ -551,9 +551,27 @@ function hourBars(hrs, today) {
 }
 // Conectar con el móvil (pasos, báscula o entreno). Android: una app que escriba en Health Connect + «HC Webhook» (la misma
 // para todo) que lo manda aquí. iPhone: Salud + Atajos (de momento, solo los pasos).
+// Clave del móvil (HC Webhook): una sola para pasos, báscula y entrenos. Se ve solo al generarla.
+async function mobileKeySheet(onNew) {
+  let info = await api("GET", "/api/movil").catch(() => ({})), tok = null;
+  const sh = sheet("Clave del móvil", null);
+  const gen = async () => { tok = (await api("POST", "/api/movil", {})).token; info = await api("GET", "/api/movil").catch(() => info); onNew && onNew(tok); draw(); };
+  const draw = () => sh.set("Clave del móvil", [
+    h("p", { class: "muted wz-p" }, "Es la clave que pones en «HC Webhook» (Android). Una sola sirve para pasos, báscula y entrenos: si ya la tienes puesta, usa la misma para todo."),
+    tok ? h("div", null, h("b", null, "Tu clave nueva"), h("div", { class: "faint sm" }, "Cópiala ahora: no se vuelve a mostrar. En HC Webhook va en el encabezado «Authorization»."), copyLine("Bearer " + tok))
+      : info.configurado ? h("div", { class: "note" }, `Ya tienes una clave · creada ${whenTxt(info.clave_creada)}` + (info.ultimo ? ` · último uso ${whenTxt(info.ultimo)}` : " · aún sin usar"))
+        : h("div", { class: "note" }, "Aún no tienes clave."),
+  ], info.configurado || tok ? [
+    h("button", { class: "btn ghost sm danger", onclick: async () => { if (!confirm("¿Borrar la clave? Dejarán de llegar pasos, pesajes y entrenos hasta que pongas otra.")) return; await api("DELETE", "/api/movil"); info = await api("GET", "/api/movil").catch(() => ({})); tok = null; draw(); } }, "Borrar"),
+    h("span", { class: "grow" }),
+    h("button", { class: "btn sm", onclick: async () => { if (!confirm("¿Generar una nueva? La actual dejará de funcionar y tendrás que cambiarla en HC Webhook.")) return; await gen(); } }, "Generar una nueva"),
+  ] : [h("span", { class: "grow" }), h("button", { class: "btn primary", onclick: gen }, "Generar clave")]);
+  draw();
+}
 const whenTxt = (s) => s ? dateLabel(s.slice(0, 10), { day: "numeric", month: "short" }) + (s.length > 11 ? " · " + s.slice(11, 16) : "") : "";
 async function stepsConnectSheet(mode = "pasos") {
   let info = await api("GET", "/api/movil").catch(() => ({}));
+  if ((info.off || []).includes(mode)) { await api("POST", "/api/movil", { off: mode, desactivar: false }).catch(() => null); info.off = info.off.filter((x) => x !== mode); }
   let tok = null, os = /iPhone|iPad/.test(navigator.userAgent) ? "ios" : /Android/.test(navigator.userAgent) ? "android" : null;
   const M = {
     pasos: { t: "Conectar tus pasos", p: "Así los pasos llegan solos y por horas.",
@@ -571,7 +589,8 @@ async function stepsConnectSheet(mode = "pasos") {
   const step = (n, t, d, extra) => h("div", { class: "ast" }, h("span", { class: "n" }, String(n)), h("div", null, h("b", null, t), d ? h("div", { class: "muted" }, d) : null, extra || null));
   const draw = () => {
     const seg = h("div", { class: "seg tg-seg" }, [["android", "Android"], ["ios", "iPhone"]].map(([k, l]) => h("button", { class: os === k ? "on" : "", onclick: () => { os = k; draw(); } }, l)));
-    const tokLine = tok ? copyLine("Bearer " + tok) : h("button", { class: "btn sm", onclick: async () => { tok = (await api("POST", "/api/movil", {})).token; draw(); } }, info.configurado ? "Generar una clave nueva" : "Generar mi clave");
+    const keyBtn = (t) => h("button", { class: "btn sm", onclick: () => mobileKeySheet(async (k) => { tok = k; info = await api("GET", "/api/movil").catch(() => info); draw(); }) }, t);
+    const tokLine = tok ? copyLine("Bearer " + tok) : info.configurado ? h("div", { class: "faint sm" }, "Usa la misma clave que ya tienes. ", keyBtn("Administrar")) : keyBtn("Generar mi clave");
     const url = copyLine(info.url || location.origin + "/api/hooks/salud");
     const have = !!info.conectado, done = M.done();
     let body;
@@ -579,14 +598,9 @@ async function stepsConnectSheet(mode = "pasos") {
       const [t1, d1, x1] = M.app;
       body = [
         step(1, t1, d1, x1 ? h("a", { class: "btn sm ext", href: x1.href, target: "_blank", rel: "noopener" }, x1.t, " ↗") : null),
-        have ? step(2, "En «HC Webhook», activa: " + M.tipos, h("span", { class: "faint" }, "La misma app que ya usas para lo demás."),
-            h("details", { class: "hcw-key" }, h("summary", { class: "faint" }, "Clave de HC Webhook"),
-              h("div", { class: "faint sm" }, "Una sola clave para todo lo que manda el móvil. Si la cambias, ponla también en la app."), tok ? tokLine : null,
-              h("div", { class: "row", style: { gap: "8px", marginTop: "6px" } },
-                h("button", { class: "btn sm", onclick: async () => { if (!confirm("¿Generar una clave nueva? La actual dejará de funcionar.")) return; tok = (await api("POST", "/api/movil", {})).token; draw(); } }, "Generar clave nueva"),
-                h("button", { class: "btn sm ghost danger", onclick: async () => { if (!confirm("¿Desconectar el móvil? Dejarán de llegar pasos, pesajes y entrenos.")) return; await api("DELETE", "/api/movil"); info = await api("GET", "/api/movil").catch(() => ({})); tok = null; draw(); } }, "Desconectar"))))
+        have ? step(2, "En «HC Webhook», activa: " + M.tipos, h("span", { class: "faint" }, "La misma app y la misma clave que ya usas."))
           : step(2, "Instala «HC Webhook» y activa: " + M.tipos, "Gratis desde GitHub (la misma sirve para pasos, báscula y entrenos). En Webhooks → Añadir, pon esta dirección:",
-            h("div", null, url, h("div", { class: "muted", style: { marginTop: "8px" } }, "Y en Encabezado, «Authorization» con tu clave:"), tokLine,
+            h("div", null, url, h("div", { class: "muted", style: { marginTop: "8px" } }, "Y en Encabezado, «Authorization» con tu clave (una para todo):"), tokLine,
               h("a", { class: "btn sm ext", style: { marginTop: "8px" }, href: "https://github.com/mcnaveen/health-connect-webhook/releases/latest", target: "_blank", rel: "noopener" }, "Descargar HC Webhook", " ↗"))),
       ];
     } else if (os === "ios") {
@@ -615,6 +629,11 @@ async function connectionsSheet() {
   const sh = sheet("Conexiones", null, null, { onClose: () => loadPasos() });
   const draw = () => {
     const pasosOk = fresh(info.pasos_ultimo, 48);
+    const isOff = (k) => (info.off || []).includes(k);
+    const st_ = (k, ok, any) => isOff(k) || !any ? "off" : ok ? "ok" : "warn";
+    const btn_ = (k, any) => any && !isOff(k)
+      ? h("button", { class: "btn sm ghost", onclick: async () => { if (!confirm("¿Desconectar? Lo que mande el móvil de esto dejará de guardarse (puedes desactivarlo también en HC Webhook).")) return; await api("POST", "/api/movil", { off: k }); info = await api("GET", "/api/movil").catch(() => info); draw(); loadPasos(); } }, "Desconectar")
+      : h("button", { class: "btn sm ghost", onclick: () => { sh.close(); stepsConnectSheet(k); } }, "Conectar");
     const row_ = (ic, t, state, sub_, btn) => h("div", { class: "pc-row" }, h("span", { class: "pc-i " + state }, ic),
       h("div", { class: "grow" }, h("div", { class: "pc-t" }, h("b", null, t), h("span", { class: "pc-badge " + state }, { ok: "Conectado", warn: "Sin datos recientes", off: "Sin conectar", man: "A mano" }[state])),
         h("div", { class: "faint sm" }, sub_)), btn);
@@ -623,15 +642,10 @@ async function connectionsSheet() {
         S.me ? row_("✦", "Agente (Claude, ChatGPT…)", agentConnected() ? "ok" : "off",
           agentConnected() ? S.me.agente.agents.map((t) => agentOf(t.agent || t.kind).n).join(", ") : "Para apuntar por chat, mandar capturas de Hevy o de la báscula",
           h("button", { class: "btn sm ghost", onclick: () => { sh.close(); connectAgent(); } }, agentConnected() ? "Gestionar" : "Conectar")) : null,
-        S.me ? row_("👟", "Pasos del móvil", pasosOk ? "ok" : info.pasos_ultimo ? "warn" : "off",
-          info.pasos_ultimo ? `Último envío ${agoTxt(info.pasos_ultimo)}` : "Que lleguen solos desde Health Connect o Salud de Apple",
-          h("button", { class: "btn sm ghost", onclick: () => { sh.close(); stepsConnectSheet("pasos"); } }, info.pasos_ultimo ? "Cómo se configura" : "Conectar")) : null,
-        S.me ? row_("⚖", "Báscula", info.bascula ? "ok" : "off", info.bascula ? `Último pesaje ${whenTxt(info.bascula)}` : "Que cada pesaje llegue solo (peso, % de grasa…)",
-          h("button", { class: "btn sm ghost", onclick: () => { sh.close(); stepsConnectSheet("bascula"); } }, info.bascula ? "Cómo se configura" : "Conectar")) : null,
-        S.me ? row_("🏋", "Entrenos", info.entreno_ultimo ? "ok" : "off", info.entreno_ultimo ? `Último entreno detectado ${whenTxt(info.entreno_ultimo)}` : "Que se sepa solo cuándo entrenas (Hevy u otra app)",
-          h("button", { class: "btn sm ghost", onclick: () => { sh.close(); stepsConnectSheet("entreno"); } }, info.entreno_ultimo ? "Cómo se configura" : "Conectar")) : null,
-      ),
-    ], null);
+        S.me ? row_("👟", "Pasos del móvil", st_("pasos", pasosOk, info.pasos_ultimo), info.pasos_ultimo && !isOff("pasos") ? `Último envío ${agoTxt(info.pasos_ultimo)}` : "Que lleguen solos desde el móvil", btn_("pasos", info.pasos_ultimo)) : null,
+        S.me ? row_("⚖", "Báscula", st_("bascula", !!info.bascula, info.bascula), info.bascula && !isOff("bascula") ? `Último pesaje ${whenTxt(info.bascula)}` : "Que cada pesaje llegue solo (peso, % de grasa…)", btn_("bascula", info.bascula)) : null,
+        S.me ? row_("🏋", "Entrenos", st_("entreno", !!info.entreno_ultimo, info.entreno_ultimo), info.entreno_ultimo && !isOff("entreno") ? `Último entreno detectado ${whenTxt(info.entreno_ultimo)}` : "Que se sepa solo cuándo entrenas (Hevy u otra app)", btn_("entreno", info.entreno_ultimo)) : null      ),
+    ], S.me && info.configurado ? [h("button", { class: "btn sm ghost", onclick: () => mobileKeySheet(async () => { info = await api("GET", "/api/movil").catch(() => info); }) }, "🔑 Clave del móvil")] : null);
   };
   draw();
 }
@@ -803,10 +817,19 @@ function macroBadges(n, lbl) {
     h("div", { class: "mchips num" }, h("i", { class: "p " + pq, title: n.kcal ? `${fmt(pk * 100)} % de las kcal vienen de proteína` : "" }, v(n, "protein_g", n.protein_g < 10 ? 1 : 0)),
       h("i", { class: "c" }, v(n, "carbs_g", n.carbs_g < 10 ? 1 : 0)), h("i", { class: "g" }, v(n, "fat_g", n.fat_g < 10 ? 1 : 0))));
 }
+// Foto en grande (encima de todo; se cierra tocando o con Esc)
+function zoomImg(src) {
+  const ov = h("div", { class: "zoom-ov", onclick: () => close() }, h("img", { src, alt: "" }));
+  const key = (e) => { if (e.key === "Escape") close(); };
+  const close = () => { ov.remove(); document.removeEventListener("keydown", key, true); };
+  document.addEventListener("keydown", key, true);
+  document.body.append(ov);
+}
 function photoFrame(name, cat, img) {
   const src = img ? (/^(\/|data:|https?:)/.test(img) ? img : "/" + img) : null;
   const fr = h("div", { class: "pframe" + (src ? "" : " none") });
-  if (src) fr.append(h("img", { src, alt: "", onerror: () => fr.replaceChildren(mono(name, cat, null, true)) }), h("a", { class: "pzoom", href: src, target: "_blank", rel: "noopener", title: "Ver a tamaño completo" }, "⤢"));
+  if (src) fr.append(h("img", { src, alt: "", class: "zoomable", onclick: () => zoomImg(src), onerror: () => fr.replaceChildren(mono(name, cat, null, true)) }),
+    h("button", { type: "button", class: "pzoom", title: "Ver en grande", onclick: () => zoomImg(src) }, "⤢"));
   else fr.append(mono(name, cat, null, true));
   return fr;
 }

@@ -236,6 +236,13 @@ class Handler(BaseHTTPRequestHandler):
             user = auth.session_user(MULTI, self._cookie_token())
             if not user:
                 return self._send(401, {"error": "Inicia sesión", "login": True})
+            if method == "POST" and body.get("off") in ("pasos", "bascula", "entreno"):  # desconectar/conectar un tipo
+                conn, lock = user_ctx(user)
+                with lock:
+                    off = {x for x in (core.get_setting(conn, "movil_off") or "").split(",") if x}
+                    (off.add if body.get("desactivar", True) else off.discard)(body["off"])
+                    core.set_setting(conn, "movil_off", ",".join(sorted(off)), "web")
+                return self._send(200, {"ok": True, "off": sorted(off)})
             if method == "POST":
                 return self._send(200, {"token": auth.new_api_token(MULTI, user, "pasos"), "url": self._base() + "/api/hooks/salud"})
             if method == "DELETE":
@@ -249,7 +256,9 @@ class Handler(BaseHTTPRequestHandler):
                 bas = conn.execute("SELECT MAX(date||' '||COALESCE(time,'')) FROM body_metrics WHERE source='movil' AND deleted_at IS NULL").fetchone()[0]
                 stp = conn.execute("SELECT MAX(received_at) FROM step_buckets").fetchone()[0]
                 ent = conn.execute("SELECT substr(MAX(start),1,16) FROM hc_sessions").fetchone()[0]
+                off = [x for x in (core.get_setting(conn, "movil_off") or "").split(",") if x]
             return self._send(200, {"configurado": bool(t), "conectado": bool(t and t.get("used")), "ultimo": t and t.get("used"),
+                                    "clave_creada": t and t.get("created"), "off": off,
                                     "bascula": bas, "pasos_ultimo": stp, "entreno_ultimo": ent and ent.replace("T", " "),
                                     "url": self._base() + "/api/hooks/salud"})
         if MULTI and u.path.startswith("/api/token"):

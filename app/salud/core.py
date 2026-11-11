@@ -1404,10 +1404,13 @@ def ingest_health(conn, payload, source="health"):
         raise ValidationError("JSON no válido")
     tot = payload.get("steps", payload.get("pasos"))
     if isinstance(tot, (int, float, str)) and not isinstance(tot, bool):
+        if "pasos" in (get_setting(conn, "movil_off") or "").split(","):
+            return {"ok": True, "ignorado": "pasos desconectados"}
         return _ingest_total(conn, payload, tot, source)
-    body = _ingest_body(conn, payload, source)
-    ses = _ingest_sessions(conn, payload)
-    recs = payload.get("steps") or []
+    off = set((get_setting(conn, "movil_off") or "").split(","))
+    body = None if "bascula" in off else _ingest_body(conn, payload, source)
+    ses = 0 if "entreno" in off else _ingest_sessions(conn, payload)
+    recs = [] if "pasos" in off else (payload.get("steps") or [])
     days, n = set(), 0
     with tx(conn, "health_sync", source, payload={"steps": len(recs), "app": payload.get("app_version")}):
         for r in recs:
