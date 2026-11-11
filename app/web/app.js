@@ -201,7 +201,7 @@ function sheet(title, body, footer, opts = {}) {
 function icon(name) {
   const P = {
     x: "M6 6l12 12M18 6L6 18", back: "M15 18l-6-6 6-6", left: "M15 18l-6-6 6-6", right: "M9 18l6-6-6-6",
-    plus: "M12 5v14M5 12h14", edit: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4", search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3", lock: "M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z",
+    plus: "M12 5v14M5 12h14", key: "M7.5 15a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7zM11 11.5h10M18 11.5v3M15 11.5v2", edit: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4", search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3", lock: "M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z",
     star: "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z", chev: "M6 9l6 6 6-6",
     minus: "M5 12h14", camera: "M4 8h3l2-3h6l2 3h3v11H4zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", out: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6",
     gear: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z",
@@ -235,8 +235,8 @@ function viewHoy() {
   const isToday = st.date === st.today;
   const head = h("div", { class: "dayhead" },
     h("button", { class: "icon-btn", onclick: () => goDay(addDays(S.date, -1)), title: "Día anterior" }, icon("left")),
-    h("h1", null, isToday ? "Hoy" : dateLabel(st.date)),
-    isToday ? h("span", { class: "muted", style: { fontSize: "14px" } }, dateLabel(st.date, { weekday: "short", day: "numeric", month: "short" })) : null,
+    h("div", { class: "dh-t" }, h("h1", null, isToday ? "Hoy" : dateLabel(st.date)),
+      isToday ? h("span", { class: "muted", style: { fontSize: "14px" } }, dateLabel(st.date, { weekday: "short", day: "numeric", month: "short" })) : null),
     h("button", { class: "icon-btn", onclick: () => goDay(addDays(S.date, 1)), title: "Día siguiente" }, icon("right")),
     h("span", { class: "spacer" }),
     !isToday ? h("button", { class: "btn ghost sm", onclick: () => goDay(st.today) }, "Ir a hoy") : null,
@@ -373,9 +373,12 @@ function bodyStrip(st) {
   const weight = h("div", { class: "stat clickable", onclick: () => weightSheet(st) },
     h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic w" }, "⚖"), "Peso"),
       scale ? h("span", { class: "lnk" }, "Ver") : S.me && !closed ? h("button", { class: "lnk-btn", title: "Que los pesajes de tu báscula lleguen solos", onclick: (e) => { e.stopPropagation(); stepsConnectSheet("bascula"); } }, "🔗 Conectar") : null),
-    scale ? (day.weight_kg == null ? h("div", { class: "v none" }, h("small", null, "Aún sin pesaje")) : h("div", { class: "v" }, h("span", null, fmt(day.weight_kg, 1)), h("small", null, "kg")))
+    scale ? (day.weight_kg == null ? (st.weight_interp != null && st.date !== st.today
+        ? h("div", { class: "v" }, h("span", { class: "interp", title: "Sin pesaje ese día: interpolado entre el anterior y el siguiente" }, "≈ " + fmt(st.weight_interp, 1)), h("small", null, "kg"))
+        : h("div", { class: "v none" }, h("small", null, "Aún sin pesaje")))
+        : h("div", { class: "v" }, h("span", null, fmt(day.weight_kg, 1)), h("small", null, "kg")))
       : h("div", { class: "v" }, el, h("small", null, "kg")),
-    h("div", { class: "s" }, st.avg7 != null ? `media 7 d ${fmt(st.avg7, 1)}` : ""));
+    h("div", { class: "s" }, day.weight_kg == null && st.weight_interp != null && st.date !== st.today ? "sin pesaje · interpolado" : st.avg7 != null ? `media 7 d ${fmt(st.avg7, 1)}` : ""));
   // Pasos: conectados al móvil → solo «Ver» (ficha con estadísticas); si no, se apuntan a mano y se ofrece conectar
   const auto = !!(S.pasos || {}).conectado && !((S.pasos || {}).off || []).includes("pasos");
   const skc = day.steps != null && en.steps_kcal != null ? fmt(en.steps_kcal) + " kcal" : null;
@@ -409,25 +412,33 @@ function bodyStrip(st) {
 
 // Ficha de peso (al tocar el peso en Hoy): gráfica, media de 7 días, cambio semanal y la báscula; lo demás en Progreso
 async function weightSheet(st) {
+  // Ficha del peso de ESE día (pesaje, hora, composición y otros pesajes del día) + la gráfica; lo demás, en Progreso
   let days = 30;
-  const sh = sheet("Peso", h("div", { class: "muted" }, "Cargando…"), null, { wide: true });
+  const sub = dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" });
+  const sh = sheet("Peso", h("div", { class: "muted" }, "Cargando…"), null, { wide: true, sub });
   const draw = async () => {
     const P = await api("GET", `/api/progress?days=${days}&weeks=4`).catch(() => null);
     if (!P) return;
-    const ws = P.weights, last = [...ws].reverse().find((w) => w.weight_kg != null), lastAvg = [...ws].reverse().find((w) => w.avg7 != null);
-    const prevAvg = lastAvg ? ws.find((w) => w.date === addDays(lastAvg.date, -7)) : null, cal = P.calibration;
-    const kpi = (l, v, s_) => h("div", { class: "kpi" }, h("div", { class: "l" }, l), h("div", { class: "v num" }, v), h("div", { class: "s" }, s_ || ""));
+    const ws = P.weights, dayW = st.day.weight_kg, bodies = (P.body || []).filter((b) => b.date === st.date).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+    const main = bodies.find((b) => dayW != null && b.weight_kg != null && Math.abs(b.weight_kg - dayW) < 0.05) || null;
+    const others = bodies.filter((b) => b !== main && b.weight_kg != null);
+    const w7 = ws.find((w) => w.date === st.date) || {}, prev = ws.find((w) => w.date === addDays(st.date, -7)) || {};
     const scale = !!(S.pasos || {}).bascula && !((S.pasos || {}).off || []).includes("bascula");
+    const src = main ? ({ movil: "báscula (llegó sola)", xiaomi: "captura de la báscula" }[main.source] || "apuntado") : "apuntado a mano";
+    const tiles = main ? BODY_ROWS.filter(([k]) => k !== "weight_kg" && main[k] != null).map(([k, l, u, nd]) => h("div", { class: "btile" }, h("span", null, l), h("b", { class: "num" }, fmt(main[k], nd), u ? h("small", null, " " + u) : null))) : [];
     sh.set("Peso", [
-      h("div", { class: "row", style: { marginBottom: "10px" } }, h("span", { class: "faint" }, scale ? "Llega solo de tu báscula" : "Pésate al levantarte, después del baño y antes de comer"), h("span", { class: "grow" }),
+      h("div", { class: "wday" },
+        h("div", { class: "wday-v" }, dayW != null ? [h("b", { class: "num" }, fmt(dayW, 1)), h("span", null, " kg")]
+          : st.weight_interp != null ? [h("b", { class: "num interp" }, "≈ " + fmt(st.weight_interp, 1)), h("span", null, " kg")] : h("span", { class: "muted" }, "Sin pesaje")),
+        h("div", { class: "wday-s" }, dayW != null ? [main && main.time ? "a las " + main.time : null, src].filter(Boolean).join(" · ")
+          : st.weight_interp != null ? "Sin pesaje ese día: interpolado entre el anterior y el siguiente" : scale ? "Pésate al levantarte: llegará solo" : "Pésate al levantarte, después del baño y antes de comer"),
+        w7.avg7 != null ? h("div", { class: "wday-s" }, `Media de 7 días ${fmt(w7.avg7, 2)} kg` + (prev.avg7 != null ? ` · ${signed(w7.avg7 - prev.avg7, 2)} kg en 7 días` : "")) : null),
+      tiles.length ? h("div", { class: "btiles" }, tiles) : null,
+      others.length ? h("div", { class: "note" }, "Otros pesajes de ese día (no cuentan para la tendencia): ", others.map((b) => `${fmt(b.weight_kg, 1)} kg${b.time ? " a las " + b.time : ""}`).join(", ")) : null,
+      h("div", { class: "row", style: { margin: "14px 0 6px" } }, h("b", null, "Evolución"), h("span", { class: "grow" }),
         h("div", { class: "seg" }, [[30, "30 d"], [90, "90 d"]].map(([d, l]) => h("button", { class: days === d ? "on" : "", onclick: () => { days = d; draw(); } }, l)))),
-      h("div", { class: "kpis" },
-        kpi("Último", last ? fmt(last.weight_kg, 1) + " kg" : "—", last ? dateLabel(last.date, { day: "numeric", month: "short" }) : "sin pesajes"),
-        kpi("Media 7 días", lastAvg ? fmt(lastAvg.avg7, 2) + " kg" : "—", prevAvg && prevAvg.avg7 != null ? signed(lastAvg.avg7 - prevAvg.avg7, 2) + " kg en 7 días" : ""),
-        kpi("Tendencia", cal.observed_maintenance != null ? signed(cal.slope_kg_week, 2) + " kg/sem" : "—", cal.observed_maintenance != null ? "mantenimiento observado " + fmt(cal.observed_maintenance) + " kcal" : "faltan datos (≥14 días)")),
-      h("div", { class: "card panel" }, weightChart(ws)),
-      (P.body || []).length ? bodyPanel(P.body) : null],
-      [h("span", { class: "grow" }), h("button", { class: "btn", onclick: () => { sh.close(); location.hash = "#/progreso"; } }, "Ver todo en Progreso")]);
+      h("div", { class: "card panel" }, weightChart(ws, P.body))],
+      [h("span", { class: "grow" }), h("button", { class: "btn", onclick: () => { sh.close(); location.hash = "#/progreso"; } }, "Ver todo en Progreso")], { sub });
   };
   draw();
 }
@@ -669,7 +680,7 @@ async function connectionsSheet() {
         S.me ? row_("👟", "Pasos del móvil", st_("pasos", pasosOk, info.pasos_ultimo), info.pasos_ultimo && !isOff("pasos") ? `Último envío ${agoTxt(info.pasos_ultimo)}` : "Que lleguen solos desde el móvil", btn_("pasos", info.pasos_ultimo)) : null,
         S.me ? row_("⚖", "Báscula", st_("bascula", !!info.bascula, info.bascula), info.bascula && !isOff("bascula") ? `Último pesaje ${whenTxt(info.bascula)}` : "Que cada pesaje llegue solo (peso, % de grasa…)", btn_("bascula", info.bascula)) : null,
         S.me ? row_("🏋", "Entrenos", st_("entreno", !!info.entreno_ultimo, info.entreno_ultimo), info.entreno_ultimo && !isOff("entreno") ? `Último entreno detectado ${whenTxt(info.entreno_ultimo)}` : "Que se sepa solo cuándo entrenas (Hevy u otra app)", btn_("entreno", info.entreno_ultimo)) : null      ),
-    ], S.me && info.configurado ? [h("button", { class: "btn sm ghost", onclick: () => mobileKeySheet(async () => { info = await api("GET", "/api/movil").catch(() => info); }) }, "🔑 Clave del móvil")] : null);
+    ], S.me && info.configurado ? [h("button", { class: "btn sm ghost", onclick: () => mobileKeySheet(async () => { info = await api("GET", "/api/movil").catch(() => info); }) }, icon("key"), "Clave del móvil")] : null);
   };
   draw();
 }
@@ -827,6 +838,7 @@ function defUnit(f) {
   return (f.default_unit && us.find((u) => u.key === f.default_unit)) || null;
 }
 function foodBasis(f) {
+  if (isSupp(f)) { const p = suppPortion(f), u = (f.units || []).find((x) => x.key === "p:" + p.id); if (u) return [u.per, u.label]; }
   const du = defUnit(f);
   if (du && !["g", "ml"].includes(du.key)) return [du.per, du.label];
   if (f.per100) return [f.per100, "100 " + f.per100_unit];
@@ -1011,7 +1023,11 @@ function amountForm(food, init) {
     else if (du) { unit = du.key; qty = ["g", "ml"].includes(du.key) ? du.default_qty : 1; }
     else { const g = units.find((u) => u.key === "g" || u.key === "ml") || units[0]; unit = g ? g.key : null; qty = g ? g.default_qty : 1; }
   }
-  const uLabel = (u) => ({ g: "gramos", ml: "ml", rac: "raciones", total: "receta entera", x: "ración" })[u.key] || u.label;
+  // Raciones por unidad («1 barrita (23 g)»): si solo hay una, el chip dice «unidades» y abajo se explica cuánto es una
+  const UNIT_RX = /^1\s+([^()]+?)\s*\(([^)]+)\)$/;
+  const perUnit = units.filter((u) => u.key.startsWith("p:") && UNIT_RX.test(u.label));
+  const uLabel = (u) => ({ g: "gramos", ml: "ml", rac: "raciones", total: "receta entera", x: "ración" })[u.key] || (perUnit.length === 1 && perUnit[0] === u ? "unidades" : u.label);
+  const uHint = (u) => { const m = perUnit.length === 1 && perUnit[0] === u && u.label.match(UNIT_RX); return m ? `1 unidad = 1 ${m[1]} (${m[2]})` : null; };
   const qIn = h("input", { class: "qty-in num", value: String(qty ?? "").replace(".", ","), inputMode: "decimal", "aria-label": "Cantidad" });
   const isMass = () => ["g", "ml"].includes(unit);
   const stepBy = (dir) => {
@@ -1038,7 +1054,7 @@ function amountForm(food, init) {
     if (!u) { note.textContent = "Este alimento no tiene unidades registrables."; note.className = "note warn"; return; }
     const miss = u.per.missing || [];
     note.className = "note" + (miss.length || ["pendiente", "provisional"].includes(u.quality) ? " warn" : "");
-    note.textContent = [QUAL[u.quality], u.basis, miss.length === 4 ? "sin datos: se registra como pendiente (no cuenta como 0)" : miss.length ? "macros incompletos: no se suman como 0" : null].filter(Boolean).join(" · ");
+    note.textContent = [uHint(u), QUAL[u.quality], uHint(u) ? null : u.basis, miss.length === 4 ? "sin datos: se registra como pendiente (no cuenta como 0)" : miss.length ? "macros incompletos: no se suman como 0" : null].filter(Boolean).join(" · ");
   };
   qIn.addEventListener("input", draw);
   const form = { onEnter: null };
@@ -1264,7 +1280,7 @@ function viewLibrary() {
   const c = S.catalog; if (!c) return h("div");
   const nRev = c.foods.filter((f) => !f.deleted && !f.hidden && !f.reviewed).length + c.templates.filter((t) => !t.deleted && !t.hidden && !t.reviewed).length;
   if (S.libFilter == null) S.libFilter = nRev ? "revisar" : "todo";
-  const filters = [...(nRev ? [["revisar", `Por revisar · ${nRev}`]] : []), ["todo", "Todo"], ["producto", "Productos"], ["receta", "Recetas"], ["habitual", "Comidas habituales"], ["supl", "Suplementos"], ["pendiente", "Aproximados"], ["oculto", "Ocultos"]];
+  const filters = [...(nRev ? [["revisar", `Por revisar · ${nRev}`]] : []), ["todo", "Todo"], ["producto", "Productos"], ["receta", "Recetas"], ["habitual", "Comidas habituales"], ["supl", "Suplementos"], ["pendiente", "Aproximados"]];
   const search = h("input", { class: "input", placeholder: "Buscar", value: S.libQuery, oninput: (e) => { S.libQuery = e.target.value; drawGrid(); } });
   const grid = h("div");
   const drawGrid = () => {
@@ -1389,9 +1405,9 @@ function foodEditor(f, opt = {}) {
   };
   const sh = sheet(isNew ? "Nuevo producto" : f.name, body, [
     !isNew ? h("button", { class: "btn ghost danger", onclick: (e) => confirmDel(e, () => act(() => api("POST", `/api/foods/${f.id}/deleted`, { value: true }), "Eliminado (recuperable desde la base de datos)").then(sh.close)) }, "Eliminar") : null,
-    !isNew ? h("button", { class: "btn ghost", onclick: async () => { await act(() => api("POST", `/api/foods/${f.id}/hidden`, { value: !f.hidden }), f.hidden ? "Restaurado" : "Ocultado"); sh.close(); } }, f.hidden ? "Restaurar" : "Ocultar") : null,
-    !isNew ? h("button", { class: "btn ghost", onclick: async () => { await act(() => api("POST", `/api/foods/${f.id}/favorite`, { value: !f.favorite }), f.favorite ? "Quitado de favoritos" : "Añadido a favoritos"); sh.close(); } }, f.favorite ? "★" : "☆") : null,
-    h("span", { class: "grow" }), ...saveButtons(isNew, f, save)], { wide: true, sub: reviewSub(isNew, f) });
+    h("span", { class: "grow" }), ...saveButtons(isNew, f, save)], { wide: true, sub: reviewSub(isNew, f),
+    titleExtra: isNew ? null : h("button", { class: "fav-btn" + (f.favorite ? " on" : ""), title: f.favorite ? "Quitar de favoritos" : "Añadir a favoritos (sale antes al buscar)",
+      onclick: async (e) => { const b = e.currentTarget; await act(() => api("POST", `/api/foods/${f.id}/favorite`, { value: !f.favorite })); f.favorite = f.favorite ? 0 : 1; b.classList.toggle("on", !!f.favorite); b.textContent = f.favorite ? "★" : "☆"; } }, f.favorite ? "★" : "☆") });
   if (isNew) setTimeout(() => name.focus(), 40);
 }
 
@@ -1476,7 +1492,6 @@ function recipeEditor(r) {
   };
   const sh = sheet(isNew ? "Nueva receta" : r.name, body, [
     !isNew ? h("button", { class: "btn ghost danger", onclick: (e) => confirmDel(e, () => act(() => api("POST", `/api/foods/${r.id}/deleted`, { value: true }), "Receta eliminada").then(sh.close)) }, "Eliminar") : null,
-    !isNew ? h("button", { class: "btn ghost", onclick: async () => { await act(() => api("POST", `/api/foods/${r.id}/hidden`, { value: !r.hidden }), r.hidden ? "Restaurada" : "Ocultada"); sh.close(); } }, r.hidden ? "Restaurar" : "Ocultar") : null,
     h("span", { class: "grow" }), ...saveButtons(isNew, r, save)], { wide: true, sub: reviewSub(isNew, r) });
   if (isNew) setTimeout(() => name.focus(), 40);
 }
@@ -1513,7 +1528,6 @@ function templateEditor(t) {
   };
   const sh = sheet(isNew ? "Nueva comida habitual" : t.name, body, [
     !isNew ? h("button", { class: "btn ghost danger", onclick: (e) => confirmDel(e, () => act(() => api("PUT", "/api/templates/" + t.id, { deleted: 1 }), "Eliminada").then(sh.close)) }, "Eliminar") : null,
-    !isNew ? h("button", { class: "btn ghost", onclick: async () => { await act(() => api("PUT", "/api/templates/" + t.id, { hidden: t.hidden ? 0 : 1 }), t.hidden ? "Restaurada" : "Ocultada"); sh.close(); } }, t.hidden ? "Restaurar" : "Ocultar") : null,
     h("span", { class: "grow" }), ...saveButtons(isNew, t, save)], { wide: true, sub: reviewSub(isNew, t) });
   if (isNew) setTimeout(() => name.focus(), 40);
 }
@@ -1595,7 +1609,7 @@ function viewProgress() {
       kpi("Media 7 días", lastAvg ? fmt(lastAvg.avg7, 2) + " kg" : "—", prevAvg && prevAvg.avg7 != null ? signed(lastAvg.avg7 - prevAvg.avg7, 2) + " kg vs semana anterior" : ""),
       kpi("Ingesta media 7 d", avgK != null ? fmt(avgK) + " kcal" : "—", avgP != null ? `P ${fmt(avgP)} g · ${logged7.length} días` : ""),
       kpi("Mantenimiento observado", cal.observed_maintenance != null ? fmt(cal.observed_maintenance) + " kcal" : "—", cal.observed_maintenance != null ? `tendencia ${signed(cal.slope_kg_week, 2)} kg/sem · modelo ${fmt(cal.model_tdee_avg)}` : "faltan datos (≥14 días)")),
-    h("div", { class: "card panel" }, h("h3", null, "Peso", h("span", { class: "faint", style: { fontWeight: 400 } }, " · puntos: pesajes · gruesa: media de 7 días · discontinua: lo esperado")), h("div", { class: "faint", style: { fontSize: "12.5px", marginTop: "-4px" } }, "Pésate siempre igual: al levantarte, después de ir al baño, antes de comer o beber y con la misma ropa (o sin ella)"), weightChart(ws)),
+    h("div", { class: "card panel" }, h("h3", null, "Peso", h("span", { class: "faint", style: { fontWeight: 400 } }, " · puntos: pesajes · gruesa: media de 7 días · discontinua: lo esperado")), h("div", { class: "faint", style: { fontSize: "12.5px", marginTop: "-4px" } }, "Pésate siempre igual: al levantarte, después de ir al baño, antes de comer o beber y con la misma ropa (o sin ella)"), weightChart(ws, P.body)),
     calPanel(cal),
     stepsPanel(P.history, P.steps_goal),
     bodyPanel(P.body || []),
@@ -1603,7 +1617,7 @@ function viewProgress() {
     h("div", { class: "card panel" }, h("h3", null, "Días"), daysTable(P.history)));
 }
 
-function weightChart(ws) {
+function weightChart(ws, bodies) {
   const first = ws.findIndex((w) => w.weight_kg != null || w.avg7 != null);
   if (first > 3) ws = ws.slice(Math.max(0, Math.min(first - 3, ws.length - 14)));  // sin semanas vacías delante: empieza cerca del primer pesaje
   const pts = ws.filter((w) => w.weight_kg != null || w.avg7 != null);
@@ -1646,7 +1660,9 @@ function weightChart(ws) {
     tip_.replaceChildren(h("b", null, dateLabel(w.date, { weekday: "short", day: "numeric", month: "short" })),
       v != null ? h("div", null, w.weight_kg != null ? "Pesaje " : "Sin pesaje (interpolado) ", h("b", { class: "num" }, fmt(v, 1) + " kg")) : null,
       w.avg7 != null ? h("div", null, "Media 7 días ", h("b", { class: "num" }, fmt(w.avg7, 2))) : null,
-      w.expected != null ? h("div", null, "Esperado ", h("b", { class: "num" }, fmt(w.expected, 2))) : null);
+      w.expected != null ? h("div", null, "Esperado ", h("b", { class: "num" }, fmt(w.expected, 2))) : null,
+      ...(bodies || []).filter((b) => b.date === w.date && b.weight_kg != null && (w.weight_kg == null || Math.abs(b.weight_kg - w.weight_kg) >= 0.05))
+        .map((b) => h("div", { class: "faint" }, `Otro pesaje ${fmt(b.weight_kg, 1)}${b.time ? " (" + b.time + ")" : ""} · no cuenta`)));
     tip_.classList.remove("hidden");
     const px = (x(i) / W) * r.width; tip_.style.left = Math.min(Math.max(px, 70), r.width - 70) + "px";
   };

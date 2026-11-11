@@ -1058,6 +1058,7 @@ def day_state(conn, d=None):
         "totals": N.rounded(totals), "target": tgt, "energy": en,
         "balance": None if totals["kcal"] is None or en["total"] is None else round(totals["kcal"] - en["total"]),
         "activities": acts, "avg7": None if a7 is None else round(a7, 2), "avg7_n": n7,
+        "weight_interp": None if day["weight_kg"] is not None else (lambda v: None if v is None else round(v, 1))(weight_at(weights_between(conn, shift(d, -30), shift(d, 30)), d)),
         "entry_count": len(entries), "closure": closure, "closure_count": n_closures, "rev": rev(conn),
         "steps_hours": steps_hours(conn, d), "supplements": supplements(conn), "supplements_taken": supplements_taken(conn, d), "sessions": hc_sessions(conn, d), "neat_levels": [{"key": k, "label": l, "kcal": v, "kcal_adj": round(v * (en.get("neat_factor") or 1))} for k, l, v in NEAT_LEVELS],
     }

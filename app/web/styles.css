@@ -1512,3 +1512,17 @@ img { -webkit-user-drag: none; user-select: none; }
 .stat .lbl { margin-bottom: 5px; }
 .det-kv { grid-template-columns: repeat(2, minmax(0, 160px)); }
 @media (max-width: 640px) { .det-kv { grid-template-columns: repeat(2, 1fr); } }
+.dayhead .dh-t { display: flex; align-items: baseline; gap: 8px; width: 13.5em; min-width: 0; overflow: hidden; white-space: nowrap; }
+.dayhead .dh-t h1 { overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 640px) { .dayhead .dh-t { width: 11.5em; } }
+.stat .v.sv { justify-content: flex-start; gap: 10px; }
+.stat .v .interp { color: var(--muted); }
+.lib .chips { margin-bottom: 18px; } .lib .sec-t:first-child { margin-top: 0; }
+.fav-btn { border: 0; background: none; font-size: 20px; line-height: 1; cursor: pointer; color: var(--faint); padding: 2px 4px; } .fav-btn.on { color: #e2a52a; } .fav-btn:hover { color: #e2a52a; }
+.wday { padding: 4px 2px 12px; }
+.wday-v b { font-size: 34px; font-weight: 700; letter-spacing: -.02em; } .wday-v span { color: var(--muted); font-size: 16px; }
+.wday-v .interp { color: var(--muted); }
+.wday-s { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.btiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.btile { background: var(--surface-2); border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.btile span { font-size: 11.5px; color: var(--faint); } .btile b { font-size: 15px; font-weight: 650; } .btile small { color: var(--muted); font-weight: 500; }

@@ -253,7 +253,7 @@ class Handler(BaseHTTPRequestHandler):
             t = next((t for t in auth.list_tokens(MULTI, user) if t.get("kind") == "pasos"), None)
             conn, lock = user_ctx(user)
             with lock:
-                bas = conn.execute("SELECT MAX(date||' '||COALESCE(time,'')) FROM body_metrics WHERE source='movil' AND deleted_at IS NULL").fetchone()[0]
+                bas = conn.execute("SELECT MAX(date||' '||COALESCE(time,'')) FROM body_metrics WHERE source='movil'").fetchone()[0]  # también los borrados: llegaron
                 stp = conn.execute("SELECT MAX(received_at) FROM step_buckets").fetchone()[0]
                 ent = conn.execute("SELECT substr(MAX(start),1,16) FROM hc_sessions").fetchone()[0]
                 off = [x for x in (core.get_setting(conn, "movil_off") or "").split(",") if x]
