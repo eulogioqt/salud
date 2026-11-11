@@ -399,7 +399,7 @@ function bodyStrip(st) {
           w.notes ? h("div", { class: "wk-d" }, w.notes) : null,
           h("div", { class: "wk-s" }, [w.duration_min ? fmt(w.duration_min) + " min" : null, w.sets_count + " series", fmt(w.volume_kg) + " kg", w.activity_id ? kc(w.activity_id) + " kcal" : null].filter(Boolean).join(" · ")))),
          ...other.map((a) => h("div", { class: "a" }, h("b", null, (ACT_TYPES.find((x) => x[0] === a.type) || [0, a.type])[1]), ` ${a.minutes ? fmt(a.minutes) + "′" : ""}`, h("span", { class: "faint" }, " · " + kc(a.id) + " kcal")))]
-      : (st.sessions || []).length ? h("div", { class: "acts" }, st.sessions.map((x) => h("div", { class: "a det" }, h("b", null, "Entreno detectado"), h("div", { class: "faint" }, `${x.titulo ? x.titulo + " · " : ""}${x.inicio}–${x.fin}${x.app ? " · " + x.app : ""} · mándaselo a tu agente`))))
+      : (st.sessions || []).some((x) => !x.registrada) ? h("div", { class: "acts" }, st.sessions.filter((x) => !x.registrada).map((x) => h("div", { class: "a det" }, h("b", null, "Entreno detectado"), h("div", { class: "faint" }, `${x.titulo ? x.titulo + " · " : ""}${cap1(x.tipo)} · ${x.inicio}–${x.fin}${x.app ? " · " + x.app : ""}`), h("div", { class: "det-cta" }, "Mándaselo a tu agente: «entreno hecho» o las capturas"))))
       : h("div", { class: "v none" }, h("small", null, day.rest_day === 1 ? "Descanso" : "Sin registrar"))));
   return h("div", { class: "strip" }, weight, steps, train);
 }
@@ -1629,8 +1629,9 @@ function weightChart(ws) {
   // Al pasar el ratón (o el dedo): línea vertical y los datos de ese día
   const vline = el("line", { y1: T, y2: H - B, class: "hov hidden" }); svg.append(vline);
   const box = h("div", { class: "wc" }, svg), tip_ = h("div", { class: "wc-tip hidden" }); box.append(tip_);
+  let hideT = null;
   const move = (ev) => {
-    const r = svg.getBoundingClientRect(), cx = ((ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left) / r.width * W;
+    const r = svg.getBoundingClientRect(), cx = (ev.clientX - r.left) / r.width * W;
     const i = Math.max(0, Math.min(n - 1, Math.round(((cx - L) / (W - L - R)) * (n - 1)))), w = ws[i];
     const v = w.weight_kg ?? w.interp;
     if (v == null && w.avg7 == null && w.expected == null) { vline.classList.add("hidden"); tip_.classList.add("hidden"); return; }
@@ -1642,9 +1643,12 @@ function weightChart(ws) {
     tip_.classList.remove("hidden");
     const px = (x(i) / W) * r.width; tip_.style.left = Math.min(Math.max(px, 70), r.width - 70) + "px";
   };
-  const leave = () => { vline.classList.add("hidden"); tip_.classList.add("hidden"); };
-  svg.addEventListener("mousemove", move); svg.addEventListener("mouseleave", leave);
-  svg.addEventListener("touchstart", move, { passive: true }); svg.addEventListener("touchmove", move, { passive: true }); svg.addEventListener("touchend", () => setTimeout(leave, 2500));
+  const leave = () => { clearTimeout(hideT); vline.classList.add("hidden"); tip_.classList.add("hidden"); };
+  // Ratón: se ve mientras está encima. Dedo: al tocar se ve 3 s y se quita solo (deslizar también la mueve).
+  svg.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") move(e); else if (e.buttons) { move(e); clearTimeout(hideT); hideT = setTimeout(leave, 3000); } });
+  svg.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") leave(); });
+  svg.addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse") { move(e); clearTimeout(hideT); hideT = setTimeout(leave, 3000); } });
+  window.addEventListener("scroll", leave, { passive: true, capture: true });
   return box;
 }
 
@@ -1662,7 +1666,7 @@ function stepsPanel(hist, goal) {
     h("div", { class: "kpis k3" }, kpi("Media", fmt(avg), `${ds.length} ${ds.length === 1 ? "día" : "días"}`), kpi("Objetivo", `${hit} de ${ds.length}`, Math.round((100 * hit) / ds.length) + " % de los días"),
       kpi("Mejor día", fmt(best.steps), dateLabel(best.date, { day: "numeric", month: "short" }))),
     h("div", { class: "pbars" }, h("i", { class: "goal", style: { bottom: (100 * goal) / mx + "%" } }),
-      days.map((d) => { const v = by[d]; return h("span", { class: v == null ? "gap" : v >= goal ? "ok" : "", style: { height: v == null ? "0" : Math.max(2, (100 * v) / mx) + "%" }, title: `${dateLabel(d, { weekday: "short", day: "numeric", month: "short" })} · ${v == null ? "sin datos" : fmt(v) + " pasos"}` }); })),
+      days.map((d) => { const v = by[d]; return h("span", { class: v == null ? "gap" : v >= goal ? "ok" : "", style: { height: v == null ? "0" : Math.max(2, (100 * v) / mx) + "%" }, "data-tip": `${dateLabel(d, { weekday: "long", day: "numeric", month: "short" })}\n${v == null ? "Sin datos" : fmt(v) + " pasos" + (v >= goal ? " · objetivo cumplido" : "")}` }); })),
     h("div", { class: "pbars-x faint" }, h("span", null, dateLabel(days[0], { day: "numeric", month: "short" })), h("span", null, "hoy")));
 }
 // Calibración del gasto (Progreso): lo que dicen tus pesajes frente a lo que calcula el modelo
@@ -1672,9 +1676,9 @@ function calPanel(cal) {
   const ap = cal.applied || {}, est = cal.estimate, sd = cal.sd || {}, lr = cal.learned || {};
   const rows = CAL_ROWS.map(([k, l, f]) => h("div", { class: "cal-r" },
     h("div", { class: "grow" }, h("b", null, l), est ? h("div", { class: "faint sm" }, `tus datos dicen ${f(est[k])} ± ${k === "cal_ajuste_kcal" ? fmt(sd[k]) : fmt(sd[k], 2)}`) : null,
-      est ? h("div", { class: "cal-fi", title: "Cuánto se ha reducido el margen de error desde el principio. 0 %: aún no hay datos y se usa el modelo tal cual; 100 %: el valor está claro." },
-        h("span", { class: "faint" }, "Fiabilidad"), h("div", { class: "cal-bar" }, h("i", { style: { width: Math.round(Math.max(0, lr[k] || 0) * 100) + "%" } })),
-        h("b", { class: "num" }, Math.round(Math.max(0, lr[k] || 0) * 100) + " %")) : null),
+      est ? tip(h("div", { class: "cal-fi" },
+        h("span", { class: "faint" }, "Fiabilidad ", h("span", { class: "fi-i" }, "ⓘ")), h("div", { class: "cal-bar" }, h("i", { style: { width: Math.round(Math.max(0, lr[k] || 0) * 100) + "%" } })),
+        h("b", { class: "num" }, Math.round(Math.max(0, lr[k] || 0) * 100) + " %")), `Fiabilidad de este valor\nCuánto se fían tus datos de lo que dicen. Al principio el margen de error es amplio (base ±250 kcal, pasos y entrenos ±35 %) y se usa la fórmula tal cual: 0 %. Con cada semana de comidas y pesajes el margen se estrecha; si la base está en ±60, es un 76 % más estrecho: 76 %.\nCuanto más alta, más pesa este valor en tu gasto.`) : null),
     h("div", { class: "cal-v num" }, f(ap[k] ?? (k === "cal_ajuste_kcal" ? 0 : 1)))));
   const reload = async (p) => { await act(() => p); await refresh(); };
   return h("div", { class: "card panel" },

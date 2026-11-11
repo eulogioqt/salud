@@ -55,6 +55,9 @@ def print_day(conn, d):
         f(day["steps"]), "; ".join("[a%d] %s %s min %s%s" % (a["id"], a["type"], f(a["minutes"]), a["intensity"],
                                     (" %s kcal manual" % f(a["kcal_net"])) if a["kcal_net"] is not None else "")
                                     for a in st["activities"]) or ("descanso" if day["rest_day"] == 1 else "sin actividad")))
+    for x in st.get("sessions") or []:  # lo que el móvil dice que entrenó (Hevy por Health Connect)
+        print("Entreno detectado%s: %s%s de %s a %s%s" % (" (" + x["app"] + ")" if x["app"] else "", x["titulo"] + " · " if x["titulo"] else "", x["tipo"],
+              x["inicio"], x["fin"], " — ya registrado" if x["registrada"] else " — FALTA: pídele las capturas de Hevy o «entreno hecho» (ChatGPT)"))
     for m in core.MEALS:
         ml = st["meals"][m]
         if not ml["entries"]:
