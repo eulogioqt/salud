@@ -265,13 +265,12 @@ function ringSvg(size, r, w, p, cls, center, laps) {
   const C = 2 * Math.PI * r, svg = svgE("svg", { width: size, height: size, viewBox: `${-size / 2} ${-size / 2} ${size} ${size}`, class: "ring " + cls });
   svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-bg" }));
   if (p > 0) svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${C * Math.min(1, p)} ${C}`, transform: "rotate(-90)" }));
-  // Al pasarte: lo que sobra da otra vuelta encima (con sombra al empezar), verde oscuro si es poco y naranja si es más del 10 %;
-  // una tercera vuelta (más del doble), rojo oscuro
+  // Al pasarte: lo que sobra da otra vuelta encima (con sombra al empezar) en verde oscuro; si pasas del doble, la tercera en rojo
   if (laps && p > 1) {
     const sid = "rsh" + Math.random().toString(36).slice(2, 7), f = svgE("filter", { id: sid, x: "-30%", y: "-30%", width: "160%", height: "160%" });
     f.append(svgE("feDropShadow", { dx: 0, dy: 0, stdDeviation: 2, "flood-opacity": 0.4 })); const defs = svgE("defs", {}); defs.append(f); svg.prepend(defs);
     for (let k = 1; k < 3 && p > k; k++) {
-      const ex = Math.min(1, p - k), col = k === 1 ? (p - 1 <= 0.1 ? "var(--ring-over1)" : "var(--ring-over2)") : "var(--ring-over3)";
+      const ex = Math.min(1, p - k), col = k === 1 ? "var(--ring-over1)" : "var(--ring-over3)";
       svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, stroke: col, "stroke-linecap": "round", "stroke-dasharray": `${C * ex} ${C}`, transform: "rotate(-90)", filter: `url(#${sid})` }));
     }
   }  // a 0, anillo vacío (sin puntito)
@@ -283,7 +282,7 @@ function summaryCard(st) {
   const kcalT = tg.kcal || 0, rest = kcalT && t.kcal != null ? kcalT - t.kcal : null, over = rest != null && rest < 0;
   const open = () => energySheet(st);
   const big = ringSvg(232, 98, 16, kcalT ? (t.kcal || 0) / kcalT : 0, "big" + (over ? " over" : ""), over ? [
-    [-34, "Consumido", "rg-l"], [14, v(t, "kcal"), "rg-v"], [40, "/ " + fmt(kcalT) + " kcal", "rg-o"], [64, "+" + fmt(-rest) + " de más", "rg-x" + (-rest / kcalT > 0.1 ? " hi" : "")]] : [
+    [-34, "Consumido", "rg-l"], [14, v(t, "kcal"), "rg-v"], [40, "/ " + fmt(kcalT) + " kcal", "rg-o"], [64, "+" + fmt(-rest) + " de más", "rg-x" + (-rest / kcalT > 1 ? " hi" : "")]] : [
     [-26, "Consumido", "rg-l"], [22, v(t, "kcal"), "rg-v"], [50, kcalT ? "/ " + fmt(kcalT) + " kcal" : "kcal · sin objetivo", "rg-o"]], true);
   const macro = (cls, label, f, target, unitT) => {
     const miss = (t.missing || []).includes(f);
@@ -329,20 +328,22 @@ function energySheet(st) {
       top ? h("div", { class: "bd-goal-l" }, h("span", { style: { left: pct(top, scale) + "%" } }, "objetivo " + fmt(top))) : null);
   };
   const meals = MEALS.map(([m, l]) => [l, (st.meals[m] && st.meals[m].totals && st.meals[m].totals.kcal) || 0, (st.meals[m] && st.meals[m].totals) || {}]).filter((x) => x[1] > 0).map((x, i) => [...x, i]);
+  // Arriba: cuánto es aproximado y los macros; debajo, lo comido por comidas y lo gastado
+  const apx = st.approx_kcal && kc ? h("div", { class: "bd-apx2" },
+    h("b", { class: "num bd-apx2-n" }, Math.round(pct(st.approx_kcal, kc)) + " %"),
+    h("div", { class: "grow" }, h("div", { class: "bd-apx2-t" }, "de lo que has comido es aproximado"),
+      h("div", { class: "bd-apx2-s" }, `${fmt(st.approx_kcal)} kcal de comidas fuera o productos sin etiqueta. Al ponerles la etiqueta se corrige en todos los días.`))) : null;
+  const macros = h("div", { class: "bd-sec bd-msec" }, apx,
+    h("div", { class: "bd-macros" },
+      macroRow("p", "Proteína", "protein_g", tg.protein_g), macroRow("c", "Carbohidratos", "carbs_g", tg.carbs_g), macroRow("g", "Grasas", "fat_g", tg.fat_mid_g)),
+    (t.missing || []).length ? h("div", { class: "note warn" }, "Hay valores desconocidos: los totales son un mínimo.") : null);
   const eaten = h("div", { class: "bd-sec" },
     h("div", { class: "bd-st" }, h("span", { class: "grow" }, "Lo que has comido"),
       h("span", { class: "num bd-tot" }, h("b", null, v(t, "kcal")), tg.kcal ? h("span", { class: "faint" }, " / " + fmt(tg.kcal) + " kcal") : " kcal")),
     meals.length ? h("div", { class: "bd-meals" }, h("div", { class: "bd-stack big" }, meals.map(([l, k, , i]) => h("i", { class: "m" + i, style: { flex: k }, title: `${l}: ${fmt(k)} kcal` }))),
       h("div", { class: "bd-parts" }, meals.map(([l, k, mt, i]) => h("div", { class: "bd-p" }, h("i", { class: "dot m" + i }),
         h("div", { class: "bd-pl" }, h("span", null, l), h("small", null, `P ${fmt(mt.protein_g || 0)} · C ${fmt(mt.carbs_g || 0)} · G ${fmt(mt.fat_g || 0)}`)),
-        h("div", { class: "bd-pv num" }, h("b", null, fmt(k))))))) : null,
-    h("div", { class: "bd-macros" },
-      macroRow("p", "Proteína", "protein_g", tg.protein_g), macroRow("c", "Carbohidratos", "carbs_g", tg.carbs_g), macroRow("g", "Grasas", "fat_g", tg.fat_mid_g)),
-    st.approx_kcal && kc ? h("div", { class: "bd-apx2" },
-      h("b", { class: "num bd-apx2-n" }, Math.round(pct(st.approx_kcal, kc)) + " %"),
-      h("div", { class: "grow" }, h("div", { class: "bd-apx2-t" }, "de lo que has comido es aproximado"),
-        h("div", { class: "bd-apx2-s" }, `${fmt(st.approx_kcal)} kcal de comidas fuera o productos sin etiqueta. Al ponerles la etiqueta se corrige en todos los días.`))) : null,
-    (t.missing || []).length ? h("div", { class: "note warn" }, "Hay valores desconocidos: los totales son un mínimo.") : null);
+        h("div", { class: "bd-pv num" }, h("b", null, fmt(k))))))) : h("div", { class: "faint sm" }, "Aún no has apuntado nada."));
   // Lo gastado
   const parts = [
     ["bmr", "Metabolismo basal", (en.missing_profile || []).length ? null : en.bmr, (en.missing_profile || []).length ? "completa tu perfil en Ajustes" : `en reposo · ${fmt(en.weight_used_kg, 1)} kg`],
@@ -362,7 +363,7 @@ function energySheet(st) {
   const closedNote = closed && c ? h("span", { class: "bd-closed-x", title: c.forced ? "Cerrado con datos incompletos" : "" }, icon("lock"), tx(`Cerrado el ${dateLabel(c.closed_at.slice(0, 10), { day: "numeric", month: "short" })} a las ${c.closed_at.slice(11, 16)}` + (c.version > 1 ? ` · v${c.version}` : ""))) : null;
   const obs = closed && c && c.summary && (c.summary.observations || []).length
     ? h("div", { class: "bd-sec" }, h("div", { class: "bd-st" }, "Observaciones del cierre"), h("ul", { class: "bd-obs" }, c.summary.observations.map((o) => h("li", null, o)))) : null;
-  sheet(closed ? "Resumen del día" : "Desglose del día", [hero, eaten, burned, obs,
+  sheet(closed ? "Resumen del día" : "Desglose del día", [hero, macros, eaten, burned, obs,
     h("div", { class: "faint bd-foot" }, "El gasto es una estimación: tu metabolismo en reposo (según peso, altura, edad y sexo) + la digestión (10 % de lo que comes) + lo que te mueves en el día + tus pasos + tus entrenos.")], null, { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }), titleExtra: closedNote });
 }
 function energyTable(en, balance) {
@@ -1699,10 +1700,10 @@ function weightChart(ws, bodies, sel) {
     const px = (x(i) / W) * r.width; tip_.style.left = Math.min(Math.max(px, 70), r.width - 70) + "px";
   };
   const leave = () => { clearTimeout(hideT); vline.classList.add("hidden"); tip_.classList.add("hidden"); };
-  // Ratón: se ve mientras está encima. Dedo: al tocar se ve 3 s y se quita solo (deslizar también la mueve).
-  svg.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") move(e); else if (e.buttons) { move(e); clearTimeout(hideT); hideT = setTimeout(leave, 3000); } });
+  // Ratón: se ve mientras está encima. Dedo: manteniendo pulsado (y deslizando sin soltar se mueve); al soltar se va a los 2 s.
+  svg.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") move(e); });
   svg.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") leave(); });
-  svg.addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse") { move(e); clearTimeout(hideT); hideT = setTimeout(leave, 3000); } });
+  touchHold(svg, (e) => { clearTimeout(hideT); move(e); }, leave);
   window.addEventListener("scroll", leave, { passive: true, capture: true });
   return box;
 }

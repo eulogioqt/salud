@@ -1586,6 +1586,13 @@ img { -webkit-user-drag: none; user-select: none; }
 :root { --ring-over1: #12543d; --ring-over2: #d9692f; --ring-over3: #a3261b; }
 @media (prefers-color-scheme: dark) { :root { --ring-over1: #2f8f6b; --ring-over2: #f08a4b; --ring-over3: #e0574a; } }
 .ring.big.over .rg-fg { stroke: var(--accent); }
-.ring .rg-x { font-size: 12.5px; font-weight: 700; fill: var(--ring-over1); } .ring .rg-x.hi { fill: var(--ring-over2); }
+.ring .rg-x { font-size: 12.5px; font-weight: 700; fill: var(--ring-over1); } .ring .rg-x.hi { fill: var(--ring-over3); }
 .bd-meals .bd-stack.big { margin-bottom: 4px; }
 @media (max-width: 640px) { .upfromto .lvname { display: none; } .upfromto { gap: 4px; } .upfromto .uparr svg { width: 14px; height: 14px; } }
+.rladder, .rprog { width: 100%; height: auto; display: block; overflow: visible; }
+.rladder .rl-n, .rprog .rl-n { font-size: 12px; font-weight: 700; }
+.rl-c { font-size: 11px; fill: var(--muted); } .rl-you { fill: var(--text); } .rl-yt { font-size: 12px; font-weight: 700; fill: var(--text); }
+.rl-card { padding-top: 12px; padding-bottom: 8px; }
+.rp-pt { cursor: default; }
+[data-tip] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.bd-msec .bd-apx2 { margin: 0 0 14px; }

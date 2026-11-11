@@ -165,18 +165,38 @@ function showTip(text, x, y) {
 }
 function hideTip() { if (TIP.el) TIP.el.style.display = "none"; }
 const tipTarget = (e) => (e.target && e.target.closest ? e.target.closest("[data-tip]") : null);
-// En el móvil (táctil) el tooltip sale al tocar, pero no en botones (al tocarlos se hace la acción) y se va solo a los 3 s
-let TIP_T = null;
-const isAction = (t) => t && t.closest && t.closest("button, a, input, select, label, .clickable, [onclick]");
-document.addEventListener("pointermove", (e) => { if (e.pointerType !== "mouse") return; const t = tipTarget(e); if (t) showTip(t.dataset.tip, e.clientX, e.clientY); else if (!(e.target.closest && e.target.closest(".mchart.line"))) hideTip(); });
+// En el móvil (táctil) el tooltip sale solo al MANTENER el dedo pulsado (~0,4 s), no al tocar ni al pasar el dedo;
+// al soltar se queda 2 s. Si era un botón, ese toque largo no lo pulsa.
+const HOLD_MS = 400;
+let TIP_T = null, HOLD = { t: null, x: 0, y: 0, shown: false, eatClick: false };
+document.addEventListener("pointermove", (e) => {
+  if (e.pointerType === "mouse") { const t = tipTarget(e); if (t) showTip(t.dataset.tip, e.clientX, e.clientY); else if (!(e.target.closest && e.target.closest(".mchart.line"))) hideTip(); return; }
+  if (HOLD.t && Math.hypot(e.clientX - HOLD.x, e.clientY - HOLD.y) > 10) { clearTimeout(HOLD.t); HOLD.t = null; }
+});
 document.addEventListener("pointerdown", (e) => {
   if (e.pointerType === "mouse") return;
+  clearTimeout(HOLD.t); HOLD.t = null;
   const t = tipTarget(e);
-  if (!t || isAction(t)) { hideTip(); return; }
-  showTip(t.dataset.tip, e.clientX, e.clientY); clearTimeout(TIP_T); TIP_T = setTimeout(hideTip, 3000);
+  if (!t) { if (!HOLD.shown) hideTip(); return; }
+  HOLD.x = e.clientX; HOLD.y = e.clientY;
+  HOLD.t = setTimeout(() => { HOLD.t = null; HOLD.shown = true; HOLD.eatClick = true; clearTimeout(TIP_T); showTip(t.dataset.tip, HOLD.x, HOLD.y); }, HOLD_MS);
 });
+const holdEnd = (e) => { if (e.pointerType === "mouse") return; clearTimeout(HOLD.t); HOLD.t = null; if (HOLD.shown) { HOLD.shown = false; clearTimeout(TIP_T); TIP_T = setTimeout(hideTip, 2000); setTimeout(() => { HOLD.eatClick = false; }, 450); } };
+document.addEventListener("pointerup", holdEnd); document.addEventListener("pointercancel", holdEnd);
+document.addEventListener("click", (e) => { if (HOLD.eatClick) { HOLD.eatClick = false; e.preventDefault(); e.stopPropagation(); } }, true);
+document.addEventListener("contextmenu", (e) => { if (tipTarget(e) && e.pointerType !== "mouse") e.preventDefault(); });
+// Gráficas con su propio tooltip: en táctil, mantener pulsado para verlo y luego deslizar sin soltar para moverlo
+function touchHold(el, show, hide) {
+  let t = null, on = false, sx = 0, sy = 0;
+  el.addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") return; sx = e.clientX; sy = e.clientY; clearTimeout(t); const ev = { clientX: e.clientX, clientY: e.clientY }; t = setTimeout(() => { on = true; show(ev); }, HOLD_MS); });
+  el.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") return; if (on) show(e); else if (Math.hypot(e.clientX - sx, e.clientY - sy) > 10) clearTimeout(t); });
+  const end = (e) => { if (e.pointerType === "mouse") return; clearTimeout(t); if (on) { on = false; setTimeout(hide, 2000); } };
+  el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
+  el.addEventListener("touchmove", (e) => { if (on) e.preventDefault(); }, { passive: false });
+  el.addEventListener("contextmenu", (e) => e.preventDefault());
+}
 window.addEventListener("blur", hideTip); document.addEventListener("visibilitychange", hideTip);
-document.addEventListener("pointerleave", hideTip);
+document.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") hideTip(); });
 window.addEventListener("scroll", hideTip, true);
 window.addEventListener("hashchange", hideTip);
 document.addEventListener("click", (e) => { if (!tipTarget(e) && !(e.target.closest && e.target.closest(".mchart.line"))) hideTip(); });
@@ -693,8 +713,10 @@ function miniLine(points, opts = {}) {
     hov.setAttribute("cx", x(i)); hov.setAttribute("cy", y(p.v)); hov.style.display = "";
     showTip(p.tip || `${p.label}\n${fv(p.v)}`, e.clientX, e.clientY);
   };
-  hit.addEventListener("pointermove", move); hit.addEventListener("pointerdown", move);
-  hit.addEventListener("pointerleave", () => { guide.style.display = "none"; hov.style.display = "none"; hideTip(); });
+  const off = () => { guide.style.display = "none"; hov.style.display = "none"; hideTip(); };
+  hit.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") move(e); });
+  hit.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") off(); });
+  touchHold(hit, move, off);
   return svg;
 }
 function bars(values, opts = {}) {
@@ -1249,11 +1271,68 @@ function levelSheet(name, L) {
   sheet("Rango · " + name, [
     h("div", { class: "lvhero mini" }, h("div", { class: "lvh-b" }, lvlBadge(L.idx, 54)), h("div", { class: "lvh-t" }, h("b", { class: "tn t" + L.idx }, LVL[L.idx]),
       h("span", { class: "muted" }, `${topTxt(L.pct)} · más fuerte que el ${fmt(L.pct)} % de los ${sexWord()} de ${fmt(L.bw, 1)} kg` + (L.date ? ` (tu peso el ${dateLabel(L.date, { day: "numeric", month: "short" })})` : "")), h("span", { class: "faint" }, L.valTxt + (L.need ? " · " + L.need : "")))),
-    h("div", { class: "card panel flat" }, h("h3", null, L.metric === "reps" ? "Reps máximas → percentil" : L.metric === "secs" ? "Segundos → percentil" : L.metric === "add" ? "Lastre (1RM) → percentil" : "1RM → percentil"), svg),
+    (() => { ensureTierDefs(); return h("div", { class: "card panel flat rl-card" }, rankLadder(L)); })(),
+    (() => { const pr = rankProgress(name, L); return pr ? h("div", { class: "card panel flat" }, h("h3", null, "Tu progreso", h("span", { class: "faint", style: { fontWeight: 400 } },
+      " · " + (L.metric === "reps" ? "reps máximas" : L.metric === "secs" ? "segundos" : L.metric === "add" ? "lastre (1RM)" : "1RM estimado") + " de cada sesión" + (L.metric === "secs" || L.model.skill ? "" : "; las franjas siguen tu peso de cada día"))), pr) : null; })(),
     h("table", { class: "t lvtable" }, h("tr", null, h("th", null, "Rango"), h("th", { class: "r" }, L.metric === "reps" ? "Reps" : L.metric === "secs" ? "Segundos" : "1RM"), h("th", { class: "r" }, "Percentil"), h("th", { class: "r" }, "Te falta")), rows),
     L.floor ? h("div", { class: "note" }, `Habilidad: ${L.metric === "add" ? "con cualquier lastre" : L.metric === "secs" ? "con sostenerlo en estricto (sin goma ni pierna)" : "con 1 repetición estricta"} ya es ${LVL[L.floor]}. ${L.model.metric === "secs" ? "No hay tabla de Strength Level: cortes propios." : "Strength Level compara solo con quien registra este ejercicio (casi nadie lo registra si no lo hace), así que sus rangos bajos no tienen sentido para la gente que entrena en general."}`) : null,
     L.model.metric === "secs" ? null : h("div", { class: "note" }, "Strength Level publica los cortes de principiante a élite para " + sexWord() + " de cada peso corporal; la curva entre ellos y el corte de Leyenda (top 1 %) están interpolados. "),
   ], null, { wide: true });
+}
+
+// A · Escalera: los rangos en orden (tramos iguales) y tu mejor marca dentro de su tramo
+const TCOL = (i) => TIER[i][2][1];
+function rankUnit(L) { return L.metric === "reps" ? "reps" : L.metric === "secs" ? "s" : "kg"; }
+function rankFmt(L, v) { const u = rankUnit(L); return (L.metric === "add" && v > 0 ? "+" : "") + fmt(v, u === "kg" && Math.abs(v) < 20 ? 1 : 0) + " " + u; }
+function rankLadder(L) {
+  const M = L.model, cuts = M.all.map((x) => x - M.off), from = M.skill || 0, n = 6 - from;
+  const W = Math.max(300, Math.min(660, window.innerWidth - 72)), H = 92, P = 14, sw = (W - 2 * P) / n;
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, class: "rladder" });
+  for (let i = from; i < 6; i++) {
+    const x = P + (i - from) * sw;
+    svg.append(svgEl("rect", { x: x + 1, y: 30, width: sw - 2, height: 14, rx: 4, fill: `url(#tg${i})`, opacity: i <= L.idx ? 1 : 0.28 }));
+    const t = svgEl("text", { x: x + sw / 2, y: 62, "text-anchor": "middle", class: "rl-n", fill: TIER[i][2][2] }); t.textContent = sw < 64 ? LVL[i].slice(0, 5) + (LVL[i].length > 5 ? "." : "") : LVL[i]; svg.append(t);
+    if (i > from) { const c = svgEl("text", { x, y: 82, "text-anchor": "middle", class: "rl-c" }); c.textContent = rankFmt(L, cuts[i]); svg.append(c); }
+  }
+  const pos = P + (L.idx - from + (L.idx === 5 ? 0.5 : Math.max(0.04, Math.min(0.96, L.frac || 0)))) * sw;
+  svg.append(svgEl("path", { d: `M${pos - 7} 13 L${pos + 7} 13 L${pos} 24 Z`, class: "rl-you" }));
+  const t = svgEl("text", { x: Math.max(40, Math.min(W - 40, pos)), y: 9, "text-anchor": "middle", class: "rl-yt" }); t.textContent = "Tú · " + rankFmt(L, L.raw); svg.append(t);
+  return svg;
+}
+// B · Tu progreso: tu marca de cada sesión (kg reales, eje lineal) sobre las franjas de los rangos; los cortes siguen tu peso de cada día,
+// así cada punto cae en la franja del rango que sacó ese día
+function rankProgress(name, L) {
+  const e = S.tStats && S.tStats.list.find((x) => exKeyName(x.name) === exKeyName(name));
+  if (!e) return null;
+  const hist = e.sessions.map((x) => ({ date: x.date, bw: bwAt(x.date), L: exLevel({ name: e.name, kind: e.kind, sessions: [x] }, bwAt) })).filter((x) => x.L);
+  if (hist.length < 2) return null;
+  const skill = L.metric === "secs", from = L.model.skill || 0;
+  const cutsAt = (bw) => { const M = skill || L.model.skill ? L.model : slModel(L.slug, L.metric, bw); return M ? M.all.map((x) => x - M.off) : null; };
+  const cs = hist.map((x) => (skill ? cutsAt() : cutsAt(x.bw)) || cutsAt(L.bw));
+  const W = Math.max(300, Math.min(660, window.innerWidth - 72)), H = 230, PL = 40, PR = W < 420 ? 64 : 84, PT = 10, PB = 22;
+  const X = (i) => PL + (i / (hist.length - 1)) * (W - PL - PR);
+  const vs = hist.map((x) => x.L.raw), top = Math.max(...hist.map((x) => x.L.idx));
+  let lo = Math.min(...vs, ...cs.map((c) => c[Math.max(from + 1, Math.min(...hist.map((x) => x.L.idx)))])), hi = Math.max(...vs, ...cs.map((c) => c[Math.min(5, top + 1)]));
+  const pad = (hi - lo) * 0.1 || 1; lo -= pad; hi += pad; if (skill || from) lo = Math.max(0, lo);
+  const Y = (v) => PT + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * (H - PT - PB);
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, class: "rprog" });
+  const lbl = (x, y, txt, cls, anchor = "start") => { const t = svgEl("text", { x, y, "text-anchor": anchor, class: cls }); t.textContent = txt; svg.append(t); };
+  for (let i = from; i < 6; i++) {
+    let tp = "", bt = "";
+    hist.forEach((x, k) => { const a = i === from ? lo : cs[k][i], b = i === 5 ? hi : cs[k][i + 1]; tp += (k ? "L" : "M") + X(k).toFixed(1) + " " + Y(b).toFixed(1); bt = "L" + X(k).toFixed(1) + " " + Y(a).toFixed(1) + bt; });
+    svg.append(svgEl("path", { d: tp + bt + "Z", fill: TCOL(i), opacity: 0.13 }));
+    if (i > from) { let dl = ""; hist.forEach((x, k) => { dl += (k ? "L" : "M") + X(k).toFixed(1) + " " + Y(cs[k][i]).toFixed(1); });
+      svg.append(svgEl("path", { d: dl, fill: "none", stroke: TCOL(i), "stroke-dasharray": "4 3", "stroke-width": 1.2 }));
+      const last = cs[hist.length - 1][i]; if (last > lo && last < hi) lbl(PL - 6, Y(last) + 4, fmt(last), "rl-c", "end"); }
+    const ya = Y(i === from ? lo : cs[hist.length - 1][i]), yb = Y(i === 5 ? hi : cs[hist.length - 1][i + 1]);
+    if (ya - yb > 13) { lbl(W - PR + 12, (ya + yb) / 2 + 4, LVL[i], "rl-n"); svg.lastChild.setAttribute("fill", TIER[i][2][2]); }
+  }
+  let d = ""; hist.forEach((x, i) => { d += (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(x.L.raw).toFixed(1); });
+  svg.append(svgEl("path", { d, fill: "none", stroke: "var(--text)", "stroke-width": 1.8 }));
+  hist.forEach((x, i) => svg.append(tip(svgEl("circle", { cx: X(i), cy: Y(x.L.raw), r: i === hist.length - 1 ? 5 : 3.4, fill: TCOL(x.L.idx), stroke: "var(--surface, #fff)", "stroke-width": 1.5, class: "rp-pt" }),
+    `${dateLabel(x.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}\n${x.L.valTxt}\nRango | ${LVL[x.L.idx]}\nTu peso | ${fmt(x.bw, 1)} kg`)));
+  [0, hist.length - 1].forEach((i, k) => lbl(X(i), H - 6, dateLabel(hist[i].date, { day: "numeric", month: "short", year: "2-digit" }), "rl-c", k ? "end" : "start"));
+  return svg;
 }
 
 function workoutSheet(id) { return onceOpen("wk:" + id, () => workoutSheet_(id)); }
