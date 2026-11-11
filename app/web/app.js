@@ -266,18 +266,13 @@ function ringSvg(size, r, w, p, cls, center, laps) {
   svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-bg" }));
   if (p > 0) svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${C * Math.min(1, p)} ${C}`, transform: "rotate(-90)" }));
   if (laps && p > 1) {
-    // Lo que te pasas: otra vuelta encima, rayada en verde oscuro; si pasas del doble, otra rayada en rojo (con sombrita donde empieza)
+    // Lo que te pasas: otra vuelta encima en verde oscuro; si pasas del doble, otra en rojo (con sombrita donde empieza)
     const id = Math.random().toString(36).slice(2, 7), defs = svgE("defs", {});
     const f = svgE("filter", { id: "rsh" + id, x: "-30%", y: "-30%", width: "160%", height: "160%" });
-    f.append(svgE("feDropShadow", { dx: 0, dy: 0, stdDeviation: 2, "flood-opacity": 0.4 })); defs.append(f);
-    [["a", "--ring-over1", "--ring-over1b"], ["r", "--ring-over3", "--ring-over3b"]].forEach(([k, c1, c2]) => {
-      const pt = svgE("pattern", { id: `rh${k}${id}`, width: 6, height: 6, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" });
-      pt.append(svgE("rect", { width: 6, height: 6, style: `fill:var(${c1})` }), svgE("rect", { width: 3, height: 6, style: `fill:var(${c2})` })); defs.append(pt);
-    });
-    svg.prepend(defs);
+    f.append(svgE("feDropShadow", { dx: 0, dy: 0, stdDeviation: 2, "flood-opacity": 0.4 })); defs.append(f); svg.prepend(defs);
     for (let k = 1; k < 3 && p > k; k++) {
       const ex = Math.min(1, p - k);
-      svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, stroke: `url(#rh${k === 1 ? "a" : "r"}${id})`, "stroke-linecap": "round", "stroke-dasharray": `${C * ex} ${C}`, transform: "rotate(-90)", filter: `url(#rsh${id})` }));
+      svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, style: `stroke:var(${k === 1 ? "--ring-over1" : "--ring-over3"})`, "stroke-linecap": "round", "stroke-dasharray": `${C * ex} ${C}`, transform: "rotate(-90)", filter: `url(#rsh${id})` }));
     }
   }
   for (const [y, txt, c] of center) { const t = svgE("text", { y, "text-anchor": "middle", class: c }); t.textContent = txt; svg.append(t); }
@@ -293,6 +288,23 @@ function gastoTip(st) {
   if (tg.dynamic) lines.push("## El objetivo ya cuenta con", tg.steps_pending ? `tus pasos medios (${fmt(tg.projected_steps || 0)}, últimos 7 días)` : "tus pasos de hoy", "un día a día normal", "los entrenos que ya estén apuntados");
   return lines.join("\n");
 }
+// El anillo compara lo comido con lo que «toca» comer; el balance, lo comido con lo gastado.
+// No coinciden al pasarte: comer más también gasta algo más en digestión (10 %).
+function ringTip(st) {
+  const t = st.totals, tg = st.target || {}, kc = t.kcal || 0;
+  if (!tg.kcal) return null;
+  const d = kc - tg.kcal;
+  return [d > 0 ? `${fmt(d)} kcal por encima de lo que tocaba comer` : `Te quedan ${fmt(-d)} kcal para el objetivo`,
+    `Comido | ${fmt(kc)} kcal`, `Objetivo de comida | ${fmt(tg.kcal)} kcal`,
+    tg.dynamic ? "Se calcula para que, con lo que gastas, el día acabe en tu balance objetivo." : null,
+    d > 0 && st.balance != null ? `El balance se pasa algo menos (${signed(st.balance - (tg.dynamic ? (tg.kcal_offset || 0) : 0))}) porque comer más también gasta algo más en digestión.` : null].filter(Boolean).join("\n");
+}
+function balTip(st) {
+  const tg = st.target || {}, en = st.energy, b = st.balance;
+  const goal = tg.dynamic ? (tg.kcal_offset || 0) : tg.kcal && en.total != null ? Math.round(tg.kcal - en.total) : null;
+  return ["Balance = comido − gastado", `Hoy | ${b == null ? "?" : signed(b)} kcal (${b == null ? "—" : b < 0 ? "déficit" : b > 0 ? "superávit" : "equilibrio"})`,
+    goal != null ? `Tu objetivo | ${signed(goal)} kcal` : null, goal != null && b != null ? `Diferencia | ${signed(b - goal)} kcal` : null].filter(Boolean).join("\n");
+}
 function summaryCard(st) {
   const t = st.totals, tg = st.target || {}, en = st.energy;
   const kcalT = tg.kcal || 0, rest = kcalT && t.kcal != null ? kcalT - t.kcal : null, over = rest != null && rest < 0;
@@ -305,18 +317,19 @@ function summaryCard(st) {
     return h("div", { class: "mring " + cls }, ringSvg(96, 38, 9, target ? (t[f] || 0) / target : 0, cls, [[3, v(t, f) + (miss ? "+" : ""), "rg-mv"], [20, "/ " + unitT + " g", "rg-mo"]]),
       h("div", { class: "mr-l" }, label, miss ? h("span", { class: "miss", title: "Hay valores desconocidos: el total es un mínimo" }, " *") : null));
   };
-  const goalTxt = !tg.mode ? "Sin objetivo" : tg.dynamic ? (tg.kcal_offset ? `Objetivo: tu gasto ${tg.kcal_offset < 0 ? "−" : "+"} ${fmt(Math.abs(tg.kcal_offset))} kcal` : "Objetivo: lo que gastas") : "Objetivo fijo";
+  const goalTxt = !tg.mode ? "Sin objetivo" : tg.dynamic ? (tg.kcal_offset ? `Objetivo: ${tg.kcal_offset < 0 ? "déficit" : "superávit"} de ${fmt(Math.abs(tg.kcal_offset))} kcal` : "Objetivo: comer lo que gastas") : "Objetivo fijo";
   return h("div", { class: "card summary b" },
     h("button", { class: "sum-goal", title: "Cambiar el objetivo", onclick: async () => { const d = await api("GET", "/api/settings"); targetSheet(d.current_target, null); } }, goalTxt),
     h("button", { class: "sum-des", onclick: open }, "Desglose ›"),
-    h("button", { class: "ring-btn", onclick: open, "aria-label": "Ver desglose" }, big),
+    tip(h("button", { class: "ring-btn", onclick: open, "aria-label": "Ver desglose" }, big), ringTip(st)),
     h("div", { class: "mrings" },
       macro("p", "Proteína", "protein_g", tg.protein_g, fmt(tg.protein_g)),
       macro("c", "Carbohidratos", "carbs_g", tg.carbs_g, fmt(tg.carbs_g)),
       macro("g", "Grasas", "fat_g", tg.fat_mid_g, fmt(tg.fat_mid_g))),
     h("div", { class: "sum-chips" },
       tip(h("button", { class: "schip", onclick: open }, "Gasto ", h("b", { class: "num" }, fmt(en.total)), en.complete && !en.neat_pending ? null : h("span", { class: "miss" }, " *")), gastoTip(st)),
-      h("button", { class: "schip", onclick: open }, "Balance ", h("b", { class: "num" }, signed(st.balance)))));
+      tip(h("button", { class: "schip", onclick: open }, st.balance == null ? "Balance " : st.balance < 0 ? "Déficit " : st.balance > 0 ? "Superávit " : "Equilibrio ", st.balance ? h("b", { class: "num" }, fmt(Math.abs(st.balance))) : st.balance == null ? h("b", null, "?") : null),
+        balTip(st))));
 }
 // Desglose del día (diseño B): balance arriba, lo comido (macros y comidas) y lo gastado (cada parte con su barra).
 function energySheet(st) {
