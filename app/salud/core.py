@@ -1035,7 +1035,7 @@ def day_state(conn, d=None):
         "balance": None if totals["kcal"] is None or en["total"] is None else round(totals["kcal"] - en["total"]),
         "activities": acts, "avg7": None if a7 is None else round(a7, 2), "avg7_n": n7,
         "entry_count": len(entries), "closure": closure, "closure_count": n_closures, "rev": rev(conn),
-        "steps_hours": steps_hours(conn, d), "supplements": supplements(conn), "supplements_taken": supplements_taken(conn, d), "neat_levels": [{"key": k, "label": l, "kcal": v, "kcal_adj": round(v * (en.get("neat_factor") or 1))} for k, l, v in NEAT_LEVELS],
+        "steps_hours": steps_hours(conn, d), "supplements": supplements(conn), "supplements_taken": supplements_taken(conn, d), "sessions": hc_sessions(conn, d), "neat_levels": [{"key": k, "label": l, "kcal": v, "kcal_adj": round(v * (en.get("neat_factor") or 1))} for k, l, v in NEAT_LEVELS],
     }
 
 
@@ -1053,7 +1053,10 @@ def close_check(conn, d):
     if day["steps"] is None:
         w.append({"level": "importante", "code": "pasos", "text": "Faltan los pasos (si no anduviste, pon 0): sin ellos el gasto queda incompleto"})
     # «cómo fue el día» no es un aviso: es obligatorio elegirlo para cerrar (needs_neat)
-    # (sin entreno no es un aviso: el día cuenta como descanso)
+    # (sin entreno no es un aviso: el día cuenta como descanso; sí lo es si el móvil dice que entrenó y falta el entreno)
+    for x in hc_sessions(conn, d):
+        if not x["registrada"]:
+            w.append({"level": "info", "code": "entreno", "text": "Has entrenado de %s a %s (%s): manda el entreno o apúntalo" % (x["inicio"], x["fin"], x["tipo"])})
     if st["entry_count"] == 0:
         w.append({"level": "importante", "code": "comidas", "text": "No hay comidas registradas"})
     else:
@@ -1403,6 +1406,7 @@ def ingest_health(conn, payload, source="health"):
     if isinstance(tot, (int, float, str)) and not isinstance(tot, bool):
         return _ingest_total(conn, payload, tot, source)
     body = _ingest_body(conn, payload, source)
+    ses = _ingest_sessions(conn, payload)
     recs = payload.get("steps") or []
     days, n = set(), 0
     with tx(conn, "health_sync", source, payload={"steps": len(recs), "app": payload.get("app_version")}):
@@ -1433,7 +1437,69 @@ def ingest_health(conn, payload, source="health"):
             _ensure_day(conn, d)
             conn.execute("UPDATE days SET steps=?, steps_auto=1, updated_at=? WHERE date=?", (int(tot), ts(), d))
             out.append({"fecha": d, "pasos": int(tot), "guardado": True})
-    return {"ok": True, "tramos": n, "dias": out, "bascula": body}
+    return {"ok": True, "tramos": n, "dias": out, "bascula": body, "sesiones": ses}
+
+
+# Sesiones de ejercicio de Health Connect (Hevy, el reloj…): solo inicio, fin y tipo. Sirven para saber si ese día
+# ha entrenado y pedirle el entreno al cerrar; el gasto lo pone el entreno cuando llega (las kcal del móvil se ignoran).
+HC_TYPES = [(r"WALK", "caminata"), (r"RUN|TREADMILL", "carrera"), (r"BIK|CYCL", "bici"), (r"CALISTHEN", "calistenia"),
+            (r"STRENGTH|WEIGHT|LIFT", "fuerza"), (r"HIGH_INTENSITY|HIIT|CROSS|BOOT", "hiit"), (r"SWIM", "natación"),
+            (r"YOGA|PILATES|STRETCH", "yoga")]
+
+
+def _hc_type(t):
+    u = str(t or "").upper()
+    for rx, lab in HC_TYPES:
+        if re.search(rx, u):
+            return lab
+    return "entreno"
+
+
+def _ingest_sessions(conn, payload):
+    n = 0
+    for r in payload.get("exercise") or payload.get("exercise_sessions") or []:
+        try:
+            a, b = _local_dt(r["start_time"]), _local_dt(r.get("end_time") or r["start_time"])
+        except (KeyError, ValueError, TypeError):
+            continue
+        dur = r.get("duration_seconds")
+        dur = int(dur) if isinstance(dur, (int, float)) else int((b - a).total_seconds())
+        if dur < 120:  # menos de 2 minutos: ruido
+            continue
+        conn.execute("INSERT INTO hc_sessions(start, end, type, duration_s, received_at) VALUES(?,?,?,?,?) "
+                     "ON CONFLICT(start) DO UPDATE SET end=excluded.end, type=excluded.type, duration_s=excluded.duration_s, received_at=excluded.received_at",
+                     (a.strftime("%Y-%m-%dT%H:%M:%S"), b.strftime("%Y-%m-%dT%H:%M:%S"), str(r.get("type") or ""), dur, ts()))
+        n += 1
+    return n
+
+
+def hc_sessions(conn, d):
+    """Sesiones de ejercicio del móvil de ese día (sin las caminatas), con «registrada» si ya hay un entreno o actividad que la cubre."""
+    d = _date(d)
+    wos = [dict(r) for r in conn.execute("SELECT start_time, duration_min FROM workouts WHERE date=? AND deleted_at IS NULL", (d,))]
+    acts = conn.execute("SELECT COUNT(*) FROM activities a WHERE a.date=? AND a.deleted_at IS NULL AND a.type<>'caminata' "
+                        "AND NOT EXISTS(SELECT 1 FROM workouts w WHERE w.activity_id=a.id)", (d,)).fetchone()[0]
+
+    def mins(hhmm):
+        h_, m_ = hhmm[:5].split(":")
+        return int(h_) * 60 + int(m_)
+    out = []
+    for r in conn.execute("SELECT * FROM hc_sessions WHERE substr(start,1,10)=? ORDER BY start", (d,)):
+        tipo = _hc_type(r["type"])
+        if tipo == "caminata":
+            continue
+        a, b = mins(r["start"][11:16]), mins(r["end"][11:16]) if r["end"][:10] == d else 24 * 60
+        cov = bool(acts)
+        for w in wos:
+            if not w["start_time"]:
+                cov = True
+                continue
+            ws = mins(w["start_time"])
+            we = ws + (w["duration_min"] or 60)
+            if ws <= b + 45 and we >= a - 45:  # se solapan (con margen: Hevy y el móvil no empiezan a la vez)
+                cov = True
+        out.append({"inicio": r["start"][11:16], "fin": r["end"][11:16], "minutos": round(r["duration_s"] / 60), "tipo": tipo, "registrada": cov})
+    return out
 
 
 # Báscula por Health Connect: tipo del envío → (campo de body_metrics, clave del valor, conversión)

@@ -273,6 +273,10 @@ MIGRATIONS = [
       WHERE kind='lastre' AND (lower(name) LIKE '%asistid%' OR lower(name) LIKE '%assist%' OR lower(name) LIKE '%banda%' OR lower(name) LIKE '%(band)%'));
     UPDATE workout_exercises SET kind='asistido' WHERE kind='lastre' AND (lower(name) LIKE '%asistid%' OR lower(name) LIKE '%assist%' OR lower(name) LIKE '%banda%' OR lower(name) LIKE '%(band)%');
     """,
+    # v12 — sesiones de ejercicio que llegan del móvil (Health Connect): solo de cuándo a cuándo, para saber si ha entrenado
+    """
+    CREATE TABLE hc_sessions(start TEXT PRIMARY KEY, end TEXT, type TEXT, duration_s INTEGER, received_at TEXT);
+    """,
 ]
 
 

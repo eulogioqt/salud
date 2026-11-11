@@ -485,6 +485,28 @@ class TestUploadLink(unittest.TestCase):
         self.assertIsNone(auth.upload_check(d, t))  # ya usado
 
 
+class TestHcSessions(unittest.TestCase):
+    def test_sesion_detectada_y_aviso_al_cerrar(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        conn = connect(os.path.join(tmp.name, "t.db"))
+        init_db(conn)
+        d = "2026-11-11"
+        core.ingest_health(conn, {"exercise": [
+            {"type": "EXERCISE_TYPE_STRENGTH_TRAINING", "start_time": d + "T17:30:00Z", "end_time": d + "T18:45:00Z", "duration_seconds": 4500},
+            {"type": "EXERCISE_TYPE_WALKING", "start_time": d + "T09:00:00Z", "end_time": d + "T09:20:00Z", "duration_seconds": 1200}]}, "movil")
+        ses = core.hc_sessions(conn, d)
+        self.assertEqual(len(ses), 1)  # la caminata no cuenta como entreno
+        self.assertEqual((ses[0]["tipo"], ses[0]["registrada"]), ("fuerza", False))
+        codes = {w["code"] for w in core.close_check(conn, d)["warnings"]}
+        self.assertIn("entreno", codes)
+        from salud import training as T
+        T.create_workout(conn, {"date": d, "start_time": "18:40", "title": "Pecho", "duration_min": 70,
+                                "exercises": [{"name": "Press Banca (Barra)", "kind": "peso", "sets": [{"weight_kg": 60, "reps": 8}]}]})
+        self.assertTrue(core.hc_sessions(conn, d)[0]["registrada"])  # el entreno de Hevy cubre la sesión del móvil
+        self.assertNotIn("entreno", {w["code"] for w in core.close_check(conn, d)["warnings"]})
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -367,10 +367,14 @@ function bodyStrip(st) {
     if ((day.weight_kg ?? null) === n) return;
     await act(() => api("PUT", "/api/days/" + st.date, { weight_kg: n }), "Peso guardado").catch(() => { el.value = day.weight_kg ?? ""; });
   });
-  const weight = h("div", { class: "stat" },
+  el.addEventListener("click", (e) => e.stopPropagation());
+  const scale = !!(S.pasos || {}).bascula;  // báscula conectada: el peso llega solo y no se toca a mano
+  const weight = h("div", { class: "stat clickable", onclick: () => weightSheet(st) },
     h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic w" }, "⚖"), "Peso"),
-      S.me && !closed && !(S.pasos || {}).bascula ? h("button", { class: "lnk-btn", title: "Que los pesajes de tu báscula lleguen solos", onclick: (e) => { e.stopPropagation(); stepsConnectSheet("bascula"); } }, "🔗 Conectar") : null),
-    h("div", { class: "v" }, el, h("small", null, "kg")), h("div", { class: "s" }, st.avg7 != null ? `media 7 d ${fmt(st.avg7, 1)}` : ""));
+      scale ? h("span", { class: "lnk" }, "Ver") : S.me && !closed ? h("button", { class: "lnk-btn", title: "Que los pesajes de tu báscula lleguen solos", onclick: (e) => { e.stopPropagation(); stepsConnectSheet("bascula"); } }, "🔗 Conectar") : null),
+    scale ? (day.weight_kg == null ? h("div", { class: "v none" }, h("small", null, "Aún sin pesaje")) : h("div", { class: "v" }, h("span", null, fmt(day.weight_kg, 1)), h("small", null, "kg")))
+      : h("div", { class: "v" }, el, h("small", null, "kg")),
+    h("div", { class: "s" }, st.avg7 != null ? `media 7 d ${fmt(st.avg7, 1)}` : ""));
   // Pasos: conectados al móvil → solo «Ver» (ficha con estadísticas); si no, se apuntan a mano y se ofrece conectar
   const auto = !!(S.pasos || {}).conectado;
   const skc = day.steps != null && en.steps_kcal != null ? fmt(en.steps_kcal) + " kcal" : null;
@@ -392,8 +396,34 @@ function bodyStrip(st) {
           w.notes ? h("div", { class: "wk-d" }, w.notes) : null,
           h("div", { class: "wk-s" }, [w.duration_min ? fmt(w.duration_min) + " min" : null, w.sets_count + " series", fmt(w.volume_kg) + " kg", w.activity_id ? kc(w.activity_id) + " kcal" : null].filter(Boolean).join(" · ")))),
          ...other.map((a) => h("div", { class: "a" }, h("b", null, (ACT_TYPES.find((x) => x[0] === a.type) || [0, a.type])[1]), ` ${a.minutes ? fmt(a.minutes) + "′" : ""}`, h("span", { class: "faint" }, " · " + kc(a.id) + " kcal")))]
+      : (st.sessions || []).length ? h("div", { class: "acts" }, st.sessions.map((x) => h("div", { class: "a det" }, h("b", null, "Entreno detectado"), h("div", { class: "faint" }, `${x.inicio}–${x.fin} · ${x.tipo} · falta mandarlo`))))
       : h("div", { class: "v none" }, h("small", null, day.rest_day === 1 ? "Descanso" : "Sin registrar"))));
   return h("div", { class: "strip" }, weight, steps, train);
+}
+
+// Ficha de peso (al tocar el peso en Hoy): gráfica, media de 7 días, cambio semanal y la báscula; lo demás en Progreso
+async function weightSheet(st) {
+  let days = 30;
+  const sh = sheet("Peso", h("div", { class: "muted" }, "Cargando…"), null, { wide: true });
+  const draw = async () => {
+    const P = await api("GET", `/api/progress?days=${days}&weeks=4`).catch(() => null);
+    if (!P) return;
+    const ws = P.weights, last = [...ws].reverse().find((w) => w.weight_kg != null), lastAvg = [...ws].reverse().find((w) => w.avg7 != null);
+    const prevAvg = lastAvg ? ws.find((w) => w.date === addDays(lastAvg.date, -7)) : null, cal = P.calibration;
+    const kpi = (l, v, s_) => h("div", { class: "kpi" }, h("div", { class: "l" }, l), h("div", { class: "v num" }, v), h("div", { class: "s" }, s_ || ""));
+    const scale = !!(S.pasos || {}).bascula;
+    sh.set("Peso", [
+      h("div", { class: "row", style: { marginBottom: "10px" } }, h("span", { class: "faint" }, scale ? "Llega solo de tu báscula" : "Pésate al levantarte, después del baño y antes de comer"), h("span", { class: "grow" }),
+        h("div", { class: "seg" }, [[30, "30 d"], [90, "90 d"]].map(([d, l]) => h("button", { class: days === d ? "on" : "", onclick: () => { days = d; draw(); } }, l)))),
+      h("div", { class: "kpis" },
+        kpi("Último", last ? fmt(last.weight_kg, 1) + " kg" : "—", last ? dateLabel(last.date, { day: "numeric", month: "short" }) : "sin pesajes"),
+        kpi("Media 7 días", lastAvg ? fmt(lastAvg.avg7, 2) + " kg" : "—", prevAvg && prevAvg.avg7 != null ? signed(lastAvg.avg7 - prevAvg.avg7, 2) + " kg en 7 días" : ""),
+        kpi("Tendencia", cal.ready ? signed(cal.slope_kg_week, 2) + " kg/sem" : "—", cal.ready ? "mantenimiento observado " + fmt(cal.observed_maintenance) + " kcal" : "faltan datos (≥14 días)")),
+      h("div", { class: "card panel" }, weightChart(ws)),
+      (P.body || []).length ? bodyPanel(P.body) : null],
+      [h("span", { class: "grow" }), h("button", { class: "btn", onclick: () => { sh.close(); location.hash = "#/progreso"; } }, "Ver todo en Progreso")]);
+  };
+  draw();
 }
 
 // Pasos por horas (cuando llegan del móvil): 24 barritas, la hora actual marcada
@@ -519,60 +549,61 @@ function hourBars(hrs, today) {
   const mx = Math.max(1, ...hrs), now = new Date().getHours();
   return h("div", { class: "hbars", title: "Pasos por hora" }, hrs.map((v, i) => h("i", { class: (today && i === now ? "now" : "") + (today && i > now ? " fut" : ""), style: { height: Math.max(v ? 8 : 3, (100 * v) / mx) + "%" }, title: `${i}:00 · ${fmt(v)} pasos` })));
 }
-// Conectar los pasos del móvil: Android (Health Connect + «Health Connect Webhook», gratis desde GitHub) o iPhone (Salud + Atajos)
+// Conectar con el móvil (pasos, báscula o entreno). Android: una app que escriba en Health Connect + «HC Webhook» (la misma
+// para todo) que lo manda aquí. iPhone: Salud + Atajos (de momento, solo los pasos).
+const whenTxt = (s) => s ? dateLabel(s.slice(0, 10), { day: "numeric", month: "short" }) + (s.length > 11 ? " · " + s.slice(11, 16) : "") : "";
 async function stepsConnectSheet(mode = "pasos") {
-  let info = await api("GET", "/api/pasos").catch(() => ({}));
+  let info = await api("GET", "/api/movil").catch(() => ({}));
   let tok = null, os = /iPhone|iPad/.test(navigator.userAgent) ? "ios" : /Android/.test(navigator.userAgent) ? "android" : null;
-  const bas = mode === "bascula", title = bas ? "Conectar tu báscula" : "Conectar tus pasos";
-  const BTYPES = "Peso, Grasa corporal, Masa corporal magra, Masa ósea, Masa de agua corporal y Tasa metabólica basal";
-  const sh = sheet(title, null, null, { onClose: () => { clearInterval(tm); loadPasos(); } });
+  const M = {
+    pasos: { t: "Conectar tus pasos", p: "Así los pasos llegan solos y por horas.",
+      app: ["Una app que guarde tus pasos en Health Connect", "El propio móvil, Google Fit o tu pulsera. Compruébalo en Ajustes → Health Connect."],
+      tipos: "Pasos (cada 15 min, con «Contar una vez» activado)", done: () => !!info.conectado, ok: () => `Conectado · último envío ${info.ultimo}`, wait: "Cuando llegue el primer envío, aquí pondrá «Conectado»." },
+    bascula: { t: "Conectar tu báscula", p: "Así cada pesaje llega solo, con su composición.",
+      app: ["Una app de báscula que guarde en Health Connect", "La de tu báscula, o ScaleLauncher (gratis) si es una Xiaomi.", { href: "https://f-droid.org/es/packages/de.pritcloud.scalelauncher/", t: "ScaleLauncher" }],
+      tipos: "Peso, Grasa corporal, Masa magra, Masa ósea, Agua corporal y Metabolismo basal", done: () => !!info.bascula, ok: () => `Conectada · último pesaje ${whenTxt(info.bascula)}`, wait: "Pésate: cuando llegue el pesaje, aquí pondrá «Conectada»." },
+    entreno: { t: "Conectar tus entrenos", p: "Así sabemos cuándo entrenas y te pedimos el entreno al cerrar el día.",
+      app: ["Una app de entreno que guarde en Health Connect", "Recomendada: Hevy → Ajustes → Integraciones → Health Connect, y al guardar el entreno deja activado «Health Connect»."],
+      tipos: "Sesiones de ejercicio", done: () => !!info.entreno_ultimo, ok: () => `Conectado · último entreno ${whenTxt(info.entreno_ultimo)}`, wait: "Guarda un entreno: cuando llegue, aquí pondrá «Conectado»." },
+  }[mode];
+  const sh = sheet(M.t, null, null, { onClose: () => { clearInterval(tm); loadPasos(); } });
   let tm = null;
+  const step = (n, t, d, extra) => h("div", { class: "ast" }, h("span", { class: "n" }, String(n)), h("div", null, h("b", null, t), d ? h("div", { class: "muted" }, d) : null, extra || null));
   const draw = () => {
     const seg = h("div", { class: "seg tg-seg" }, [["android", "Android"], ["ios", "iPhone"]].map(([k, l]) => h("button", { class: os === k ? "on" : "", onclick: () => { os = k; draw(); } }, l)));
-    const tokLine = tok ? copyLine("Bearer " + tok) : h("button", { class: "btn sm", onclick: async () => { tok = (await api("POST", "/api/pasos", {})).token; draw(); } }, info.configurado ? "Generar una clave nueva" : "Generar mi clave");
-    const have = !!info.conectado;  // HC Webhook ya instalada y enviando (por los pasos)
-    const steps = bas ? (os === "android" ? [
-      ["Que la báscula guarde en Health Connect", "En la app de tu báscula (Mi Fitness, Zepp Life…), busca «Health Connect» en sus ajustes y deja que escriba el peso y la composición corporal. Compruébalo en Ajustes del móvil → Health Connect → Permisos de apps."],
-      ...(have ? [["Activa los datos de la báscula en «HC Webhook»", `Ya la tienes por los pasos: en Qué sincronizar activa ${BTYPES} y pulsa «Permitir acceso». No hace falta nada más.`]]
-        : [["Instala «Health Connect Webhook» (gratis)", "Desde el móvil, descarga el .apk de la última versión en GitHub e instálalo (te pedirá permitir instalar desde el navegador). Es la misma app que en Google Play cuesta 7,99 €, pero gratis y de código abierto.", { href: "https://github.com/mcnaveen/health-connect-webhook/releases/latest", t: "Descargar de GitHub" }],
-          ["Qué sincronizar", `Activa ${BTYPES} (y Pasos, si quieres que lleguen también) y pulsa «Permitir acceso».`]]),
-    ] : os === "ios" ? [["En iPhone, con Atajos", "Se puede mandar el peso de Salud con una automatización de Atajos, como los pasos. Dímelo y lo preparamos."]] : [])
-    : os === "android" ? [
-      ["Que tus pasos lleguen a Health Connect", "Tu app de pasos (Google Fit, Samsung Health, Fitbit…) tiene que guardarlos en Health Connect. En Google Fit: Perfil → ⚙ Ajustes → «Sincronizar con Health Connect». Compruébalo en Ajustes del móvil → Health Connect → Permisos de apps."],
-      ["Instala «Health Connect Webhook» (gratis)", "Desde el móvil, descarga el .apk de la última versión en GitHub e instálalo (te pedirá permitir instalar desde el navegador). Es la misma app que en Google Play cuesta 7,99 €, pero gratis y de código abierto. Ábrela y dale permiso a «Pasos».", { href: "https://github.com/mcnaveen/health-connect-webhook/releases/latest", t: "Descargar de GitHub" }],
-      ["Pasos: cada 15 o 60 minutos", "En Tipos de datos → Pasos, elige resolución de 15 min (o 60) y deja activado «Contar una vez las apps que se solapan»."],
-    ] : os === "ios" ? [  // con Atajos (gratis, viene en el iPhone)
-      ["Crea una automatización en Atajos", "App Atajos → Automatización → Nueva automatización → «Hora del día»: 23:50, cada día, y marca «Ejecutar inmediatamente». (Puedes crear otras, p. ej. a las 14:00 y 20:00, para verlos durante el día.)"],
-      ["Acción «Buscar muestras de salud»", "Tipo: Pasos · Fecha de inicio: es hoy. Si llevas Apple Watch, añade el filtro «Fuente es (tu iPhone)» para no contar dos veces."],
-      ["Acción «Calcular estadísticas»", "Suma de «Muestras de salud»."],
-    ] : [];
-    const done = bas ? !!info.bascula : have, skipHook = bas && (have || os === "ios");
-    sh.set(title, [
-      h("p", { class: "muted wz-p" }, bas ? "Así cada pesaje (peso, % de grasa y lo demás que mida) llega solo a la web. Si no, lo apuntas a mano o mandas la captura a tu agente."
-        : "Así los pasos llegan solos (y por horas). Si no, los apuntas a mano en Hoy o se los dices a tu agente."),
-      seg,
-      os ? h("div", { class: "agent-steps simple" },
-        steps.map(([t, d, x], i) => h("div", { class: "ast" }, h("span", { class: "n" }, String(i + 1)), h("div", null, h("b", null, t), h("div", { class: "muted" }, d),
-          x ? h("a", { class: "btn sm ext", href: x.href, target: "_blank", rel: "noopener" }, x.t, " ↗") : null))),
-        skipHook ? null : os === "ios" ? h("div", { class: "ast" }, h("span", { class: "n" }, String(steps.length + 1)), h("div", null, h("b", null, "Acción «Obtener contenido de URL»"), h("div", { class: "muted" }, "URL:"), copyLine(info.url || location.origin + "/api/hooks/salud"),
-          h("div", { class: "muted", style: { marginTop: "8px" } }, "Método: POST · Encabezados → clave «Authorization» y, como valor, tu clave (solo se ve ahora):"), tokLine,
-          h("div", { class: "muted", style: { marginTop: "8px" } }, "Cuerpo de la solicitud: JSON → añade un campo Número llamado «steps» con el valor «Estadísticas». Pulsa ▶ para probarlo.")))
-        : h("div", { class: "ast" }, h("span", { class: "n" }, String(steps.length + 1)), h("div", null, h("b", null, "Añade el webhook"), h("div", { class: "muted" }, "Webhooks → Añadir. Dirección:"), copyLine(info.url || location.origin + "/api/hooks/salud"),
-          h("div", { class: "muted", style: { marginTop: "8px" } }, "Encabezado (header) → nombre «Authorization» y, como valor, tu clave (solo se ve ahora):"), tokLine,
-          h("div", { class: "muted", style: { marginTop: "8px" } }, "Sincronización: cada 30 min. Pulsa «Probar» o «Sincronizar ahora»."))),
-        h("div", { class: "ast" }, h("span", { class: "n" + (done ? " ok" : "") }, done ? "✓" : String(steps.length + (skipHook ? 1 : 2))), h("div", null, h("b", null, "Listo"),
-          h("div", { class: "agent-wait soft" + (done ? " done" : "") }, bas ? (done ? `Conectada · último pesaje ${info.bascula}` : "Pésate: cuando llegue el primer pesaje, aquí pondrá «Conectada».")
-            : done ? `Conectado · último envío ${info.ultimo}` : "Cuando llegue el primer envío, aquí pondrá «Conectado»."))))
-        : h("p", { class: "muted" }, "¿Qué móvil tienes?")],
-      null);
+    const tokLine = tok ? copyLine("Bearer " + tok) : h("button", { class: "btn sm", onclick: async () => { tok = (await api("POST", "/api/movil", {})).token; draw(); } }, info.configurado ? "Generar una clave nueva" : "Generar mi clave");
+    const url = copyLine(info.url || location.origin + "/api/hooks/salud");
+    const have = !!info.conectado, done = M.done();
+    let body;
+    if (os === "android") {
+      const [t1, d1, x1] = M.app;
+      body = [
+        step(1, t1, d1, x1 ? h("a", { class: "btn sm ext", href: x1.href, target: "_blank", rel: "noopener" }, x1.t, " ↗") : null),
+        have ? step(2, "En «HC Webhook», activa: " + M.tipos, h("span", { class: "faint" }, "La misma app que ya usas para lo demás."))
+          : step(2, "Instala «HC Webhook» y activa: " + M.tipos, "Gratis desde GitHub (la misma sirve para pasos, báscula y entrenos). En Webhooks → Añadir, pon esta dirección:",
+            h("div", null, url, h("div", { class: "muted", style: { marginTop: "8px" } }, "Y en Encabezado, «Authorization» con tu clave:"), tokLine,
+              h("a", { class: "btn sm ext", style: { marginTop: "8px" }, href: "https://github.com/mcnaveen/health-connect-webhook/releases/latest", target: "_blank", rel: "noopener" }, "Descargar HC Webhook", " ↗"))),
+      ];
+    } else if (os === "ios") {
+      body = mode !== "pasos" ? [h("p", { class: "muted" }, "En iPhone, de momento solo los pasos. Mientras, mándale la captura a tu agente.")] : [
+        step(1, "Atajos → Automatización → Nueva → «Hora del día»", "Por ejemplo a las 14:00, 20:00 y 23:50, con «Ejecutar inmediatamente»."),
+        step(2, "Acciones: «Buscar muestras de salud» (Pasos, hoy) → «Calcular estadísticas» (Suma) → «Obtener contenido de URL»",
+          "POST a esta dirección, con el encabezado «Authorization» y un campo Número «steps» con la suma:", h("div", null, url, tokLine)),
+      ];
+    }
+    sh.set(M.t, [h("p", { class: "muted wz-p" }, M.p), seg,
+      os ? h("div", { class: "agent-steps simple" }, body,
+        os === "android" || mode === "pasos" ? h("div", { class: "ast" }, h("span", { class: "n" + (done ? " ok" : "") }, done ? "✓" : "3"),
+          h("div", null, h("b", null, "Listo"), h("div", { class: "agent-wait soft" + (done ? " done" : "") }, done ? M.ok() : M.wait))) : null)
+        : h("p", { class: "muted" }, "¿Qué móvil tienes?")], null);
   };
   draw();
-  tm = setInterval(async () => { const r = await api("GET", "/api/pasos").catch(() => null); if (r && (r.conectado !== info.conectado || r.bascula !== info.bascula)) { info = r; draw(); refresh(); } }, 4000);
+  tm = setInterval(async () => { const r = await api("GET", "/api/movil").catch(() => null); if (r && (r.conectado !== info.conectado || r.bascula !== info.bascula || r.entreno_ultimo !== info.entreno_ultimo)) { info = r; draw(); refresh(); } }, 4000);
 }
 // Conexiones (menú de tu nombre): agente, pasos, báscula y Hevy en un solo sitio.
 // Pasos «conectados» si el móvil ha mandado tramos en las últimas 48 h; báscula, si ya ha llegado algún pesaje del móvil.
 async function connectionsSheet() {
-  const [info0, ws] = await Promise.all([S.me ? api("GET", "/api/pasos").catch(() => ({})) : {}, api("GET", "/api/workouts?limit=1").catch(() => ({ workouts: [] }))]);
+  const [info0, ws] = await Promise.all([S.me ? api("GET", "/api/movil").catch(() => ({})) : {}, api("GET", "/api/workouts?limit=1").catch(() => ({ workouts: [] }))]);
   let info = info0, tok = null;
   const lastW = (ws.workouts || [])[0];
   const fresh = (ts, h_) => ts && Date.now() - new Date(ts.replace(" ", "T")) < h_ * 3600e3;
@@ -590,23 +621,25 @@ async function connectionsSheet() {
         S.me ? row_("👟", "Pasos del móvil", pasosOk ? "ok" : info.pasos_ultimo ? "warn" : "off",
           info.pasos_ultimo ? `Último envío ${agoTxt(info.pasos_ultimo)}` : "Que lleguen solos desde Health Connect o Salud de Apple",
           h("button", { class: "btn sm ghost", onclick: () => { sh.close(); stepsConnectSheet("pasos"); } }, info.pasos_ultimo ? "Cómo se configura" : "Conectar")) : null,
-        S.me ? row_("⚖", "Báscula", info.bascula ? "ok" : "off", info.bascula ? `Último pesaje ${info.bascula}` : "Que cada pesaje llegue solo (peso, % de grasa…)",
+        S.me ? row_("⚖", "Báscula", info.bascula ? "ok" : "off", info.bascula ? `Último pesaje ${whenTxt(info.bascula)}` : "Que cada pesaje llegue solo (peso, % de grasa…)",
           h("button", { class: "btn sm ghost", onclick: () => { sh.close(); stepsConnectSheet("bascula"); } }, info.bascula ? "Cómo se configura" : "Conectar")) : null,
-        row_("🏋", "Hevy", "man", lastW ? `Último entreno: ${lastW.title} · ${dateLabel(lastW.date, { day: "numeric", month: "short" })}` : "Aún no hay entrenos",
+        S.me ? row_("🏋", "Entrenos", info.entreno_ultimo ? "ok" : "off", info.entreno_ultimo ? `Último entreno detectado ${whenTxt(info.entreno_ultimo)}` : "Que se sepa solo cuándo entrenas (Hevy u otra app)",
+          h("button", { class: "btn sm ghost", onclick: () => { sh.close(); stepsConnectSheet("entreno"); } }, info.entreno_ultimo ? "Cómo se configura" : "Conectar")) : null,
+        row_("📄", "Historial de Hevy", "man", lastW ? `Último entreno: ${lastW.title} · ${dateLabel(lastW.date, { day: "numeric", month: "short" })}` : "Aún no hay entrenos",
           h("button", { class: "btn sm ghost", onclick: () => { sh.close(); importCsv(); } }, "Subir CSV"))),
-      h("div", { class: "note" }, "Hevy no deja conectarse sin su plan de pago: los entrenos llegan con capturas o ChatGPT a tu agente, o subiendo el CSV (no duplica)."),
-      S.me && info.configurado ? h("div", { class: "pc-key" }, h("div", null, h("b", null, "Clave del móvil"), h("div", { class: "faint sm" }, "Una sola clave para todo lo que manda el móvil (pasos y báscula). Si la cambias, hay que ponerla en la app.")),
+      h("div", { class: "note" }, "Las series y los pesos llegan con capturas o ChatGPT a tu agente, o subiendo el CSV de Hevy (no duplica)."),
+      S.me && info.configurado ? h("div", { class: "pc-key" }, h("div", null, h("b", null, "Clave del móvil"), h("div", { class: "faint sm" }, "Una sola clave para todo lo que manda el móvil (pasos, báscula y entrenos). Si la cambias, hay que ponerla en la app.")),
         tok ? copyLine("Bearer " + tok) : null) : null,
     ], S.me && info.configurado ? [
-      h("button", { class: "btn ghost sm danger", onclick: async () => { if (!confirm("¿Desconectar el móvil? La clave dejará de funcionar y dejarán de llegar pasos y pesajes.")) return; await api("DELETE", "/api/pasos"); info = await api("GET", "/api/pasos").catch(() => ({})); tok = null; draw(); } }, "Desconectar el móvil"),
+      h("button", { class: "btn ghost sm danger", onclick: async () => { if (!confirm("¿Desconectar el móvil? La clave dejará de funcionar y dejarán de llegar pasos y pesajes.")) return; await api("DELETE", "/api/movil"); info = await api("GET", "/api/movil").catch(() => ({})); tok = null; draw(); } }, "Desconectar el móvil"),
       h("span", { class: "grow" }),
-      h("button", { class: "btn sm", onclick: async () => { if (!confirm("¿Generar una clave nueva? La actual dejará de funcionar.")) return; tok = (await api("POST", "/api/pasos", {})).token; draw(); } }, "Generar clave nueva"),
+      h("button", { class: "btn sm", onclick: async () => { if (!confirm("¿Generar una clave nueva? La actual dejará de funcionar.")) return; tok = (await api("POST", "/api/movil", {})).token; draw(); } }, "Generar clave nueva"),
     ] : null);
   };
   draw();
 }
 const phoneConnSheet = connectionsSheet;
-async function loadPasos() { if (!S.me) return; S.pasos = await api("GET", "/api/pasos").catch(() => ({})); if (S.view === "hoy") render(); }
+async function loadPasos() { if (!S.me) return; S.pasos = await api("GET", "/api/movil").catch(() => ({})); if (S.view === "hoy") render(); }
 function stepsSheet(st) {
   const en = st.energy;
   const inp = h("input", { class: "qty-in big num", inputMode: "numeric", value: st.day.steps ?? "", placeholder: "0" });

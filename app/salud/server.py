@@ -232,7 +232,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, core.ingest_health(conn, body, "movil"))
             except Exception as e:
                 return self._send(400, {"error": str(e)})
-        if MULTI and u.path == "/api/pasos":
+        if MULTI and u.path in ("/api/movil", "/api/pasos"):  # lo que manda el móvil (Health Connect / Salud): pasos, báscula y entrenos
             user = auth.session_user(MULTI, self._cookie_token())
             if not user:
                 return self._send(401, {"error": "Inicia sesión", "login": True})
@@ -248,8 +248,10 @@ class Handler(BaseHTTPRequestHandler):
             with lock:
                 bas = conn.execute("SELECT MAX(date||' '||COALESCE(time,'')) FROM body_metrics WHERE source='movil' AND deleted_at IS NULL").fetchone()[0]
                 stp = conn.execute("SELECT MAX(received_at) FROM step_buckets").fetchone()[0]
+                ent = conn.execute("SELECT substr(MAX(start),1,16) FROM hc_sessions").fetchone()[0]
             return self._send(200, {"configurado": bool(t), "conectado": bool(t and t.get("used")), "ultimo": t and t.get("used"),
-                                    "bascula": bas, "pasos_ultimo": stp, "url": self._base() + "/api/hooks/salud"})
+                                    "bascula": bas, "pasos_ultimo": stp, "entreno_ultimo": ent and ent.replace("T", " "),
+                                    "url": self._base() + "/api/hooks/salud"})
         if MULTI and u.path.startswith("/api/token"):
             # Tokens de agentes (Claude, Codex…): solo con la sesión de la web, nunca con otro token.
             user = auth.session_user(MULTI, self._cookie_token())
