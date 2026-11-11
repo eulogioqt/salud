@@ -401,8 +401,8 @@ function bodyStrip(st) {
           h("div", { class: "wk-s" }, [w.duration_min ? fmt(w.duration_min) + " min" : null, w.sets_count + " series", fmt(w.volume_kg) + " kg", w.activity_id ? kc(w.activity_id) + " kcal" : null].filter(Boolean).join(" · ")))),
          ...other.map((a) => h("div", { class: "a" }, h("b", null, (ACT_TYPES.find((x) => x[0] === a.type) || [0, a.type])[1]), ` ${a.minutes ? fmt(a.minutes) + "′" : ""}`, h("span", { class: "faint" }, " · " + kc(a.id) + " kcal")))]
       : pend.length ? h("div", { class: "acts" }, pend.map((x) => h("div", { class: "a wk det" },
-          h("div", { class: "wk-t" }, h("b", null, x.titulo || "Entreno de " + x.tipo)),
-          h("div", { class: "wk-s" }, [`${x.inicio} – ${x.fin}`, fmt(x.minutos) + " min", x.app ? "de " + x.app : null].filter(Boolean).join(" · ")))))
+          h("div", { class: "wk-t" }, h("b", null, x.titulo || "Entreno")),
+          h("div", { class: "wk-s" }, [x.inicio, fmt(x.minutos) + " min", x.app ? "de " + x.app : null].filter(Boolean).join(" · ")))))
       : h("div", { class: "v none" }, h("small", null, day.rest_day === 1 ? "Descanso" : "Sin registrar"))));
   return h("div", { class: "strip" }, weight, steps, train);
 }
@@ -712,8 +712,8 @@ async function trainingDaySheet(st) {
       h("div", { class: "nm" }, w.title), h("div", { class: "kc num" }, fmt(w.duration_min) + "′"), h("div", { class: "sub" }, `${w.sets_count} series · ${fmt(w.volume_kg)} kg`), h("div"))))
       : pend.length ? h("div", { class: "det-card" },
           h("div", { class: "det-src" }, h("span", { class: "det-i" }, "!"), `Ha llegado de ${pend[0].app || "tu móvil"} · falta mandar el entreno`),
-          pend.map((x) => h("div", { class: "det-w" }, h("div", { class: "det-t" }, x.titulo || "Entreno de " + x.tipo),
-            h("div", { class: "det-kv" }, [["Empieza", x.inicio], ["Termina", x.fin], ["Duración", fmt(x.minutos) + " min"], ["Tipo", cap1(x.tipo)]].map(([k, v]) => h("div", null, h("span", null, k), h("b", { class: "num" }, v)))))),
+          pend.map((x) => h("div", { class: "det-w" }, h("div", { class: "det-t" }, x.titulo || "Entreno"),
+            h("div", { class: "det-kv" }, [["Empieza", x.inicio], ["Duración", fmt(x.minutos) + " min"]].map(([k, v]) => h("div", null, h("span", null, k), h("b", { class: "num" }, v)))))),
           h("p", { class: "det-how" }, "Para tener las series y los pesos, mándaselo a tu agente: dile «entreno hecho» o pásale las capturas de Hevy."))
       : h("div", { class: "card empty flat" }, icon("dumbbell"), h("h3", null, rest ? "Día de descanso" : "Sin entreno"),
         h("p", { class: "muted" }, rest ? "Hoy no cuenta ningún entreno." : "Mándale el entreno a tu agente («entreno hecho» o la captura de Hevy), o márcalo como día de descanso.")),

@@ -1509,3 +1509,6 @@ img { -webkit-user-drag: none; user-select: none; }
 .det-kv span { font-size: 11.5px; color: var(--faint); } .det-kv b { font-size: 15px; font-weight: 650; }
 .det-how { margin: 12px 0 0; font-size: 13px; color: var(--muted); line-height: 1.45; }
 @media (max-width: 640px) { .det-kv { grid-template-columns: repeat(2, 1fr); } .det-badge .det-bt { display: none; } .det-badge { padding: 0; background: none; } .det-badge .det-i { width: 20px; height: 20px; font-size: 12px; } }
+.stat .lbl { margin-bottom: 5px; }
+.det-kv { grid-template-columns: repeat(2, minmax(0, 160px)); }
+@media (max-width: 640px) { .det-kv { grid-template-columns: repeat(2, 1fr); } }
