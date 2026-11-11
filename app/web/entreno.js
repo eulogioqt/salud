@@ -790,7 +790,7 @@ function tResumen(st, ws) {
   const hl = [
     ["Récords", P.prs.length ? String(P.prs.length) : "0", P.prs.length ? "último: " + P.prs[0].name : "ninguno en el periodo", () => { S.tTab = "records"; render(); }],
     ["Más trabajado", groups[0] && groups[0][1] ? groups[0][0] : "—", groups[0] && groups[0][1] ? `${groups[0][1]} series efectivas` : "", null],
-    ["Menos trabajado", weakG ? weakG[0] : "—", weakG ? `${weakG[1]} series · ${weakG[1] < 10 ? "¿le das un poco más?" : "bien repartido"}` : "", null],
+    ["Menos trabajado", weakG ? weakG[0] : "—", weakG ? `${weakG[1]} series` : "", null],
     ["Tu punto fuerte", lv[0] ? lv[0].name : "—", lv[0] ? LVL[lv[0].level.idx] + (S.bw ? "" : "") : "", () => { S.tTab = "nivel"; render(); }],
   ];
   const showBars = P.buckets.length > 1;

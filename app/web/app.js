@@ -201,7 +201,7 @@ function sheet(title, body, footer, opts = {}) {
 function icon(name) {
   const P = {
     x: "M6 6l12 12M18 6L6 18", back: "M15 18l-6-6 6-6", left: "M15 18l-6-6 6-6", right: "M9 18l6-6-6-6",
-    plus: "M12 5v14M5 12h14", search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3", lock: "M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z",
+    plus: "M12 5v14M5 12h14", edit: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4", search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3", lock: "M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z",
     star: "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z", chev: "M6 9l6 6 6-6",
     minus: "M5 12h14", camera: "M4 8h3l2-3h6l2 3h3v11H4zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", out: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6",
     gear: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z",
@@ -386,17 +386,19 @@ function bodyStrip(st) {
       : h("div", { class: "v sv" }, h("span", null, fmt(day.steps)), skc ? h("small", { class: "skc" }, skc) : null),
     st.steps_hours ? blockBars(st.steps_hours, st.date === st.today) : null);
   const ws = st.workouts || [];
+  const trainOn = !!(S.pasos || {}).entreno_ultimo && !((S.pasos || {}).off || []).includes("entreno");
   const other = st.activities.filter((a) => !ws.some((w) => w.activity_id === a.id));
   const kc = (id) => fmt((en.exercise.find((x) => x.id === id) || {}).kcal);
   const train = h("div", { class: "stat clickable", onclick: () => trainingDaySheet(st) },
-    h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic e" }, "🏋"), "Entreno"), h("span", { class: "lnk" }, ws.length ? "Ver" : "+ Añadir")),
+    h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic e" }, "🏋"), "Entreno"),
+      ws.length ? h("span", { class: "lnk" }, "Ver") : S.me && !closed && !trainOn ? h("button", { class: "lnk-btn", title: "Que se sepa solo cuándo entrenas", onclick: (e) => { e.stopPropagation(); stepsConnectSheet("entreno"); } }, "🔗 Conectar") : null),
     h("div", { class: "acts" }, ws.length || other.length
       ? [...ws.map((w) => h("div", { class: "a wk" },
           h("div", { class: "wk-t" }, h("b", null, w.title), w.prs_count ? h("span", { class: "prc", title: "Récords batidos en este entreno" }, icon("trophy"), String(w.prs_count)) : null),
           w.notes ? h("div", { class: "wk-d" }, w.notes) : null,
           h("div", { class: "wk-s" }, [w.duration_min ? fmt(w.duration_min) + " min" : null, w.sets_count + " series", fmt(w.volume_kg) + " kg", w.activity_id ? kc(w.activity_id) + " kcal" : null].filter(Boolean).join(" · ")))),
          ...other.map((a) => h("div", { class: "a" }, h("b", null, (ACT_TYPES.find((x) => x[0] === a.type) || [0, a.type])[1]), ` ${a.minutes ? fmt(a.minutes) + "′" : ""}`, h("span", { class: "faint" }, " · " + kc(a.id) + " kcal")))]
-      : (st.sessions || []).length ? h("div", { class: "acts" }, st.sessions.map((x) => h("div", { class: "a det" }, h("b", null, "Entreno detectado"), h("div", { class: "faint" }, `${x.inicio}–${x.fin} · ${x.tipo} · falta mandarlo`))))
+      : (st.sessions || []).length ? h("div", { class: "acts" }, st.sessions.map((x) => h("div", { class: "a det" }, h("b", null, "Entreno detectado"), h("div", { class: "faint" }, `${x.inicio}–${x.fin} · ${x.tipo} · mándaselo a tu agente`))))
       : h("div", { class: "v none" }, h("small", null, day.rest_day === 1 ? "Descanso" : "Sin registrar"))));
   return h("div", { class: "strip" }, weight, steps, train);
 }
@@ -486,13 +488,13 @@ async function stepsStatsSheet(st) {
   sh.set("Pasos", [
     h("div", { class: "sh2" },
       h("div", { class: "sh2-ring" }, ring, h("div", { class: "sh2-in" }, h("b", { class: "num" }, fmt(steps)), h("span", null, "pasos"),
-        h("button", { class: "sgoal", title: "Cambiar el objetivo de pasos", onclick: goalSheet }, `de ${fmt(goal)} ✎`))),
+        h("button", { class: "sgoal", title: "Cambiar el objetivo de pasos", onclick: goalSheet }, `de ${fmt(goal)}`, icon("edit")))),
       h("div", { class: "sh2-side" },
         h("div", { class: "sh2-msg" + (steps >= goal ? " ok" : "") }, steps >= goal ? [icon("check"), "Objetivo cumplido"] : `Te faltan ${fmt(goal - steps)} pasos`),
         kv("bolt", "Gasto", en.steps_kcal != null ? `≈ ${fmt(en.steps_kcal)} kcal` : "—"),
         kv("route", "Distancia", km != null ? `${fmt(km, 1)} km` : "—"),
         kv("flame", "Racha", d.streak ? `${d.streak} ${d.streak === 1 ? "día" : "días"}` : "—"),
-        h("button", { class: "more-lnk", onclick: () => { sh.close(); stepsMoreSheet(st); } }, icon("cal"), "Semana, rachas y récords", h("span", { class: "grow" }), "›"))),
+        h("button", { class: "more-lnk", onclick: () => stepsMoreSheet(st) }, icon("cal"), "Semana, rachas y récords", h("span", { class: "grow" }), "›"))),
     h("div", { class: "card panel flat" }, h("h3", { style: { margin: 0 } }, "Por horas"), hchart,
       h("div", { class: "sch-x" }, [0, 6, 12, 18, 24].map((x) => h("span", null, x + " h"))),
       hrs[peak] ? h("div", { class: "faint sm", style: { marginTop: "6px" } }, `Hora más activa: ${peak}:00 · ${fmt(hrs[peak])} pasos`) : null),
@@ -551,6 +553,22 @@ function hourBars(hrs, today) {
 }
 // Conectar con el móvil (pasos, báscula o entreno). Android: una app que escriba en Health Connect + «HC Webhook» (la misma
 // para todo) que lo manda aquí. iPhone: Salud + Atajos (de momento, solo los pasos).
+// Báscula Xiaomi (S400 con Xiaomi Home): no escribe en Health Connect; ScaleLauncher (gratis) la lee por Bluetooth y sí.
+function xiaomiGuide() {
+  const L = (href, t) => h("a", { href, target: "_blank", rel: "noopener" }, t, " ↗");
+  const li = (...c) => h("li", null, ...c);
+  return h("details", { class: "xg" }, h("summary", null, "¿Báscula Xiaomi? Paso a paso con ScaleLauncher"),
+    h("ol", null,
+      li(h("b", null, "Instala openScale"), " (Google Play) y crea tu usuario. No añadas la báscula en ella."),
+      li(h("b", null, "Instala ScaleLauncher"), " (gratis): ", L("https://f-droid.org/es/packages/de.pritcloud.scalelauncher/", "F-Droid"), ". Lee la báscula y guarda en Health Connect."),
+      li(h("b", null, "Apunta la MAC"), " de la báscula: Xiaomi Home → tu báscula → ⋯ → Ajustes → Sobre el dispositivo."),
+      li(h("b", null, "Saca su token"), " (24 caracteres) en el ordenador con ", L("https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor", "Xiaomi-cloud-tokens-extractor"), ": inicias sesión con tu cuenta de Xiaomi y te lo da junto a la MAC. No se lo pases a nadie."),
+      li(h("b", null, "Quita la báscula de Xiaomi Home"), " (⋯ → Eliminar dispositivo). No la reinicies de fábrica."),
+      li(h("b", null, "En ScaleLauncher"), ": Scale → MAC y token. Permissions → «Allow openScale access» y «Start automatically after reboot»."),
+      li(h("b", null, "Users"), ": tu sexo, fecha de nacimiento, altura, peso de referencia y desviación 3 kg; marca «Use Health Connect only for this user»."),
+      li(h("b", null, "Health Connect"), ": marca «Transfer measurements» y pulsa «Allow write access»."),
+      li(h("b", null, "Pulsa Monitor"), " y pésate. Desde ahí, cada pesaje llega solo.")));
+}
 // Clave del móvil (HC Webhook): una sola para pasos, báscula y entrenos. Se ve solo al generarla.
 async function mobileKeySheet(onNew) {
   let info = await api("GET", "/api/movil").catch(() => ({})), tok = null;
@@ -578,7 +596,7 @@ async function stepsConnectSheet(mode = "pasos") {
       app: ["Una app que guarde tus pasos en Health Connect", "El propio móvil, Google Fit o tu pulsera. Compruébalo en Ajustes → Health Connect."],
       tipos: "Pasos (cada 15 min, con «Contar una vez» activado)", done: () => !!info.conectado, ok: () => `Conectado · último envío ${info.ultimo}`, wait: "Cuando llegue el primer envío, aquí pondrá «Conectado»." },
     bascula: { t: "Conectar tu báscula", p: "Así cada pesaje llega solo, con su composición.",
-      app: ["Una app de báscula que guarde en Health Connect", "La de tu báscula, o ScaleLauncher (gratis) si es una Xiaomi.", { href: "https://f-droid.org/es/packages/de.pritcloud.scalelauncher/", t: "ScaleLauncher" }],
+      app: ["Una app de báscula que guarde en Health Connect", "La de tu báscula, si guarda en Health Connect (Renpho, Withings, Zepp Life…).", "xiaomi"],
       tipos: "Peso, Grasa corporal, Masa magra, Masa ósea, Agua corporal y Metabolismo basal", done: () => !!info.bascula, ok: () => `Conectada · último pesaje ${whenTxt(info.bascula)}`, wait: "Pésate: cuando llegue el pesaje, aquí pondrá «Conectada»." },
     entreno: { t: "Conectar tus entrenos", p: "Así sabemos cuándo entrenas y, si al cerrar el día no has mandado el entreno, te lo pedimos. Las series y los pesos se los mandas a tu agente (captura o ChatGPT) o subes el CSV de Hevy en Entreno.",
       app: ["Una app de entreno que guarde en Health Connect", "Recomendada: Hevy → Ajustes → Integraciones → Health Connect, y al guardar el entreno deja activado «Health Connect»."],
@@ -597,7 +615,7 @@ async function stepsConnectSheet(mode = "pasos") {
     if (os === "android") {
       const [t1, d1, x1] = M.app;
       body = [
-        step(1, t1, d1, x1 ? h("a", { class: "btn sm ext", href: x1.href, target: "_blank", rel: "noopener" }, x1.t, " ↗") : null),
+        step(1, t1, d1, x1 === "xiaomi" ? xiaomiGuide() : x1 ? h("a", { class: "btn sm ext", href: x1.href, target: "_blank", rel: "noopener" }, x1.t, " ↗") : null),
         have ? step(2, "En «HC Webhook», activa: " + M.tipos, h("span", { class: "faint" }, "La misma app y la misma clave que ya usas."))
           : step(2, "Instala «HC Webhook» y activa: " + M.tipos, "Gratis desde GitHub (la misma sirve para pasos, báscula y entrenos). En Webhooks → Añadir, pon esta dirección:",
             h("div", null, url, h("div", { class: "muted", style: { marginTop: "8px" } }, "Y en Encabezado, «Authorization» con tu clave (una para todo):"), tokLine,
@@ -610,7 +628,7 @@ async function stepsConnectSheet(mode = "pasos") {
           "POST a esta dirección, con el encabezado «Authorization» y un campo Número «steps» con la suma:", h("div", null, url, tokLine)),
       ];
     }
-    sh.set(M.t, [h("p", { class: "muted wz-p" }, M.p), seg,
+    sh.set(M.t, [h("p", { class: "muted wz-p" }, M.p, h("span", { class: "faint" }, " Es opcional: sin conectar nada, lo apuntas a mano o se lo dices a tu agente.")), seg,
       os ? h("div", { class: "agent-steps simple" }, body,
         os === "android" || mode === "pasos" ? h("div", { class: "ast" }, h("span", { class: "n" + (done ? " ok" : "") }, done ? "✓" : "3"),
           h("div", null, h("b", null, "Listo"), h("div", { class: "agent-wait soft" + (done ? " done" : "") }, done ? M.ok() : M.wait))) : null)
@@ -638,6 +656,7 @@ async function connectionsSheet() {
       h("div", { class: "grow" }, h("div", { class: "pc-t" }, h("b", null, t), h("span", { class: "pc-badge " + state }, { ok: "Conectado", warn: "Sin datos recientes", off: "Sin conectar", man: "A mano" }[state])),
         h("div", { class: "faint sm" }, sub_)), btn);
     sh.set("Conexiones", [
+      h("p", { class: "muted wz-p" }, "Todo es opcional: la web y tu agente funcionan sin conectar nada. Esto solo hace que lleguen solos los datos."),
       h("div", { class: "pc-list" },
         S.me ? row_("✦", "Agente (Claude, ChatGPT…)", agentConnected() ? "ok" : "off",
           agentConnected() ? S.me.agente.agents.map((t) => agentOf(t.agent || t.kind).n).join(", ") : "Para apuntar por chat, mandar capturas de Hevy o de la báscula",
@@ -686,7 +705,9 @@ async function trainingDaySheet(st) {
     ws.length ? h("div", { class: "list" }, ws.map((w) => h("div", { class: "item", onclick: () => { sh.close(); workoutSheet(w.id); } },
       h("div", { class: "nm" }, w.title), h("div", { class: "kc num" }, fmt(w.duration_min) + "′"), h("div", { class: "sub" }, `${w.sets_count} series · ${fmt(w.volume_kg)} kg`), h("div"))))
       : h("div", { class: "card empty flat" }, icon("dumbbell"), h("h3", null, rest ? "Día de descanso" : "Sin entreno"),
-        h("p", { class: "muted" }, "Dime «entreno hecho» por el chat y lo traigo de Hevy (vía ChatGPT o capturas), o importa el CSV de Hevy en la pestaña Entreno.")),
+        h("p", { class: "muted" }, (st.sessions || []).some((x) => !x.registrada)
+          ? `Tu móvil dice que entrenaste (${st.sessions.filter((x) => !x.registrada).map((x) => x.inicio + "–" + x.fin).join(", ")}). Mándale el entreno a tu agente: «entreno hecho» o la captura de Hevy.`
+          : rest ? "Hoy no cuenta ningún entreno." : "Mándale el entreno a tu agente («entreno hecho» o la captura de Hevy), o márcalo como día de descanso.")),
   ], [
     !closed && !ws.length ? h("button", { class: "btn", onclick: async () => { await act(() => api("PUT", "/api/days/" + st.date, { rest_day: !rest }), rest ? "Descanso quitado" : "Marcado como descanso"); sh.close(); } }, rest ? "Quitar descanso" : "Día de descanso") : null,
     h("span", { class: "grow" }),
@@ -817,6 +838,12 @@ function macroBadges(n, lbl) {
     h("div", { class: "mchips num" }, h("i", { class: "p " + pq, title: n.kcal ? `${fmt(pk * 100)} % de las kcal vienen de proteína` : "" }, v(n, "protein_g", n.protein_g < 10 ? 1 : 0)),
       h("i", { class: "c" }, v(n, "carbs_g", n.carbs_g < 10 ? 1 : 0)), h("i", { class: "g" }, v(n, "fat_g", n.fat_g < 10 ? 1 : 0))));
 }
+// Fotos de productos y comidas: al tocarlas se ven en grande; ninguna imagen se arrastra
+document.addEventListener("click", (e) => {
+  const im = e.target.closest && e.target.closest(".pframe img, .food-head img");
+  if (im && !im.closest(".tile")) { e.preventDefault(); e.stopPropagation(); zoomImg(im.src); }
+}, true);
+document.addEventListener("dragstart", (e) => { if (e.target.tagName === "IMG") e.preventDefault(); });
 // Foto en grande (encima de todo; se cierra tocando o con Esc)
 function zoomImg(src) {
   const ov = h("div", { class: "zoom-ov", onclick: () => close() }, h("img", { src, alt: "" }));
@@ -828,7 +855,7 @@ function zoomImg(src) {
 function photoFrame(name, cat, img) {
   const src = img ? (/^(\/|data:|https?:)/.test(img) ? img : "/" + img) : null;
   const fr = h("div", { class: "pframe" + (src ? "" : " none") });
-  if (src) fr.append(h("img", { src, alt: "", class: "zoomable", onclick: () => zoomImg(src), onerror: () => fr.replaceChildren(mono(name, cat, null, true)) }),
+  if (src) fr.append(h("img", { src, alt: "", class: "zoomable", onerror: () => fr.replaceChildren(mono(name, cat, null, true)) }),
     h("button", { type: "button", class: "pzoom", title: "Ver en grande", onclick: () => zoomImg(src) }, "⤢"));
   else fr.append(mono(name, cat, null, true));
   return fr;

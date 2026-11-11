@@ -1454,3 +1454,12 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 img.zoomable { cursor: zoom-in; }
 button.pzoom { border: 0; cursor: pointer; }
 @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+img { -webkit-user-drag: none; user-select: none; }
+.pframe img, .food-head img { cursor: zoom-in; }
+.sgoal { display: inline-flex; align-items: center; gap: 4px; background: var(--surface-2); color: var(--muted); font-weight: 600; padding: 3px 9px; border-radius: 99px; margin-top: 4px; }
+.sgoal svg { width: 12px; height: 12px; }
+.xg { margin-top: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; background: var(--surface); }
+.xg summary { cursor: pointer; font-weight: 600; font-size: 13.5px; }
+.xg ol { margin: 8px 0 2px; padding-left: 20px; font-size: 13px; color: var(--muted); }
+.xg li { margin: 6px 0; } .xg li b { color: var(--text); font-weight: 600; } .xg a { color: var(--accent); }
+.agent-steps .xg li b { display: inline; }
