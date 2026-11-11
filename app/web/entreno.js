@@ -1330,23 +1330,30 @@ function rankProgress(name, L) {
   const W = Math.max(300, Math.min(660, window.innerWidth - 72)), H = 230, PL = 40, PR = W < 420 ? 70 : 88, PT = 10, PB = 22;
   const X = (i) => PL + (i / (hist.length - 1)) * (W - PL - PR);
   const vs = hist.map((x) => x.L.raw), top = Math.max(...hist.map((x) => x.L.idx)), low = Math.min(...hist.map((x) => x.L.idx));
-  let lo = from ? Math.min(...cs.map((c) => c[from])) : Math.min(...vs, ...cs.map((c) => c[Math.max(1, low)])), hi = Math.max(...vs, ...cs.map((c) => c[Math.min(5, top + 1)]));
-  const pad = (hi - lo) * 0.08 || 1; hi += pad; lo = from ? lo - pad * 0.4 : lo - pad;
-  if (L.metric !== "add") lo = Math.max(0, lo);
+  // El eje empieza en 0 (kg, reps o segundos); con lastre puede bajar de 0 si hay series asistidas
+  let hi = Math.max(...vs, ...cs.map((c) => c[Math.min(5, top + 1)])), lo = L.metric === "add" ? Math.min(0, ...vs) : 0;
+  hi += (hi - lo) * 0.06 || 1;
   const Y = (v) => PT + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * (H - PT - PB);
   const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, class: "rprog" });
   const lbl = (x, y, txt, cls, anchor = "start") => { const t = svgEl("text", { x, y, "text-anchor": anchor, class: cls }); t.textContent = txt; svg.append(t); };
+  if (from) {  // habilidad: por debajo del mínimo (1 rep, sostenerlo…) no hay rango
+    let tp = "", bt = ""; hist.forEach((x, k) => { tp += (k ? "L" : "M") + X(k).toFixed(1) + " " + Y(cs[k][from]).toFixed(1); bt = "L" + X(k).toFixed(1) + " " + Y(lo).toFixed(1) + bt; });
+    svg.append(svgEl("path", { d: tp + bt + "Z", class: "norank" }));
+  }
   for (let i = from; i < 6; i++) {
     let tp = "", bt = "";
-    hist.forEach((x, k) => { const a = i === from ? lo : cs[k][i], b = i === 5 ? hi : cs[k][i + 1]; tp += (k ? "L" : "M") + X(k).toFixed(1) + " " + Y(b).toFixed(1); bt = "L" + X(k).toFixed(1) + " " + Y(a).toFixed(1) + bt; });
+    hist.forEach((x, k) => { const a = i === from ? (from ? cs[k][from] : lo) : cs[k][i], b = i === 5 ? hi : cs[k][i + 1]; tp += (k ? "L" : "M") + X(k).toFixed(1) + " " + Y(b).toFixed(1); bt = "L" + X(k).toFixed(1) + " " + Y(a).toFixed(1) + bt; });
     svg.append(svgEl("path", { d: tp + bt + "Z", fill: TCOL(i), opacity: 0.13 }));
     if (i > from) { let dl = ""; hist.forEach((x, k) => { dl += (k ? "L" : "M") + X(k).toFixed(1) + " " + Y(cs[k][i]).toFixed(1); });
       svg.append(svgEl("path", { d: dl, fill: "none", stroke: TCOL(i), "stroke-dasharray": "4 3", "stroke-width": 1.2 }));
-      const last = cs[hist.length - 1][i]; if (last > lo && last < hi) lbl(PL - 6, Y(last) + 4, fmt(last), "rl-c", "end"); }
-    const ya = Y(i === from ? lo : cs[hist.length - 1][i]), yb = Y(i === 5 ? hi : cs[hist.length - 1][i + 1]);
+      const last = cs[hist.length - 1][i]; if (last > lo && last < hi && Y(lo) - Y(last) > 12) lbl(PL - 6, Y(last) + 4, fmt(last), "rl-c", "end"); }
+    const ya = Y(i === from ? (from ? cs[hist.length - 1][from] : lo) : cs[hist.length - 1][i]), yb = Y(i === 5 ? hi : cs[hist.length - 1][i + 1]);
     if (ya - yb > 13) lbl(W - PR + 12, (ya + yb) / 2 + 4, LVL[i], "rl-n lvname l" + i);
   }
-  if (from) lbl(PL - 6, Y(cs[hist.length - 1][from]) + 4, fmt(cs[hist.length - 1][from]), "rl-c", "end");  // el suelo: lo mínimo para tener rango
+  // abajo, el 0 (y en habilidades, el mínimo para tener rango si no queda pegado al 0)
+  lbl(PL - 6, Y(lo) + 4, fmt(lo), "rl-c", "end");
+  if (from && Y(lo) - Y(cs[hist.length - 1][from]) > 18) lbl(PL - 6, Y(cs[hist.length - 1][from]) + 4, fmt(cs[hist.length - 1][from]), "rl-c", "end");
+  svg.append(svgEl("line", { x1: PL, x2: W - PR, y1: Y(lo), y2: Y(lo), class: "axisl" }));
   let d = ""; hist.forEach((x, i) => { d += (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(x.L.raw).toFixed(1); });
   svg.append(svgEl("path", { d, fill: "none", stroke: "var(--text)", "stroke-width": 1.8 }));
   hist.forEach((x, i) => svg.append(tip(svgEl("circle", { cx: X(i), cy: Y(x.L.raw), r: i === hist.length - 1 ? 5 : 3.4, fill: TCOL(x.L.idx), stroke: "var(--surface, #fff)", "stroke-width": 1.5, class: "rp-pt" }),

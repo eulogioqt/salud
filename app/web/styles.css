@@ -1611,3 +1611,4 @@ img { -webkit-user-drag: none; user-select: none; }
 @media (prefers-color-scheme: dark) { :root { --ring-over1: #3fae84; --ring-over1b: #1f6b4f; --ring-over3: #f06a62; --ring-over3b: #c23a32; } }
 .ring .rg-x { fill: var(--ring-over1b); } .ring .rg-x.hi { fill: var(--ring-over3b); }
 @media (prefers-color-scheme: dark) { .ring .rg-x { fill: var(--ring-over1); } .ring .rg-x.hi { fill: var(--ring-over3); } }
+.rprog .norank { fill: var(--line); opacity: .45; } .rprog .axisl { stroke: var(--line-2, #d8d4cc); stroke-width: 1; }
