@@ -1722,9 +1722,9 @@ def _ingest_body(conn, payload, source):
         if "weight_kg" not in vals and "fat_pct" not in vals:
             continue
         try:
-            # El peso del día es el de la mañana (de 4:00 a 12:00): otros pesajes del día se guardan, pero no cuentan
-            # para la tendencia (por la tarde se pesa más: comida, agua…)
-            morning = "04:00" <= t < "12:00"
+            # El peso del día es el primero al levantarse (antes de las 15:00): los siguientes del día y los de la tarde
+            # se guardan, pero no cuentan para la tendencia (más tarde se pesa más: comida, agua…)
+            morning = "04:00" <= t < "15:00"
             T.add_body(conn, dict(vals, date=d, time=t, source="movil", set_day_weight=morning), source)
             out.append({"fecha": d, "hora": t, "nuevo": True, "peso_del_dia": morning, **vals})
         except (ValidationError, ClosedDayError):
