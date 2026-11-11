@@ -399,7 +399,8 @@ function bodyStrip(st) {
           w.notes ? h("div", { class: "wk-d" }, w.notes) : null,
           h("div", { class: "wk-s" }, [w.duration_min ? fmt(w.duration_min) + " min" : null, w.sets_count + " series", fmt(w.volume_kg) + " kg", w.activity_id ? kc(w.activity_id) + " kcal" : null].filter(Boolean).join(" · ")))),
          ...other.map((a) => h("div", { class: "a" }, h("b", null, (ACT_TYPES.find((x) => x[0] === a.type) || [0, a.type])[1]), ` ${a.minutes ? fmt(a.minutes) + "′" : ""}`, h("span", { class: "faint" }, " · " + kc(a.id) + " kcal")))]
-      : (st.sessions || []).some((x) => !x.registrada) ? h("div", { class: "acts" }, st.sessions.filter((x) => !x.registrada).map((x) => h("div", { class: "a det" }, h("b", null, "Entreno detectado"), h("div", { class: "faint" }, `${x.titulo ? x.titulo + " · " : ""}${cap1(x.tipo)} · ${x.inicio}–${x.fin}${x.app ? " · " + x.app : ""}`), h("div", { class: "det-cta" }, "Mándaselo a tu agente: «entreno hecho» o las capturas"))))
+      : (st.sessions || []).some((x) => !x.registrada) ? h("div", { class: "acts" }, st.sessions.filter((x) => !x.registrada).map((x) => h("div", { class: "a det", title: "Ha llegado del móvil: toca para ver qué hacer" },
+          h("span", { class: "det-i" }, "!"), h("b", { class: "det-l" }, "Entreno detectado"), h("span", { class: "det-n" }, (x.titulo || cap1(x.tipo)) + " · " + x.inicio))))
       : h("div", { class: "v none" }, h("small", null, day.rest_day === 1 ? "Descanso" : "Sin registrar"))));
   return h("div", { class: "strip" }, weight, steps, train);
 }
@@ -706,9 +707,9 @@ async function trainingDaySheet(st) {
   const sh = sheet("Entreno", [
     ws.length ? h("div", { class: "list" }, ws.map((w) => h("div", { class: "item", onclick: () => { sh.close(); workoutSheet(w.id); } },
       h("div", { class: "nm" }, w.title), h("div", { class: "kc num" }, fmt(w.duration_min) + "′"), h("div", { class: "sub" }, `${w.sets_count} series · ${fmt(w.volume_kg)} kg`), h("div"))))
-      : h("div", { class: "card empty flat" }, icon("dumbbell"), h("h3", null, rest ? "Día de descanso" : "Sin entreno"),
+      : h("div", { class: "card empty flat" }, icon("dumbbell"), h("h3", null, (st.sessions || []).some((x) => !x.registrada) ? "Entreno detectado" : rest ? "Día de descanso" : "Sin entreno"),
         h("p", { class: "muted" }, (st.sessions || []).some((x) => !x.registrada)
-          ? `Tu móvil dice que entrenaste (${st.sessions.filter((x) => !x.registrada).map((x) => x.inicio + "–" + x.fin).join(", ")}). Mándale el entreno a tu agente: «entreno hecho» o la captura de Hevy.`
+          ? `Ha llegado de ${st.sessions.find((x) => !x.registrada).app || "tu móvil"}: ${st.sessions.filter((x) => !x.registrada).map((x) => (x.titulo ? "«" + x.titulo + "» " : "") + x.inicio + "–" + x.fin).join(", ")}. Mándaselo a tu agente para tener las series: dile «entreno hecho» o pásale las capturas.`
           : rest ? "Hoy no cuenta ningún entreno." : "Mándale el entreno a tu agente («entreno hecho» o la captura de Hevy), o márcalo como día de descanso.")),
   ], [
     !closed && !ws.length ? h("button", { class: "btn", onclick: async () => { await act(() => api("PUT", "/api/days/" + st.date, { rest_day: !rest }), rest ? "Descanso quitado" : "Marcado como descanso"); sh.close(); } }, rest ? "Quitar descanso" : "Día de descanso") : null,
