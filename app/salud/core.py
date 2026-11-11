@@ -1080,7 +1080,7 @@ def close_check(conn, d):
     # (sin entreno no es un aviso: el día cuenta como descanso; sí lo es si el móvil dice que entrenó y falta el entreno)
     for x in hc_sessions(conn, d):
         if not x["registrada"]:
-            w.append({"level": "info", "code": "entreno", "text": "Has entrenado de %s a %s (%s): manda el entreno o apúntalo" % (x["inicio"], x["fin"], x["titulo"] or x["tipo"])})
+            w.append({"level": "importante", "code": "entreno", "text": "Has entrenado de %s a %s (%s): manda el entreno a tu agente" % (x["inicio"], x["fin"], x["titulo"] or x["tipo"])})
     if st["entry_count"] == 0:
         w.append({"level": "importante", "code": "comidas", "text": "No hay comidas registradas"})
     else:

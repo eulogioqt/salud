@@ -1447,7 +1447,6 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .prchip, .prc { box-sizing: border-box; padding-top: 2px; }
 .prchip svg, .prc svg { margin-top: -2px; }
 .prc.lg { padding-top: 3px; } .prc.lg svg { margin-top: -2.5px; }
-.acts .a.det b { color: var(--warn); } .acts .a.det .faint { font-size: 12px; }
 .hcw-key { margin-top: 8px; } .hcw-key summary { cursor: pointer; font-size: 13px; } .hcw-key[open] summary { margin-bottom: 4px; }
 .zoom-ov { position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,.86); display: grid; place-items: center; cursor: zoom-out; animation: fadeIn .15s ease; }
 .zoom-ov img { max-width: 94vw; max-height: 90vh; border-radius: 12px; object-fit: contain; }
@@ -1496,9 +1495,17 @@ img { -webkit-user-drag: none; user-select: none; }
 .cal-fi .cal-bar { flex: 1; margin-top: 0; }
 .cal-fi b { font-size: 12px; font-weight: 600; color: var(--muted); min-width: 34px; text-align: right; }
 .fi-i { font-size: 11px; opacity: .7; } .cal-fi { cursor: help; } .wc svg { touch-action: pan-y; }
-.acts .a.det .det-cta { font-size: 12px; color: var(--warn); margin-top: 3px; font-weight: 550; }
-.acts .a.det { display: flex; align-items: center; gap: 8px; }
 .det-i { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--warn); color: #fff; font-weight: 800; font-size: 13px; display: grid; place-items: center; }
-.acts .a.det .det-l { color: var(--warn); font-weight: 650; font-size: 14px; }
-.acts .a.det .det-n { color: var(--faint); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-@media (max-width: 640px) { .acts .a.det .det-l { display: none; } .acts .a.det .det-n { color: var(--muted); font-size: 13.5px; } }
+/* entreno que ha llegado del móvil y falta mandar */
+.det-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 650; color: var(--warn); background: var(--warn-soft); padding: 2px 9px 2px 3px; border-radius: 99px; }
+.det-badge .det-i { width: 17px; height: 17px; font-size: 11px; }
+.acts .a.wk.det .wk-t b { color: var(--text); }
+.det-card { border: 1px solid var(--line); border-radius: 16px; padding: 14px; background: var(--surface); }
+.det-src { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--warn); margin-bottom: 10px; }
+.det-w + .det-w { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.det-t { font-size: 18px; font-weight: 680; letter-spacing: -.01em; margin-bottom: 10px; }
+.det-kv { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.det-kv > div { background: var(--surface-2); border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.det-kv span { font-size: 11.5px; color: var(--faint); } .det-kv b { font-size: 15px; font-weight: 650; }
+.det-how { margin: 12px 0 0; font-size: 13px; color: var(--muted); line-height: 1.45; }
+@media (max-width: 640px) { .det-kv { grid-template-columns: repeat(2, 1fr); } .det-badge .det-bt { display: none; } .det-badge { padding: 0; background: none; } .det-badge .det-i { width: 20px; height: 20px; font-size: 12px; } }

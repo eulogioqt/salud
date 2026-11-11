@@ -387,20 +387,22 @@ function bodyStrip(st) {
       : h("div", { class: "v sv" }, h("span", null, fmt(day.steps)), skc ? h("small", { class: "skc" }, skc) : null),
     st.steps_hours ? blockBars(st.steps_hours, st.date === st.today) : null);
   const ws = st.workouts || [];
+  const pend = ws.length ? [] : (st.sessions || []).filter((x) => !x.registrada);  // entrenos que han llegado del móvil y faltan
   const trainOn = !!(S.pasos || {}).entreno_ultimo && !((S.pasos || {}).off || []).includes("entreno");
   const other = st.activities.filter((a) => !ws.some((w) => w.activity_id === a.id));
   const kc = (id) => fmt((en.exercise.find((x) => x.id === id) || {}).kcal);
   const train = h("div", { class: "stat clickable", onclick: () => trainingDaySheet(st) },
     h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic e" }, "🏋"), "Entreno"),
-      ws.length ? h("span", { class: "lnk" }, "Ver") : S.me && !closed && !trainOn ? h("button", { class: "lnk-btn", title: "Que se sepa solo cuándo entrenas", onclick: (e) => { e.stopPropagation(); stepsConnectSheet("entreno"); } }, "🔗 Conectar") : null),
+      ws.length ? h("span", { class: "lnk" }, "Ver") : pend.length ? h("span", { class: "det-badge", title: "Ha llegado del móvil y falta mandar el entreno" }, h("span", { class: "det-i" }, "!"), h("span", { class: "det-bt" }, "Falta mandarlo")) : S.me && !closed && !trainOn ? h("button", { class: "lnk-btn", title: "Que se sepa solo cuándo entrenas", onclick: (e) => { e.stopPropagation(); stepsConnectSheet("entreno"); } }, "🔗 Conectar") : null),
     h("div", { class: "acts" }, ws.length || other.length
       ? [...ws.map((w) => h("div", { class: "a wk" },
           h("div", { class: "wk-t" }, h("b", null, w.title), w.prs_count ? h("span", { class: "prc", title: "Récords batidos en este entreno" }, icon("trophy"), String(w.prs_count)) : null),
           w.notes ? h("div", { class: "wk-d" }, w.notes) : null,
           h("div", { class: "wk-s" }, [w.duration_min ? fmt(w.duration_min) + " min" : null, w.sets_count + " series", fmt(w.volume_kg) + " kg", w.activity_id ? kc(w.activity_id) + " kcal" : null].filter(Boolean).join(" · ")))),
          ...other.map((a) => h("div", { class: "a" }, h("b", null, (ACT_TYPES.find((x) => x[0] === a.type) || [0, a.type])[1]), ` ${a.minutes ? fmt(a.minutes) + "′" : ""}`, h("span", { class: "faint" }, " · " + kc(a.id) + " kcal")))]
-      : (st.sessions || []).some((x) => !x.registrada) ? h("div", { class: "acts" }, st.sessions.filter((x) => !x.registrada).map((x) => h("div", { class: "a det", title: "Ha llegado del móvil: toca para ver qué hacer" },
-          h("span", { class: "det-i" }, "!"), h("b", { class: "det-l" }, "Entreno detectado"), h("span", { class: "det-n" }, (x.titulo || cap1(x.tipo)) + " · " + x.inicio))))
+      : pend.length ? h("div", { class: "acts" }, pend.map((x) => h("div", { class: "a wk det" },
+          h("div", { class: "wk-t" }, h("b", null, x.titulo || "Entreno de " + x.tipo)),
+          h("div", { class: "wk-s" }, [`${x.inicio} – ${x.fin}`, fmt(x.minutos) + " min", x.app ? "de " + x.app : null].filter(Boolean).join(" · ")))))
       : h("div", { class: "v none" }, h("small", null, day.rest_day === 1 ? "Descanso" : "Sin registrar"))));
   return h("div", { class: "strip" }, weight, steps, train);
 }
@@ -704,15 +706,19 @@ async function trainingDaySheet(st) {
   if (ws.length === 1) return workoutSheet(ws[0].id);
   const hv = await api("GET", "/api/hevy").catch(() => ({ configured: false }));
   const closed = st.status === "cerrado", rest = st.day.rest_day === 1;
+  const pend = ws.length ? [] : (st.sessions || []).filter((x) => !x.registrada);
   const sh = sheet("Entreno", [
     ws.length ? h("div", { class: "list" }, ws.map((w) => h("div", { class: "item", onclick: () => { sh.close(); workoutSheet(w.id); } },
       h("div", { class: "nm" }, w.title), h("div", { class: "kc num" }, fmt(w.duration_min) + "′"), h("div", { class: "sub" }, `${w.sets_count} series · ${fmt(w.volume_kg)} kg`), h("div"))))
-      : h("div", { class: "card empty flat" }, icon("dumbbell"), h("h3", null, (st.sessions || []).some((x) => !x.registrada) ? "Entreno detectado" : rest ? "Día de descanso" : "Sin entreno"),
-        h("p", { class: "muted" }, (st.sessions || []).some((x) => !x.registrada)
-          ? `Ha llegado de ${st.sessions.find((x) => !x.registrada).app || "tu móvil"}: ${st.sessions.filter((x) => !x.registrada).map((x) => (x.titulo ? "«" + x.titulo + "» " : "") + x.inicio + "–" + x.fin).join(", ")}. Mándaselo a tu agente para tener las series: dile «entreno hecho» o pásale las capturas.`
-          : rest ? "Hoy no cuenta ningún entreno." : "Mándale el entreno a tu agente («entreno hecho» o la captura de Hevy), o márcalo como día de descanso.")),
+      : pend.length ? h("div", { class: "det-card" },
+          h("div", { class: "det-src" }, h("span", { class: "det-i" }, "!"), `Ha llegado de ${pend[0].app || "tu móvil"} · falta mandar el entreno`),
+          pend.map((x) => h("div", { class: "det-w" }, h("div", { class: "det-t" }, x.titulo || "Entreno de " + x.tipo),
+            h("div", { class: "det-kv" }, [["Empieza", x.inicio], ["Termina", x.fin], ["Duración", fmt(x.minutos) + " min"], ["Tipo", cap1(x.tipo)]].map(([k, v]) => h("div", null, h("span", null, k), h("b", { class: "num" }, v)))))),
+          h("p", { class: "det-how" }, "Para tener las series y los pesos, mándaselo a tu agente: dile «entreno hecho» o pásale las capturas de Hevy."))
+      : h("div", { class: "card empty flat" }, icon("dumbbell"), h("h3", null, rest ? "Día de descanso" : "Sin entreno"),
+        h("p", { class: "muted" }, rest ? "Hoy no cuenta ningún entreno." : "Mándale el entreno a tu agente («entreno hecho» o la captura de Hevy), o márcalo como día de descanso.")),
   ], [
-    !closed && !ws.length ? h("button", { class: "btn", onclick: async () => { await act(() => api("PUT", "/api/days/" + st.date, { rest_day: !rest }), rest ? "Descanso quitado" : "Marcado como descanso"); sh.close(); } }, rest ? "Quitar descanso" : "Día de descanso") : null,
+    !closed && !ws.length && !pend.length ? h("button", { class: "btn", onclick: async () => { await act(() => api("PUT", "/api/days/" + st.date, { rest_day: !rest }), rest ? "Descanso quitado" : "Marcado como descanso"); sh.close(); } }, rest ? "Quitar descanso" : "Día de descanso") : null,
     h("span", { class: "grow" }),
     h("button", { class: "btn primary lg", onclick: () => { sh.close(); location.hash = "#/entreno"; } }, "Ir a Entreno"),
   ], { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }) });
