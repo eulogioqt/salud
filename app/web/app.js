@@ -298,14 +298,13 @@ function ringTip(st) {
   const d = kc - tg.kcal;
   return [d > 0 ? `${fmt(d)} kcal por encima de lo que tocaba comer` : `Te quedan ${fmt(-d)} kcal para el objetivo`,
     `Comido | ${fmt(kc)} kcal`, `Objetivo de comida | ${fmt(tg.kcal)} kcal`,
-    tg.dynamic ? "Se calcula para que, con lo que gastas, el día acabe en tu balance objetivo." : null,
-    d > 0 && st.balance != null ? `El balance se pasa algo menos (${signed(st.balance - (tg.dynamic ? (tg.kcal_offset || 0) : 0))}) porque comer más también gasta algo más en digestión.` : null].filter(Boolean).join("\n");
+    tg.dynamic ? "Es lo que toca comer para que, con lo que gastas, el día acabe en tu objetivo." : null].filter(Boolean).join("\n");
 }
 function balTip(st) {
   const tg = st.target || {}, en = st.energy, b = st.balance;
   const goal = tg.dynamic ? (tg.kcal_offset || 0) : tg.kcal && en.total != null ? Math.round(tg.kcal - en.total) : null;
   return ["Balance = comido − gastado", `Hoy | ${b == null ? "?" : signed(b)} kcal (${b == null ? "—" : b < 0 ? "déficit" : b > 0 ? "superávit" : "equilibrio"})`,
-    goal != null ? `Tu objetivo | ${signed(goal)} kcal` : null, goal != null && b != null ? `Diferencia | ${signed(b - goal)} kcal` : null].filter(Boolean).join("\n");
+    goal != null ? `Tu objetivo | ${signed(goal)} kcal` : null].filter(Boolean).join("\n");
 }
 function summaryCard(st) {
   const t = st.totals, tg = st.target || {}, en = st.energy;
