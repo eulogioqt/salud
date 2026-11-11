@@ -1676,7 +1676,7 @@ def hc_sessions(conn, d):
 # Báscula por Health Connect: tipo del envío → (campo de body_metrics, clave del valor, conversión)
 _BODY_HC = {"weight": ("weight_kg", "kilograms", 1), "body_fat": ("fat_pct", "percentage", 1), "lean_body_mass": ("lean_kg", "kilograms", 1),
             "bone_mass": ("bone_kg", "kilograms", 1), "body_water_mass": ("water_kg", "kilograms", 1),
-            "basal_metabolic_rate": ("bmr_kcal", "watts", 86400 / 4184)}
+            "basal_metabolic_rate": ("bmr_kcal", "watts", 86400 / 4184), "bmi": ("bmi", "value", 1)}
 
 
 def _ingest_body(conn, payload, source):
@@ -1695,6 +1695,22 @@ def _ingest_body(conn, payload, source):
     out = []
     for when, vals in sorted(by.items()):
         d, t = when[:10], when[11:]
+        # lo que se puede deducir: kg de grasa, % de agua y de hueso
+        w = vals.get("weight_kg")
+        if w:
+            if vals.get("fat_pct") is not None:
+                vals.setdefault("fat_kg", round(w * vals["fat_pct"] / 100, 2))
+            if vals.get("water_kg") is not None:
+                vals.setdefault("water_pct", round(100 * vals["water_kg"] / w, 1))
+            if vals.get("bone_kg") is not None:
+                vals.setdefault("bone_pct", round(100 * vals["bone_kg"] / w, 1))
+        for f in ("fat_pct", "bmi"):
+            if vals.get(f) is not None:
+                vals[f] = round(vals[f], 1)
+        # uno borrado a mano no vuelve (si el móvil lo reenvía, se ignora)
+        if conn.execute("SELECT 1 FROM body_metrics WHERE date=? AND time=? AND source='movil' AND deleted_at IS NOT NULL", (d, t)).fetchone():
+            out.append({"fecha": d, "hora": t, "nuevo": False, "motivo": "borrado"})
+            continue
         same = conn.execute("SELECT * FROM body_metrics WHERE date=? AND deleted_at IS NULL AND (time=? OR (weight_kg IS NOT NULL AND ABS(weight_kg-?)<0.06))",
                             (d, t, vals.get("weight_kg", -99))).fetchone()
         if same:

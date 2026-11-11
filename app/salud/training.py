@@ -540,6 +540,11 @@ def delete_body(conn, bid, source="web"):
         raise NotFound("Medición no encontrada")
     with tx(conn, "delete_body", source, r["date"], ref=bid):
         conn.execute("UPDATE body_metrics SET deleted_at=? WHERE id=?", (ts(), bid))
+        # si el peso del día venía de esta medición (y el día sigue abierto), se cambia por otra de ese día o se quita
+        day = conn.execute("SELECT weight_kg, status FROM days WHERE date=?", (r["date"],)).fetchone()
+        if day and day["status"] != "cerrado" and r["weight_kg"] is not None and day["weight_kg"] is not None and abs(day["weight_kg"] - r["weight_kg"]) < 0.05:
+            other = conn.execute("SELECT weight_kg FROM body_metrics WHERE date=? AND deleted_at IS NULL AND weight_kg IS NOT NULL ORDER BY time LIMIT 1", (r["date"],)).fetchone()
+            conn.execute("UPDATE days SET weight_kg=?, updated_at=? WHERE date=?", (other[0] if other else None, ts(), r["date"]))
     return {"ok": True}
 
 
