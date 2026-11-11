@@ -134,6 +134,14 @@ function exIcon(name, size = 40) {
 }
 
 
+// ------------------------------------------------------------- etiquetas que se abrevian si no caben
+const FIT_RO = "ResizeObserver" in window ? new ResizeObserver((es) => es.forEach((e) => fitNow(e.target))) : null;
+function fitNow(c) { if (!c.isConnected) return; const ks = [...c.children].filter((k) => k.querySelector(":scope > .cs")); ks.forEach((k) => k.classList.remove("short"));
+  const over = () => c.scrollWidth > c.clientWidth + 1, grp = (k) => k.classList.contains("upchip") || k.classList.contains("prc");
+  for (let i = ks.length - 1; i >= 0 && over(); i--) { if (grp(ks[i])) { ks.filter(grp).forEach((k) => k.classList.add("short")); break; } ks[i].classList.add("short"); }
+}
+function fitc(el) { el.classList.add("fitc"); if (FIT_RO) FIT_RO.observe(el); requestAnimationFrame(() => fitNow(el)); return el; }
+
 // ------------------------------------------------------------- tooltips
 // Un único tooltip para todas las gráficas: cualquier elemento con data-tip lo muestra al pasar el ratón (o al tocar en el móvil).
 const TIP = { el: null };
@@ -837,6 +845,25 @@ function upRow(u) {
       h("div", { class: "exr-s" }, dateLabel(u.date, { weekday: "short", day: "numeric", month: "short" }) + " · " + u.L.valTxt)),
     h("div", { class: "exr-v up" }, h("span", { class: "upfromto" }, h("span", { class: "upfrom" }, lvlBadge(u.from, 14), h("span", { class: "lvname sm l" + u.from }, LVL[u.from])), h("span", { class: "uparr" }, icon("up")), lvlShield(u.L, 18), h("b", { class: "lvname l" + u.to }, LVL[u.to]))));
 }
+// Subidas de rango de un entreno (en la lista y en Hoy): flecha naranja y número
+function upsOf(wid) { return ((S.tStats && S.tStats.ups) || []).filter((u) => u.wid === wid); }
+function upsChip(wid) {
+  const ups = upsOf(wid);
+  return ups.length ? tip(h("span", { class: "upchip" }, icon("up"), String(ups.length)), ups.map((u) => `${dispName(u.name)}: ${LVL[u.from]} → ${LVL[u.to]}`).join("\n")) : null;
+}
+// En Hoy no se cargan todos los entrenos: se calculan las estadísticas una vez, en segundo plano, para las subidas de rango
+let TSTATS_LOADING = false;
+async function ensureTStats() {
+  if (S.tStats || TSTATS_LOADING) return;
+  TSTATS_LOADING = true;
+  try {
+    if (!S.training) S.training = await api("GET", "/api/workouts?limit=5000");
+    await ensureTrainingMeta();
+    if (typeof loadSLTables === "function") await loadSLTables().catch(() => {});
+    if (!S.tStats && S.training.workouts.length) S.tStats = Object.assign(trainingStats(S.training.workouts, S.bw), { _src: S.training.workouts, _bw: S.weights, _set: S.exSet });
+    if (S.view === "hoy" && !S.sheetOpen) render();
+  } catch (e) { /* sin subidas de rango: no pasa nada */ } finally { TSTATS_LOADING = false; }
+}
 function upChip(u) {
   return tip(h("span", { class: "upchip" }, icon("up"), LVL[u.to]), `Nuevo rango: ${LVL[u.from]} → ${LVL[u.to]}`);
 }
@@ -896,7 +923,7 @@ function workoutCard(w) {
   return h("div", { class: "card wcard v2", onclick: () => workoutSheet(w.id) },
     h("div", { class: "wdate" }, h("b", null, String(d)), h("span", null, dt.toLocaleDateString("es-ES", { weekday: "short" }))),
     h("div", { class: "wbody" },
-      h("div", { class: "wc-h" }, h("div", { class: "wc-t" }, w.title), w.prs_count ? tip(h("span", { class: "prc" }, icon("trophy"), String(w.prs_count)), `${w.prs_count} récords en este entreno`) : null, h("span", { class: "grow" }), w.start_time ? h("span", { class: "faint" }, w.start_time) : null),
+      h("div", { class: "wc-h" }, h("div", { class: "wc-t" }, w.title), upsChip(w.id), w.prs_count ? tip(h("span", { class: "prc" }, icon("trophy"), String(w.prs_count)), `${w.prs_count} récords en este entreno`) : null, h("span", { class: "grow" }), w.start_time ? h("span", { class: "faint" }, w.start_time) : null),
       w.notes ? h("div", { class: "wc-desc" }, w.notes) : null,
       h("div", { class: "wchips" }, w.duration_min ? h("span", null, fmt(w.duration_min) + " min") : null, w.volume_kg ? h("span", null, fmt(w.volume_kg) + " kg") : null, h("span", null, w.sets_count + " series")),
       h("div", { class: "wc-ex" }, w.exercises.map((ex) => { const b = ex.sets.length ? bestSetOf(ex) : null; return h("div", { class: "wc-exr" }, exIcon(ex.name, 22),
@@ -1277,13 +1304,16 @@ async function workoutSheet_(id) {
   const upTip = wUps.map((u) => `${dispName(u.name)}: ${LVL[u.from]} → ${LVL[u.to]}`).join("\n");
   const prTip = w.exercises.filter((ex) => ex.prs && ex.prs.length).map((ex) => `${ex.name}: ${ex.prs.map((t) => PR_SHORT[t]).join(", ")}`).join("\n");
   // sm = versión reducida para el móvil: icono + número, fecha corta; la fecha siempre al final
+  // Etiquetas con versión larga y corta: si en la cabecera no caben, se usa la corta (ver fitc)
+  const two = (l, sh_) => [h("span", { class: "cl" }, l), h("span", { class: "cs" }, sh_)];
   const mkChips = (sm) => [
-    wUps.length ? tip(h("span", { class: "upchip lg" }, icon("up"), sm ? String(wUps.length) : `${wUps.length} ${wUps.length === 1 ? "rango nuevo" : "rangos nuevos"}`), upTip) : null,
-    nPR ? tip(h("span", { class: "prc lg" }, icon("trophy"), sm ? String(nPR) : `${nPR} ${nPR === 1 ? "récord" : "récords"}`), prTip) : null,
+    wUps.length ? tip(h("span", { class: "upchip lg" }, icon("up"), ...(sm ? [String(wUps.length)] : two(`${wUps.length} ${wUps.length === 1 ? "rango nuevo" : "rangos nuevos"}`, String(wUps.length)))), upTip) : null,
+    nPR ? tip(h("span", { class: "prc lg" }, icon("trophy"), ...(sm ? [String(nPR)] : two(`${nPR} ${nPR === 1 ? "récord" : "récords"}`, String(nPR)))), prTip) : null,
     bwAt(w.date) ? tip(h("span", { class: "datec" }, `${fmt(bwAt(w.date), 1)} kg`), bwExact(w.date) ? "Tu peso ese día (pesaje)" : "Tu peso ese día (interpolado entre pesajes)") : null,
-    h("span", { class: "datec" }, dateLabel(w.date, sm ? { day: "numeric", month: "short" } : { weekday: "short", day: "numeric", month: "short", year: "numeric" }) + (w.start_time ? " · " + w.start_time : ""))].filter(Boolean);
+    h("span", { class: "datec dt" }, ...(() => { const t = w.start_time ? " · " + w.start_time : "", s_ = dateLabel(w.date, { day: "numeric", month: "short" }) + t;
+      return sm ? [s_] : two(dateLabel(w.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) + t, s_); })())].filter(Boolean);
   sh.set(w.title, [
-    h("div", { class: "wchips" }, mkChips(true)),
+    fitc(h("div", { class: "wchips" }, mkChips())),
     h("div", { class: "wstats big" },
       h("div", null, h("span", null, "Duración"), h("b", null, w.duration_min ? fmt(w.duration_min) + " min" : "—")),
       h("div", null, h("span", null, "Volumen"), h("b", null, fmt(w.volume_kg) + " kg")),
@@ -1295,7 +1325,7 @@ async function workoutSheet_(id) {
     h("div", { class: "note" }, `Origen: ${w.source}` + (w.volume_source === "hevy" ? " · volumen tomado de Hevy" : " · volumen: kg × reps de todas las series, como en Hevy")),
   ], [h("button", { class: "btn ghost danger", onclick: (e) => confirmDel(e, async () => { await act(() => api("DELETE", "/api/workouts/" + w.id), "Entreno eliminado"); sh.close(); }) }, "Eliminar"),
     h("span", { class: "grow" }), w.activity_id ? h("button", { class: "btn", onclick: () => { sh.close(); goDay(w.date); } }, "Ver día") : null],
-  { big: true, desc: w.notes || "", titleExtra: h("span", { class: "wk-hd" }, mkChips()) });
+  { big: true, desc: w.notes || "", titleExtra: fitc(h("span", { class: "wk-hd" }, mkChips())) });
 }
 
 // Ajustes del ejercicio: material, peso de la máquina, polea que pesa la mitad y si es a un brazo.

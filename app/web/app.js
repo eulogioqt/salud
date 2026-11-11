@@ -390,6 +390,7 @@ function bodyStrip(st) {
       : h("div", { class: "v sv" }, h("span", null, fmt(day.steps)), skc ? h("small", { class: "skc" }, skc) : null),
     st.steps_hours ? blockBars(st.steps_hours, st.date === st.today) : null);
   const ws = st.workouts || [];
+  if (ws.length && !S.tStats) ensureTStats();
   const pend = ws.length ? [] : (st.sessions || []).filter((x) => !x.registrada);  // entrenos que han llegado del móvil y faltan
   const trainOn = !!(S.pasos || {}).entreno_ultimo && !((S.pasos || {}).off || []).includes("entreno");
   const other = st.activities.filter((a) => !ws.some((w) => w.activity_id === a.id));
@@ -399,7 +400,7 @@ function bodyStrip(st) {
       ws.length ? h("span", { class: "lnk" }, "Ver") : pend.length ? h("span", { class: "det-badge", title: "Ha llegado del móvil y falta mandar el entreno" }, h("span", { class: "det-i" }, "!"), h("span", { class: "det-bt" }, "Falta mandarlo")) : S.me && !closed && !trainOn ? h("button", { class: "lnk-btn", title: "Que se sepa solo cuándo entrenas", onclick: (e) => { e.stopPropagation(); stepsConnectSheet("entreno"); } }, "🔗 Conectar") : null),
     h("div", { class: "acts" }, ws.length || other.length
       ? [...ws.map((w) => h("div", { class: "a wk" },
-          h("div", { class: "wk-t" }, h("b", null, w.title), w.prs_count ? h("span", { class: "prc", title: "Récords batidos en este entreno" }, icon("trophy"), String(w.prs_count)) : null),
+          h("div", { class: "wk-t" }, h("b", null, w.title), upsChip(w.id), w.prs_count ? h("span", { class: "prc", title: "Récords batidos en este entreno" }, icon("trophy"), String(w.prs_count)) : null),
           w.notes ? h("div", { class: "wk-d" }, w.notes) : null,
           h("div", { class: "wk-s" }, [w.duration_min ? fmt(w.duration_min) + " min" : null, w.sets_count + " series", fmt(w.volume_kg) + " kg", w.activity_id ? kc(w.activity_id) + " kcal" : null].filter(Boolean).join(" · ")))),
          ...other.map((a) => h("div", { class: "a" }, h("b", null, (ACT_TYPES.find((x) => x[0] === a.type) || [0, a.type])[1]), ` ${a.minutes ? fmt(a.minutes) + "′" : ""}`, h("span", { class: "faint" }, " · " + kc(a.id) + " kcal")))]
