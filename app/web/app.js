@@ -266,18 +266,13 @@ function ringSvg(size, r, w, p, cls, center, laps) {
   svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-bg" }));
   if (p > 0) svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${C * Math.min(1, p)} ${C}`, transform: "rotate(-90)" }));
   if (laps && p > 1) {
-    // Lo que te pasas: una vuelta rayada en ámbar encima; si pasas del doble, otra rayada en rojo encima de esa
+    // Lo que te pasas: otra vuelta encima en ámbar; si pasas del doble, otra en rojo (con sombrita donde empieza)
     const id = Math.random().toString(36).slice(2, 7), defs = svgE("defs", {});
     const f = svgE("filter", { id: "rsh" + id, x: "-30%", y: "-30%", width: "160%", height: "160%" });
-    f.append(svgE("feDropShadow", { dx: 0, dy: 0, stdDeviation: 2, "flood-opacity": 0.4 })); defs.append(f);
-    [["a", "var(--ring-over1)", "var(--ring-over1b)"], ["r", "var(--ring-over3)", "var(--ring-over3b)"]].forEach(([k, c1, c2]) => {
-      const pt = svgE("pattern", { id: `rh${k}${id}`, width: 6, height: 6, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" });
-      pt.append(svgE("rect", { width: 6, height: 6, style: `fill:${c1}` }), svgE("rect", { width: 3, height: 6, style: `fill:${c2}` })); defs.append(pt);
-    });
-    svg.prepend(defs);
+    f.append(svgE("feDropShadow", { dx: 0, dy: 0, stdDeviation: 2, "flood-opacity": 0.4 })); defs.append(f); svg.prepend(defs);
     for (let k = 1; k < 3 && p > k; k++) {
       const ex = Math.min(1, p - k);
-      svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, stroke: `url(#rh${k === 1 ? "a" : "r"}${id})`, "stroke-linecap": "round", "stroke-dasharray": `${C * ex} ${C}`, transform: "rotate(-90)", filter: `url(#rsh${id})` }));
+      svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, style: `stroke:var(${k === 1 ? "--ring-over1" : "--ring-over3"})`, "stroke-linecap": "round", "stroke-dasharray": `${C * ex} ${C}`, transform: "rotate(-90)", filter: `url(#rsh${id})` }));
     }
   }
   for (const [y, txt, c] of center) { const t = svgE("text", { y, "text-anchor": "middle", class: c }); t.textContent = txt; svg.append(t); }
@@ -348,6 +343,7 @@ function energySheet(st) {
       macroRow("p", "Proteína", "protein_g", tg.protein_g), macroRow("c", "Carbohidratos", "carbs_g", tg.carbs_g), macroRow("g", "Grasas", "fat_g", tg.fat_mid_g)),
     (t.missing || []).length ? h("div", { class: "note warn" }, "Hay valores desconocidos: los totales son un mínimo.") : null,
     apx,
+    meals.length ? h("div", { class: "bd-sub" }, "Por comidas") : null,
     meals.length ? h("div", { class: "bd-meals" }, h("div", { class: "bd-stack big" }, meals.map(([l, k, , i]) => h("i", { class: "m" + i, style: { flex: k }, title: `${l}: ${fmt(k)} kcal` }))),
       h("div", { class: "bd-parts" }, meals.map(([l, k, mt, i]) => h("div", { class: "bd-p" }, h("i", { class: "dot m" + i }),
         h("div", { class: "bd-pl" }, h("span", null, l), h("small", null, `P ${fmt(mt.protein_g || 0)} · C ${fmt(mt.carbs_g || 0)} · G ${fmt(mt.fat_g || 0)}`)),
