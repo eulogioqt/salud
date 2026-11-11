@@ -306,6 +306,8 @@ function summaryCard(st) {
 function energySheet(st) {
   const t = st.totals, tg = st.target || {}, c = st.closure, en = st.energy, closed = st.status === "cerrado";
   const bal = st.balance, kc = t.kcal || 0;
+  // balance que marcaba el objetivo: según gasto, la diferencia elegida; fijo, objetivo − gasto
+  const balGoal = tg.dynamic ? (tg.kcal_offset || 0) : tg.kcal && en.total != null ? Math.round(tg.kcal - en.total) : null;
   const pct = (x, of) => (of ? Math.max(0, Math.min(100, (100 * x) / of)) : 0);
   const hero = h("div", { class: "bd-hero" },
     h("div", { class: "bd-n" }, h("span", null, "Consumido"), h("b", { class: "num" }, v(t, "kcal")), h("em", null, tg.kcal ? "objetivo " + fmt(tg.kcal) : "kcal")),
@@ -313,7 +315,7 @@ function energySheet(st) {
     h("div", { class: "bd-n" }, h("span", null, "Gasto"), h("b", { class: "num" }, en.total == null ? "?" : fmt(en.total)), h("em", null, en.complete ? "estimado" : "faltan datos")),
     h("span", { class: "bd-op" }, "="),
     h("div", { class: "bd-n bal " + (bal == null ? "" : bal < 0 ? "def" : "sup") }, h("span", null, "Balance"), h("b", { class: "num" }, bal == null ? "?" : signed(bal)),
-      h("em", null, bal == null ? "—" : bal < 0 ? "déficit" : bal > 0 ? "superávit" : "equilibrio")));
+      h("em", null, balGoal == null ? (bal == null ? "—" : bal < 0 ? "déficit" : bal > 0 ? "superávit" : "equilibrio") : "objetivo " + signed(balGoal))));
   // Lo comido: lo que llevas de cada macro y una marca con su objetivo debajo
   const macroRow = (k, name, f, goal) => {
     const val = t[f] || 0, top = goal || 0, scale = Math.max(top * 1.25, val, 1);
@@ -333,13 +335,13 @@ function energySheet(st) {
     h("b", { class: "num bd-apx2-n" }, Math.round(pct(st.approx_kcal, kc)) + " %"),
     h("div", { class: "grow" }, h("div", { class: "bd-apx2-t" }, "de lo que has comido es aproximado"),
       h("div", { class: "bd-apx2-s" }, `${fmt(st.approx_kcal)} kcal de comidas fuera o productos sin etiqueta. Al ponerles la etiqueta se corrige en todos los días.`))) : null;
-  const macros = h("div", { class: "bd-sec bd-msec" }, apx,
-    h("div", { class: "bd-macros" },
-      macroRow("p", "Proteína", "protein_g", tg.protein_g), macroRow("c", "Carbohidratos", "carbs_g", tg.carbs_g), macroRow("g", "Grasas", "fat_g", tg.fat_mid_g)),
-    (t.missing || []).length ? h("div", { class: "note warn" }, "Hay valores desconocidos: los totales son un mínimo.") : null);
   const eaten = h("div", { class: "bd-sec" },
     h("div", { class: "bd-st" }, h("span", { class: "grow" }, "Lo que has comido"),
       h("span", { class: "num bd-tot" }, h("b", null, v(t, "kcal")), tg.kcal ? h("span", { class: "faint" }, " / " + fmt(tg.kcal) + " kcal") : " kcal")),
+    h("div", { class: "bd-macros" },
+      macroRow("p", "Proteína", "protein_g", tg.protein_g), macroRow("c", "Carbohidratos", "carbs_g", tg.carbs_g), macroRow("g", "Grasas", "fat_g", tg.fat_mid_g)),
+    (t.missing || []).length ? h("div", { class: "note warn" }, "Hay valores desconocidos: los totales son un mínimo.") : null,
+    apx,
     meals.length ? h("div", { class: "bd-meals" }, h("div", { class: "bd-stack big" }, meals.map(([l, k, , i]) => h("i", { class: "m" + i, style: { flex: k }, title: `${l}: ${fmt(k)} kcal` }))),
       h("div", { class: "bd-parts" }, meals.map(([l, k, mt, i]) => h("div", { class: "bd-p" }, h("i", { class: "dot m" + i }),
         h("div", { class: "bd-pl" }, h("span", null, l), h("small", null, `P ${fmt(mt.protein_g || 0)} · C ${fmt(mt.carbs_g || 0)} · G ${fmt(mt.fat_g || 0)}`)),
@@ -363,7 +365,7 @@ function energySheet(st) {
   const closedNote = closed && c ? h("span", { class: "bd-closed-x", title: c.forced ? "Cerrado con datos incompletos" : "" }, icon("lock"), tx(`Cerrado el ${dateLabel(c.closed_at.slice(0, 10), { day: "numeric", month: "short" })} a las ${c.closed_at.slice(11, 16)}` + (c.version > 1 ? ` · v${c.version}` : ""))) : null;
   const obs = closed && c && c.summary && (c.summary.observations || []).length
     ? h("div", { class: "bd-sec" }, h("div", { class: "bd-st" }, "Observaciones del cierre"), h("ul", { class: "bd-obs" }, c.summary.observations.map((o) => h("li", null, o)))) : null;
-  sheet(closed ? "Resumen del día" : "Desglose del día", [hero, macros, eaten, burned, obs,
+  sheet(closed ? "Resumen del día" : "Desglose del día", [hero, eaten, burned, obs,
     h("div", { class: "faint bd-foot" }, "El gasto es una estimación: tu metabolismo en reposo (según peso, altura, edad y sexo) + la digestión (10 % de lo que comes) + lo que te mueves en el día + tus pasos + tus entrenos.")], null, { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }), titleExtra: closedNote });
 }
 function energyTable(en, balance) {

@@ -1596,3 +1596,7 @@ img { -webkit-user-drag: none; user-select: none; }
 .rp-pt { cursor: default; }
 [data-tip] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .bd-msec .bd-apx2 { margin: 0 0 14px; }
+.bd-sec .bd-apx2 { margin: 14px 0 16px; }
+.bd-meals { margin-top: 4px; }
+.ctip.anch::after { content: ""; position: absolute; left: var(--ax, 50%); bottom: -5px; width: 10px; height: 10px; background: var(--text); transform: translateX(-50%) rotate(45deg); border-radius: 1px; }
+.ctip.anch.below::after { bottom: auto; top: -5px; }
