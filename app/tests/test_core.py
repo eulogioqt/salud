@@ -507,6 +507,33 @@ class TestHcSessions(unittest.TestCase):
         self.assertNotIn("entreno", {w["code"] for w in core.close_check(conn, d)["warnings"]})
 
 
+class TestCalibration(unittest.TestCase):
+    def test_descubre_el_error_del_gasto(self):
+        import random
+        from unittest import mock
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        conn = connect(os.path.join(tmp.name, "t.db"))
+        init_db(conn)
+        core.update_settings(conn, {"sexo": "H", "altura_cm": "185", "fecha_nacimiento": "2003-04-30"}, "test")
+        rnd = random.Random(3)
+        days = [core.shift("2026-10-01", i) for i in range(42)]
+        w = 82.0
+        with mock.patch.object(core, "today", lambda: days[-1]):
+            for d in days:
+                steps = rnd.choice([2000, 5000, 9000, 14000])
+                core.update_day(conn, d, {"weight_kg": round(w + rnd.gauss(0, 0.3), 1), "steps": steps, "neat_kcal": 150}, "test")
+                core.add_estimate(conn, {"date": d, "meal": "almuerzo", "name": "comida", "kcal": 2500, "protein_g": 150, "carbs_g": 300, "fat_g": 70}, "test")
+                en = core.energy(conn, d, 2500, raw=True)
+                real = en["total"] + 200 + 0.3 * en["steps_kcal_raw"]   # el cuerpo gasta 200 kcal más de base y un 30 % más andando
+                core.close_day(conn, d, force=True)
+                w += (2500 - real) / 7700
+            cal = core.calibration(conn, apply=False)
+        self.assertTrue(cal["ready"], cal.get("reason"))
+        self.assertLess(abs(cal["estimate"]["cal_ajuste_kcal"] - 200), 120)
+        self.assertLess(abs(cal["estimate"]["cal_pasos_factor"] - 1.3), 0.25)
+
+
 if __name__ == "__main__":
     unittest.main()
 

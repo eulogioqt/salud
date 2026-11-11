@@ -199,9 +199,44 @@ def _progress(c, q, b, s):
     days = int(q.get("days", 90))
     b_ = today()
     a = shift(b_, -(days - 1))
-    return {"weights": core.weight_series(c, a, b_), "history": core.history(c, a, b_),
-            "weeks": core.weekly(c, int(q.get("weeks", 12))), "calibration": core.calibration(c),
-            "body": T.list_body(c, a, b_), "rev": rev(c)}
+    hist = core.history(c, a, b_)
+    exp = core.expected_weights(hist)
+    ws = core.weight_series(c, a, b_)
+    for w in ws:
+        w["expected"] = exp.get(w["date"])
+    return {"weights": ws, "history": hist,
+            "weeks": core.weekly(c, int(q.get("weeks", 12))), "calibration": core.calibration(c, apply=False),
+            "body": T.list_body(c, a, b_), "steps_goal": int(float(core.settings(c).get("objetivo_pasos") or 8000)), "rev": rev(c)}
+
+
+@route("GET", r"/api/calibration")
+def _cal_get(c, q, b, s):
+    return core.calibration(c, apply=False)
+
+
+@route("PUT", r"/api/calibration")
+def _cal_put(c, q, b, s):
+    """Cambiar a mano los parámetros (o «auto»). Si se tocan los de la calibración, deja de ajustarse sola salvo que se pida."""
+    data = {k: v for k, v in (b or {}).items() if k in core.CAL_DEFAULTS}
+    if any(k in data for k in ("cal_ajuste_kcal", "cal_pasos_factor", "cal_ejercicio_factor")) and "cal_auto" not in data:
+        data["cal_auto"] = "0"
+    core.update_settings(c, data, s)
+    return core.calibration(c, apply=False)
+
+
+@route("POST", r"/api/calibration/reset")
+def _cal_reset(c, q, b, s):
+    core.update_settings(c, dict(core.CAL_DEFAULTS), s)
+    core.set_setting(c, "cal_fecha", "", s)
+    return core.calibration(c, apply=False)
+
+
+@route("POST", r"/api/calibration/apply")
+def _cal_apply(c, q, b, s):
+    """Aplicar ya lo que estiman los datos (y volver a ajustarse sola)."""
+    core.set_setting(c, "cal_fecha", "", s)
+    core.update_settings(c, {"cal_auto": "1"}, s)
+    return core.calibration(c, apply=True)
 
 
 @route("GET", r"/api/weights")

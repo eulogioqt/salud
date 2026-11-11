@@ -350,6 +350,7 @@ function energyTable(en, balance) {
     r("Pasos", en.steps_kcal == null ? h("span", { class: "miss" }, "falta") : fmt(en.steps_kcal),
       en.steps == null ? null : `${fmt(en.steps_effective)} pasos netos` + (en.steps_in_activities ? ` (−${fmt(en.steps_in_activities)} de sesiones)` : "")),
     ...en.exercise.map((x) => r("Ejercicio: " + x.type, fmt(x.kcal), x.source.startsWith("estimado") ? "neto, estimado" : x.source)),
+    en.calibration && en.calibration.ajuste_kcal ? r("Calibración de la base", signed(en.calibration.ajuste_kcal), "según tus pesajes") : null,
     h("tr", { class: "tot" }, h("td", null, "Gasto total estimado"), h("td", { class: "num" }, fmt(en.total))),
     h("tr", null, h("td", null, "Balance estimado"), h("td", { class: "num" }, signed(balance)))),
     h("div", { class: "faint", style: { marginTop: "6px" } }, "Estimación, no medición. ", en.method));
@@ -420,7 +421,7 @@ async function weightSheet(st) {
       h("div", { class: "kpis" },
         kpi("Último", last ? fmt(last.weight_kg, 1) + " kg" : "—", last ? dateLabel(last.date, { day: "numeric", month: "short" }) : "sin pesajes"),
         kpi("Media 7 días", lastAvg ? fmt(lastAvg.avg7, 2) + " kg" : "—", prevAvg && prevAvg.avg7 != null ? signed(lastAvg.avg7 - prevAvg.avg7, 2) + " kg en 7 días" : ""),
-        kpi("Tendencia", cal.ready ? signed(cal.slope_kg_week, 2) + " kg/sem" : "—", cal.ready ? "mantenimiento observado " + fmt(cal.observed_maintenance) + " kcal" : "faltan datos (≥14 días)")),
+        kpi("Tendencia", cal.observed_maintenance != null ? signed(cal.slope_kg_week, 2) + " kg/sem" : "—", cal.observed_maintenance != null ? "mantenimiento observado " + fmt(cal.observed_maintenance) + " kcal" : "faltan datos (≥14 días)")),
       h("div", { class: "card panel" }, weightChart(ws)),
       (P.body || []).length ? bodyPanel(P.body) : null],
       [h("span", { class: "grow" }), h("button", { class: "btn", onclick: () => { sh.close(); location.hash = "#/progreso"; } }, "Ver todo en Progreso")]);
@@ -452,7 +453,8 @@ async function stepsData(st) {
 const agoTxt = (ts) => { if (!ts) return "—"; const m = Math.round((Date.now() - new Date(ts.replace(" ", "T"))) / 60000); return m < 1 ? "ahora" : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : dateLabel(ts.slice(0, 10), { day: "numeric", month: "short" }); };
 function stepsFooter(d, sh) {
   return [h("span", { class: "faint sm" }, `Último envío del móvil: ${agoTxt(d.last_received)}`), h("span", { class: "grow" }),
-    h("button", { class: "btn ghost sm", onclick: () => { sh.close(); connectionsSheet(); } }, "Conexiones")];
+    h("button", { class: "btn ghost sm", onclick: () => { sh.close(); connectionsSheet(); } }, "Conexiones"),
+    h("button", { class: "btn sm", onclick: () => { for (const c of [...OPEN_SHEETS]) c(); location.hash = "#/progreso"; } }, "Ver todo en Progreso")];
 }
 // Ficha de pasos del día (desde Hoy): objetivo, gasto, distancia, racha y el día por horas frente a tu media
 async function stepsStatsSheet(st) {
@@ -891,7 +893,7 @@ function addSheet(meal) {
     const q = norm(search.value.trim());
     const foods = S.catalog.foods.filter((f) => !f.hidden && !f.deleted && f.reviewed);
     const tpls = S.catalog.templates.filter((t) => !t.hidden && !t.deleted && t.reviewed);
-    if (!foods.length && !tpls.length) { list.replaceChildren(h("div", { class: "card empty flat" }, h("h3", null, "Nada aceptado todavía"), h("p", { class: "muted" }, "Revisa y acepta productos en Biblioteca para que aparezcan aquí."))); return; }
+    if (!foods.length && !tpls.length) { list.replaceChildren(h("div", { class: "card empty flat" }, h("h3", null, "Nada aceptado todavía"), h("p", { class: "muted" }, "Revisa y acepta productos en Comida para que aparezcan aquí."))); return; }
     const secs = [];
     if (q) {
       const ft = tpls.filter((t) => norm(t.name).includes(q));
@@ -1585,8 +1587,10 @@ function viewProgress() {
       kpi("Último peso", last ? fmt(last.weight_kg, 1) + " kg" : "—", last ? dateLabel(last.date, { day: "numeric", month: "short" }) : "sin pesajes"),
       kpi("Media 7 días", lastAvg ? fmt(lastAvg.avg7, 2) + " kg" : "—", prevAvg && prevAvg.avg7 != null ? signed(lastAvg.avg7 - prevAvg.avg7, 2) + " kg vs semana anterior" : ""),
       kpi("Ingesta media 7 d", avgK != null ? fmt(avgK) + " kcal" : "—", avgP != null ? `P ${fmt(avgP)} g · ${logged7.length} días` : ""),
-      kpi("Mantenimiento observado", cal.ready ? fmt(cal.observed_maintenance) + " kcal" : "—", cal.ready ? `tendencia ${signed(cal.slope_kg_week, 2)} kg/sem · modelo ${fmt(cal.model_tdee_avg)}` : "faltan datos (≥14 días)")),
-    h("div", { class: "card panel" }, h("h3", null, "Peso", h("span", { class: "faint", style: { fontWeight: 400 } }, " · puntos: pesajes (huecos: interpolados) · línea gruesa: media móvil 7 días")), h("div", { class: "faint", style: { fontSize: "12.5px", marginTop: "-4px" } }, "Pésate siempre igual: al levantarte, después de ir al baño, antes de comer o beber y con la misma ropa (o sin ella)"), weightChart(ws)),
+      kpi("Mantenimiento observado", cal.observed_maintenance != null ? fmt(cal.observed_maintenance) + " kcal" : "—", cal.observed_maintenance != null ? `tendencia ${signed(cal.slope_kg_week, 2)} kg/sem · modelo ${fmt(cal.model_tdee_avg)}` : "faltan datos (≥14 días)")),
+    h("div", { class: "card panel" }, h("h3", null, "Peso", h("span", { class: "faint", style: { fontWeight: 400 } }, " · puntos: pesajes · gruesa: media de 7 días · discontinua: lo esperado")), h("div", { class: "faint", style: { fontSize: "12.5px", marginTop: "-4px" } }, "Pésate siempre igual: al levantarte, después de ir al baño, antes de comer o beber y con la misma ropa (o sin ella)"), weightChart(ws)),
+    calPanel(cal),
+    stepsPanel(P.history, P.steps_goal),
     bodyPanel(P.body || []),
     h("div", { class: "card panel" }, h("h3", null, "Semanas"), weeksTable(P.weeks)),
     h("div", { class: "card panel" }, h("h3", null, "Días"), daysTable(P.history)));
@@ -1615,12 +1619,87 @@ function weightChart(ws) {
   if (dc) svg.append(el("path", { d: dc, class: "wline", "vector-effect": "non-scaling-stroke" }));
   let d = ""; ws.forEach((w, i) => { if (w.avg7 != null) d += (d ? "L" : "M") + x(i).toFixed(1) + " " + y(w.avg7).toFixed(1); });
   if (d) svg.append(el("path", { d, class: "avg", "vector-effect": "non-scaling-stroke" }));
+  // Lo esperado por el modelo (lo que comes − lo que gastas): se corta donde falta la comida de algún día
+  let de = "", prevE = false; ws.forEach((w, i) => { if (w.expected != null && w.expected >= lo && w.expected <= hi) { de += (prevE ? "L" : "M") + x(i).toFixed(1) + " " + y(w.expected).toFixed(1); prevE = true; } else prevE = false; });
+  if (de) svg.append(el("path", { d: de, class: "exp", "vector-effect": "non-scaling-stroke" }));
   ws.forEach((w, i) => {
     const v = w.weight_kg ?? w.interp; if (v == null) return;
-    const c = el("circle", { cx: x(i), cy: y(v), r: w.weight_kg != null ? 3.2 : 2, class: w.weight_kg != null ? "pt" : "ipt" });
-    const tt = el("title", {}); tt.textContent = `${w.date}: ${fmt(v, 1)} kg` + (w.weight_kg != null ? "" : " (interpolado)"); c.append(tt); svg.append(c);
+    svg.append(el("circle", { cx: x(i), cy: y(v), r: w.weight_kg != null ? 3.2 : 2, class: w.weight_kg != null ? "pt" : "ipt" }));
   });
-  return svg;
+  // Al pasar el ratón (o el dedo): línea vertical y los datos de ese día
+  const vline = el("line", { y1: T, y2: H - B, class: "hov hidden" }); svg.append(vline);
+  const box = h("div", { class: "wc" }, svg), tip_ = h("div", { class: "wc-tip hidden" }); box.append(tip_);
+  const move = (ev) => {
+    const r = svg.getBoundingClientRect(), cx = ((ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left) / r.width * W;
+    const i = Math.max(0, Math.min(n - 1, Math.round(((cx - L) / (W - L - R)) * (n - 1)))), w = ws[i];
+    const v = w.weight_kg ?? w.interp;
+    if (v == null && w.avg7 == null && w.expected == null) { vline.classList.add("hidden"); tip_.classList.add("hidden"); return; }
+    vline.setAttribute("x1", x(i)); vline.setAttribute("x2", x(i)); vline.classList.remove("hidden");
+    tip_.replaceChildren(h("b", null, dateLabel(w.date, { weekday: "short", day: "numeric", month: "short" })),
+      v != null ? h("div", null, w.weight_kg != null ? "Pesaje " : "Sin pesaje (interpolado) ", h("b", { class: "num" }, fmt(v, 1) + " kg")) : null,
+      w.avg7 != null ? h("div", null, "Media 7 días ", h("b", { class: "num" }, fmt(w.avg7, 2))) : null,
+      w.expected != null ? h("div", null, "Esperado ", h("b", { class: "num" }, fmt(w.expected, 2))) : null);
+    tip_.classList.remove("hidden");
+    const px = (x(i) / W) * r.width; tip_.style.left = Math.min(Math.max(px, 70), r.width - 70) + "px";
+  };
+  const leave = () => { vline.classList.add("hidden"); tip_.classList.add("hidden"); };
+  svg.addEventListener("mousemove", move); svg.addEventListener("mouseleave", leave);
+  svg.addEventListener("touchstart", move, { passive: true }); svg.addEventListener("touchmove", move, { passive: true }); svg.addEventListener("touchend", () => setTimeout(leave, 2500));
+  return box;
+}
+
+// Pasos en Progreso: un día por barra, la línea del objetivo y lo básico (media, días con el objetivo, mejor día)
+function stepsPanel(hist, goal) {
+  const ds = (hist || []).filter((x) => x.steps != null);
+  if (!ds.length) return null;
+  goal = goal || 8000;
+  const mx = Math.max(goal, ...ds.map((x) => x.steps)), avg = ds.reduce((a, x) => a + x.steps, 0) / ds.length;
+  const best = ds.reduce((a, x) => (x.steps > a.steps ? x : a)), hit = ds.filter((x) => x.steps >= goal).length;
+  const kpi = (l, v, s_) => h("div", { class: "kpi" }, h("div", { class: "l" }, l), h("div", { class: "v num" }, v), h("div", { class: "s" }, s_ || ""));
+  return h("div", { class: "card panel" }, h("h3", null, "Pasos", h("span", { class: "faint", style: { fontWeight: 400 } }, ` · objetivo ${fmt(goal)}`)),
+    h("div", { class: "kpis k3" }, kpi("Media", fmt(avg), `${ds.length} días`), kpi("Con el objetivo", `${hit} de ${ds.length}`, Math.round((100 * hit) / ds.length) + " %"),
+      kpi("Mejor día", fmt(best.steps), dateLabel(best.date, { day: "numeric", month: "short" }))),
+    h("div", { class: "pbars" }, h("i", { class: "goal", style: { bottom: (100 * goal) / mx + "%" } }),
+      ds.map((x) => h("span", { class: x.steps >= goal ? "ok" : "", style: { height: Math.max(2, (100 * x.steps) / mx) + "%" }, title: `${dateLabel(x.date, { weekday: "short", day: "numeric", month: "short" })} · ${fmt(x.steps)} pasos` }))));
+}
+// Calibración del gasto (Progreso): lo que dicen tus pesajes frente a lo que calcula el modelo
+const CAL_ROWS = [["cal_ajuste_kcal", "Base: metabolismo y día a día", (v) => signed(v) + " kcal/día"], ["cal_pasos_factor", "Pasos", (v) => "× " + fmt(v, 2)], ["cal_ejercicio_factor", "Entrenos", (v) => "× " + fmt(v, 2)]];
+function calPanel(cal) {
+  if (!cal) return null;
+  const ap = cal.applied || {}, est = cal.estimate, sd = cal.sd || {}, lr = cal.learned || {};
+  const rows = CAL_ROWS.map(([k, l, f]) => h("div", { class: "cal-r" },
+    h("div", { class: "grow" }, h("b", null, l), est ? h("div", { class: "faint sm" }, `tus datos dicen ${f(est[k])} ± ${k === "cal_ajuste_kcal" ? fmt(sd[k]) : fmt(sd[k], 2)}`) : null,
+      est ? h("div", { class: "cal-bar", title: "Cuánto han aprendido tus datos (0 % = todavía nada, se usa el modelo tal cual)" }, h("i", { style: { width: Math.round(Math.max(0, lr[k] || 0) * 100) + "%" } })) : null),
+    h("div", { class: "cal-v num" }, f(ap[k] ?? (k === "cal_ajuste_kcal" ? 0 : 1)))));
+  const reload = async (p) => { await act(() => p); await refresh(); };
+  return h("div", { class: "card panel" },
+    h("div", { class: "row" }, h("h3", { style: { margin: 0 } }, "Calibración del gasto"), h("span", { class: "grow" }),
+      h("span", { class: "pc-badge " + (cal.auto ? "ok" : "man") }, cal.auto ? "Se ajusta sola" : "A mano")),
+    h("p", { class: "faint sm", style: { margin: "6px 0 10px" } }, "Si apuntas todo lo que comes y te pesas por la mañana, el peso tiene que seguir al balance. La diferencia corrige el gasto: los días sin entreno separan los pasos de la base, los de pocos pasos separan la base de los pasos… Se mueve solo lo que tus datos justifican."),
+    cal.ready ? null : h("div", { class: "note" }, cal.reason || "Aún sin datos suficientes."),
+    h("div", { class: "cal-list" }, rows),
+    cal.updated ? h("div", { class: "faint sm", style: { marginTop: "6px" } }, "Última actualización: " + dateLabel(cal.updated, { day: "numeric", month: "short" })) : null,
+    h("div", { class: "row", style: { gap: "8px", marginTop: "12px", flexWrap: "wrap" } },
+      h("button", { class: "btn sm", onclick: () => calEditSheet(cal) }, icon("edit"), "Editar"),
+      est && !cal.auto ? h("button", { class: "btn sm", onclick: () => reload(api("POST", "/api/calibration/apply", {})) }, "Usar lo que dicen mis datos") : null,
+      !cal.auto ? h("button", { class: "btn sm ghost", onclick: () => reload(api("PUT", "/api/calibration", { cal_auto: "1" })) }, "Que se ajuste sola") : null,
+      h("span", { class: "grow" }),
+      h("button", { class: "btn sm ghost danger", onclick: () => { if (confirm("¿Volver a los valores de fábrica? La calibración empieza de cero.")) reload(api("POST", "/api/calibration/reset", {})); } }, "Restablecer")));
+}
+function calEditSheet(cal) {
+  const P = cal.params, D = cal.defaults;
+  const F = [["cal_ajuste_kcal", "Ajuste de la base (kcal/día)", "Metabolismo y día a día; + = gastas más de lo calculado"], ["cal_pasos_factor", "Factor de los pasos", "1 = tal cual"], ["cal_ejercicio_factor", "Factor de los entrenos", "1 = tal cual"],
+    ["neat_base_kcal", "Día a día «normal» (kcal)", "Lo que te mueves sin contar pasos, para 75 kg"], ["kcal_por_kg_km", "Caminar (kcal por kg y km)", "Coste neto sobre reposo"], ["factor_zancada", "Zancada (× altura)", "0,415 es lo típico"], ["tef_pct", "Digestión (fracción de lo comido)", "0,10 = 10 %"]];
+  const ins = {};
+  const sh = sheet("Parámetros del gasto", [
+    h("p", { class: "muted wz-p" }, "Si cambias los tres primeros, la calibración deja de ajustarse sola (puedes volver a activarla)."),
+    h("div", { class: "form" }, F.map(([k, l, d]) => h("label", { class: "fld" }, h("span", null, l, h("span", { class: "faint" }, ` · ${d} · de fábrica ${String(D[k]).replace(".", ",")}`)),
+      ins[k] = h("input", { class: "input num", inputMode: "decimal", value: String(P[k]).replace(".", ",") }))))],
+    [h("button", { class: "btn", onclick: () => sh.close() }, "Cancelar"), h("span", { class: "grow" }),
+      h("button", { class: "btn primary", onclick: async () => {
+        const body = {}; for (const [k] of F) { const n = parseNum(ins[k].value); if (n == null || Number.isNaN(n)) { toast("Valor no válido: " + k, { error: true }); return; } if (String(n) !== String(Number(P[k]))) body[k] = String(n); }
+        if (Object.keys(body).length) await act(() => api("PUT", "/api/calibration", body), "Guardado");
+        sh.close(); await refresh(); } }, "Guardar")]);
 }
 
 function weeksTable(weeks) {
@@ -1909,7 +1988,7 @@ async function welcomeSheet() {
 async function settingsSheet() {
   const data = await api("GET", "/api/settings");
   const tg = data.current_target || {}, st = data.settings;
-  const prof = [["altura_cm", "Altura (cm)"], ["fecha_nacimiento", "Fecha de nacimiento"], ["sexo", "Sexo (H/M)"], ["peso_estimado_kg", "Peso estimado sin pesajes (kg)"], ["neat_base_kcal", "NEAT sin pasos (kcal)"], ["kcal_por_kg_km", "Caminar: kcal netas/kg/km"], ["factor_zancada", "Factor zancada"], ["tef_pct", "TEF (fracción)"]]
+  const prof = [["altura_cm", "Altura (cm)"], ["fecha_nacimiento", "Fecha de nacimiento"], ["sexo", "Sexo (H/M)"], ["peso_estimado_kg", "Peso estimado sin pesajes (kg)"], ]
     .map(([k, l]) => [k, l, k === "fecha_nacimiento" ? h("input", { class: "input", type: "date", value: st[k] || "" }) : h("input", { class: "input" + (k === "sexo" ? "" : " num"), value: st[k] })]);
   const hist = h("table", { class: "t" }, h("tr", null, ...["Desde", "kcal", "P", "G", ""].map((x) => h("th", null, x))),
     [...data.targets].reverse().map((t) => h("tr", null, h("td", null, t.valid_from), ...(t.mode === "gasto"
@@ -1921,8 +2000,8 @@ async function settingsSheet() {
     h("details", { style: { marginTop: "8px" } }, h("summary", null, "Historial de objetivos"), hist),
     h("div", { class: "sec-t" }, "Lo que crea tu agente"),
     h("label", { class: "tg-card", style: { cursor: "pointer" } }, h("input", { type: "checkbox", checked: st.revisar_agente === "1", style: { width: "18px", height: "18px" },
-      onchange: async (e) => { await act(() => api("PUT", "/api/settings", { revisar_agente: e.target.checked ? "1" : "0" }), e.target.checked ? "Lo revisarás en la Biblioteca" : "Se acepta solo"); } }),
-      h("div", { class: "grow" }, h("b", null, "Revisar antes de usarlo"), h("div", { class: "faint" }, "Los productos, recetas y comidas habituales que cree tu agente quedan «por revisar» en la Biblioteca hasta que los aceptes. Si lo desactivas, se pueden usar al momento."))),
+      onchange: async (e) => { await act(() => api("PUT", "/api/settings", { revisar_agente: e.target.checked ? "1" : "0" }), e.target.checked ? "Lo revisarás en Comida" : "Se acepta solo"); } }),
+      h("div", { class: "grow" }, h("b", null, "Revisar antes de usarlo"), h("div", { class: "faint" }, "Los productos, recetas y comidas habituales que cree tu agente quedan «por revisar» en Comida hasta que los aceptes. Si lo desactivas, se pueden usar al momento."))),
     h("div", { class: "sec-t" }, "Perfil para el gasto estimado"),
     h("div", { class: "grid4" }, prof.map(([k, l, inp]) => h("div", null, h("label", { class: "f" }, l), inp))),
     h("div", { class: "row", style: { marginTop: "8px", justifyContent: "flex-end" } }, h("button", { class: "btn", onclick: async () => {

@@ -50,7 +50,14 @@ DEFAULT_SETTINGS = {
     "tef_pct": ("0.10", "Efecto térmico ≈ 10 % de la ingesta registrada"),
     "objetivo_pasos": ("8000", "Pasos al día que cuentan como objetivo cumplido (rachas)"),
     "revisar_agente": ("0", "1 = lo que crea el agente (productos, recetas, comidas habituales) queda «por revisar» en la Biblioteca"),
+    # Calibración: corrige el gasto del modelo con lo que dicen la báscula y lo que se come (ver calibration())
+    "cal_ajuste_kcal": ("0", "Ajuste del gasto base (metabolismo + día a día), kcal/día"),
+    "cal_pasos_factor": ("1", "Multiplica las kcal de los pasos"),
+    "cal_ejercicio_factor": ("1", "Multiplica las kcal de los entrenos"),
+    "cal_auto": ("1", "1 = la calibración se ajusta sola cada semana con tus datos"),
 }
+CAL_DEFAULTS = {"cal_ajuste_kcal": "0", "cal_pasos_factor": "1", "cal_ejercicio_factor": "1", "cal_auto": "1",
+                "neat_base_kcal": "150", "kcal_por_kg_km": "0.5", "factor_zancada": "0.415", "tef_pct": "0.10"}
 # Movimiento del día sin contar los pasos (estar de pie, tareas de casa…): se elige al cerrar el día
 NEAT_LEVELS = (("cama", "En cama o enfermo", 0), ("casa", "Casi todo el día sentado", 50), ("ligero", "Algo de movimiento: recados, cocinar", 100),
                ("normal", "Normal", 150), ("activo", "Activo: mucho de pie o tareas", 250), ("muy", "Muy activo: trabajo físico", 350))
@@ -164,6 +171,10 @@ def update_settings(conn, data, source="web"):
                     raise ValidationError("Sexo: H (hombre) o M (mujer)")
             elif k in ("altura_cm", "edad", "peso_estimado_kg") and v in (None, ""):
                 v = ""
+            elif k == "cal_ajuste_kcal":
+                _num(v, k, -1000, 1000, allow_none=False)
+            elif k in ("cal_pasos_factor", "cal_ejercicio_factor"):
+                _num(v, k, 0.3, 2, allow_none=False)
             else:
                 _num(v, k, 0, 10000, allow_none=False)
             conn.execute("INSERT INTO settings(key,value,updated_at) VALUES(?,?,?) "
@@ -939,7 +950,7 @@ def activity_kcal(a, kg):
     return max(0.0, (met - 1) * kg * (a["minutes"] or 0) / 60.0), "estimado (MET %.1f neto %.1f)" % (met, met - 1)
 
 
-def energy(conn, d, intake_kcal=None, day=None, acts=None):
+def energy(conn, d, intake_kcal=None, day=None, acts=None, raw=False):
     """Gasto estimado = BMR + TEF + NEAT (sin pasos) + pasos netos + ejercicio neto.
 
     Evita dobles conteos: el ejercicio se calcula NETO sobre reposo (MET − 1),
@@ -987,9 +998,22 @@ def energy(conn, d, intake_kcal=None, day=None, acts=None):
     for a in acts:
         k, src = activity_kcal(a, kg) if kg is not None or a["kcal_net"] is not None else (0, "falta el peso")
         ex.append({"id": a["id"], "type": a["type"], "kcal": round(k), "source": src})
+    ex_raw = sum(x["kcal"] for x in ex)
+    steps_raw = steps_kcal
+    # Calibración (lo que la báscula dice que el modelo se equivoca): base ±kcal, factor de pasos y de entrenos
+    cal_a = 0.0 if raw else float(s.get("cal_ajuste_kcal") or 0)
+    cal_p = 1.0 if raw else float(s.get("cal_pasos_factor") or 1)
+    cal_e = 1.0 if raw else float(s.get("cal_ejercicio_factor") or 1)
+    if steps_kcal is not None:
+        steps_kcal *= cal_p
+    if cal_e != 1:
+        for x in ex:
+            x["kcal"] = round(x["kcal"] * cal_e)
     ex_total = sum(x["kcal"] for x in ex)
-    total = None if bmr is None else bmr + tef + neat + (steps_kcal or 0) + ex_total
+    total = None if bmr is None else bmr + tef + neat + (steps_kcal or 0) + ex_total + cal_a
     return {
+        "steps_kcal_raw": None if steps_raw is None else round(steps_raw), "exercise_kcal_raw": round(ex_raw),
+        "calibration": {"ajuste_kcal": round(cal_a), "pasos_factor": cal_p, "ejercicio_factor": cal_e},
         "weight_used_kg": None if kg is None else round(kg, 2), "weight_source": ksrc, "weight_measured": measured,
         "missing_profile": missing,
         "bmr": None if bmr is None else round(bmr), "tef": round(tef), "neat": round(neat),
@@ -1148,6 +1172,10 @@ def close_day(conn, d, force=False, source="web"):
                      (d, v, ts(), 1 if chk["has_important"] else 0, json.dumps(chk["warnings"], ensure_ascii=False),
                       json.dumps(chk["summary"], ensure_ascii=False)))
         conn.execute("UPDATE days SET status='cerrado', closed_at=?, updated_at=? WHERE date=?", (ts(), ts(), d))
+    try:  # con cada día cerrado se revisa la calibración (se aplica sola como mucho una vez por semana)
+        calibration(conn)
+    except Exception:
+        pass
     return {"closed": True, "version": v, **chk}
 
 
@@ -1252,27 +1280,155 @@ def weekly(conn, weeks=12):
     return out
 
 
-def calibration(conn, days=28):
-    """Mantenimiento observado = ingesta media − pendiente del peso × 7700 kcal/kg.
-    Solo se ofrece con datos suficientes (≥14 días con ingesta y ≥10 pesajes)."""
+def daterange(a, b):
+    d = a
+    while d <= b:
+        yield d
+        d = shift(d, 1)
+
+
+def _solve(A, b):
+    """Resuelve A·x = b (Gauss con pivote). A pequeña y simétrica definida positiva."""
+    n = len(b)
+    M = [list(map(float, A[i])) + [float(b[i])] for i in range(n)]
+    for c in range(n):
+        p = max(range(c, n), key=lambda r: abs(M[r][c]))
+        M[c], M[p] = M[p], M[c]
+        if abs(M[c][c]) < 1e-12:
+            raise ValueError("sistema singular")
+        for r in range(n):
+            if r != c:
+                f = M[r][c] / M[c][c]
+                for k in range(c, n + 1):
+                    M[r][k] -= f * M[c][k]
+    return [M[i][n] / M[i][i] for i in range(n)]
+
+
+def _inv(A):
+    n = len(A)
+    cols = [_solve(A, [1.0 if i == j else 0.0 for i in range(n)]) for j in range(n)]
+    return [[cols[j][i] for j in range(n)] for i in range(n)]
+
+
+CAL_PRIOR = {"a": 250.0, "p": 0.35, "e": 0.35}   # incertidumbre de partida: ±250 kcal/día de base, ±35 % pasos y entrenos
+CAL_SIGMA_KG = 0.6                                # ruido diario del peso (agua, glucógeno, comida en el intestino)
+
+
+def calibration(conn, days=56, apply=True):
+    """Calibra el gasto con la báscula: si se apunta todo lo que se come y se pesa por la mañana, el peso tiene que seguir
+    al balance acumulado. Para cada tramo de días seguidos con la comida completa:
+        7700·peso(t) − Σ(ingesta − gasto del modelo) = K − a·días − β·Σ kcal de pasos − γ·Σ kcal de entreno + ruido
+    a = error del gasto base (metabolismo + día a día), β y γ = error relativo de pasos y entrenos. Se estima con una
+    regresión bayesiana (parte de «el modelo acierta» y se mueve solo lo que los datos justifican): los días sin entreno
+    separan pasos de base, los días con pocos pasos separan base de pasos, etc. Si `cal_auto`, se aplica una vez por semana."""
+    s = settings(conn)
     b = today()
-    a = shift(b, -(days - 1))
-    hist = history(conn, a, b)
-    logged = [h for h in hist if h["entries"] > 0 and h["kcal"] is not None and "kcal" not in h["missing"]]
-    ws = [(parse_date(h["date"]).toordinal(), h["weight_kg"]) for h in hist if h["weight_kg"] is not None]
-    res = {"window_days": days, "days_logged": len(logged), "weights": len(ws), "ready": False}
-    if len(logged) < 14 or len(ws) < 10:
-        res["reason"] = "Hacen falta ≥14 días con ingesta completa y ≥10 pesajes en los últimos %d días" % days
+    a0 = shift(b, -(days - 1))
+    rows = []
+    for d in daterange(a0, b):
+        day = get_day_row(conn, d)
+        ents = day_entries(conn, d)
+        tot = N.total([N.nutr(e["kcal"], e["protein_g"], e["carbs_g"], e["fat_g"], e["missing"]) for e in ents])
+        ok = bool(ents) and tot["kcal"] is not None and "kcal" not in tot["missing"] and day.get("status") == "cerrado"
+        en = energy(conn, d, tot["kcal"], day, raw=True) if ok else None
+        ok = ok and en is not None and en["complete"]
+        rows.append({"date": d, "ok": ok, "kcal": tot["kcal"], "w": day["weight_kg"],
+                     "model": en and en["total"], "steps": en and (en["steps_kcal_raw"] or 0), "ex": en and en["exercise_kcal_raw"]})
+    # tramos de días seguidos con comida completa; el peso de la mañana del día t refleja lo comido hasta t−1
+    obs, seg, cum = [], -1, None
+    for i, r in enumerate(rows):
+        if cum is not None and r["w"] is not None:
+            obs.append((seg, cum[0], cum[1], cum[2], cum[3], 7700 * r["w"] - cum[4], r["date"]))
+        if r["ok"]:
+            if cum is None:
+                seg += 1
+                if r["w"] is None:  # el tramo empieza con un pesaje
+                    continue
+                cum = [0, 0.0, 0.0, 0.0, 0.0]
+                obs.append((seg, 0, 0.0, 0.0, 0.0, 7700 * r["w"], r["date"]))
+            cum = [cum[0] + 1, cum[1] + r["steps"], cum[2] + r["ex"], cum[3], cum[4] + r["kcal"] - r["model"]]
+        else:
+            cum = None
+    nseg = seg + 1
+    used_days = sum(1 for r in rows if r["ok"])
+    res = {"window_days": days, "days_used": used_days, "weights": sum(1 for r in rows if r["w"] is not None), "ready": False,
+           "applied": {k: float(s[k]) for k in ("cal_ajuste_kcal", "cal_pasos_factor", "cal_ejercicio_factor")},
+           "auto": s.get("cal_auto") == "1", "updated": get_setting(conn, "cal_fecha"), "params": {k: s[k] for k in CAL_DEFAULTS},
+           "defaults": CAL_DEFAULTS}
+    # vieja estimación (por compatibilidad): mantenimiento observado con la pendiente del peso
+    hist = [r for r in rows[-28:]]
+    ws = [(parse_date(r["date"]).toordinal(), r["w"]) for r in hist if r["w"] is not None]
+    logged = [r for r in hist if r["ok"]]
+    if len(logged) >= 14 and len(ws) >= 10:
+        mx = sum(x for x, _ in ws) / len(ws); my = sum(y for _, y in ws) / len(ws)
+        slope = sum((x - mx) * (y - my) for x, y in ws) / max(1e-9, sum((x - mx) ** 2 for x, _ in ws))
+        intake = sum(r["kcal"] for r in logged) / len(logged)
+        res.update({"intake_avg": round(intake), "slope_kg_week": round(slope * 7, 2), "observed_maintenance": round(intake - slope * 7700),
+                    "model_tdee_avg": round(sum(r["model"] for r in logged) / len(logged))})
+    per_seg = [sum(1 for o in obs if o[0] == k) for k in range(nseg)]
+    good = [k for k in range(nseg) if per_seg[k] >= 2]
+    if used_days < 10 or sum(per_seg[k] for k in good) < 8:
+        res["reason"] = "Hacen falta unas 2 semanas de días cerrados con la comida completa y pesajes por la mañana (llevas %d días y %d pesajes)." % (used_days, res["weights"])
         return res
-    mx = sum(x for x, _ in ws) / len(ws)
-    my = sum(y for _, y in ws) / len(ws)
-    slope = sum((x - mx) * (y - my) for x, y in ws) / max(1e-9, sum((x - mx) ** 2 for x, _ in ws))
-    intake = sum(h["kcal"] for h in logged) / len(logged)
-    tdee_est = _mean([h["tdee"] for h in logged if h["tdee_complete"]])
-    res.update({"ready": True, "intake_avg": round(intake), "slope_kg_week": round(slope * 7, 2),
-                "observed_maintenance": round(intake - slope * 7700),
-                "model_tdee_avg": None if tdee_est is None else round(tdee_est)})
+    # regresión bayesiana: parámetros [a, β, γ, K_tramo…]
+    idx = {k: 3 + n for n, k in enumerate(good)}
+    P = 3 + len(good)
+    XtX = [[0.0] * P for _ in range(P)]
+    Xty = [0.0] * P
+    sig2 = (7700 * CAL_SIGMA_KG) ** 2
+    for sg, nd, sst, sex, _x, y, _d in obs:
+        if sg not in idx:
+            continue
+        x = [0.0] * P
+        x[0], x[1], x[2], x[idx[sg]] = -nd, -sst, -sex, 1.0
+        for i in range(P):
+            if x[i]:
+                Xty[i] += x[i] * y / sig2
+                for j in range(P):
+                    if x[j]:
+                        XtX[i][j] += x[i] * x[j] / sig2
+    for i, pr in enumerate((CAL_PRIOR["a"], CAL_PRIOR["p"], CAL_PRIOR["e"])):
+        XtX[i][i] += 1 / pr ** 2
+    for i in range(3, P):
+        XtX[i][i] += 1e-12
+    try:
+        mean = _solve(XtX, Xty)
+        cov = _inv(XtX)
+    except ValueError:
+        res["reason"] = "No se puede calcular todavía"
+        return res
+    sd = [max(0.0, cov[i][i]) ** 0.5 for i in range(3)]
+    est = {"cal_ajuste_kcal": round(mean[0] / 10) * 10, "cal_pasos_factor": round(1 + mean[1], 2), "cal_ejercicio_factor": round(1 + mean[2], 2)}
+    est["cal_pasos_factor"] = max(0.5, min(1.6, est["cal_pasos_factor"]))
+    est["cal_ejercicio_factor"] = max(0.5, min(1.6, est["cal_ejercicio_factor"]))
+    est["cal_ajuste_kcal"] = max(-600, min(600, est["cal_ajuste_kcal"]))
+    shrink = [1 - sd[0] / CAL_PRIOR["a"], 1 - sd[1] / CAL_PRIOR["p"], 1 - sd[2] / CAL_PRIOR["e"]]  # cuánto han aprendido los datos (0–1)
+    res.update({"ready": True, "estimate": est, "sd": {"cal_ajuste_kcal": round(sd[0]), "cal_pasos_factor": round(sd[1], 2), "cal_ejercicio_factor": round(sd[2], 2)},
+                "learned": {"cal_ajuste_kcal": round(shrink[0], 2), "cal_pasos_factor": round(shrink[1], 2), "cal_ejercicio_factor": round(shrink[2], 2)}})
+    upd = res["updated"]
+    if apply and res["auto"] and (not upd or (parse_date(b) - parse_date(upd)).days >= 7):
+        with tx(conn, "calibrar", "sistema", payload=est):
+            for k, v in est.items():
+                conn.execute("INSERT INTO settings(key,value,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+                             (k, str(v), ts()))
+            conn.execute("INSERT INTO settings(key,value,updated_at) VALUES('cal_fecha',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at", (b, ts()))
+        res["applied"] = dict(est)
+        res["updated"] = b
     return res
+
+
+def expected_weights(hist):
+    """Peso esperado por el modelo (con la calibración aplicada), a partir de history(): parte de la media de 7 días y
+    suma cada día (ingesta − gasto)/7700; donde falta la comida de un día se corta y vuelve a empezar desde el peso real."""
+    out, cur = {}, None
+    for h in hist:
+        if cur is None and h["avg7"] is not None:
+            cur = h["avg7"]
+        if cur is not None:
+            out[h["date"]] = round(cur, 2)
+        ok = h["entries"] > 0 and h["kcal"] is not None and "kcal" not in (h["missing"] or []) and h["tdee"] is not None and h["tdee_complete"]
+        cur = cur + (h["kcal"] - h["tdee"]) / 7700 if (ok and cur is not None) else None
+    return out
 
 
 def weight_at(allw, d):

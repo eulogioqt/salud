@@ -344,10 +344,19 @@ def main(argv=None):
             print("Semana %s · %d/%d días registrados · %s kcal · P %s · peso %s (%s) · gasto %s · balance %s" % (
                 w["week"], w["days_logged"], w["days"], f(w["kcal"]), f(w["protein_g"]), f(w["weight"], 2),
                 ("%+.2f" % w["weight_delta"]) if w["weight_delta"] is not None else "—", f(w["tdee"]), f(w["balance"])))
-        cal = core.calibration(conn)
-        print("Calibración: " + (("mantenimiento observado ≈ %s kcal (ingesta %s, tendencia %+.2f kg/sem, modelo %s)" % (
-            f(cal["observed_maintenance"]), f(cal["intake_avg"]), cal["slope_kg_week"], f(cal["model_tdee_avg"])))
-            if cal["ready"] else cal["reason"]))
+        cal = core.calibration(conn, apply=False)
+        ap = cal["applied"]
+        print("Calibración aplicada: base %+d kcal/día · pasos ×%.2f · entrenos ×%.2f (%s)" % (
+            ap["cal_ajuste_kcal"], ap["cal_pasos_factor"], ap["cal_ejercicio_factor"], "automática" if cal["auto"] else "a mano"))
+        if cal["ready"]:
+            e, sd = cal["estimate"], cal["sd"]
+            print("Estimación con tus datos: base %+d ± %d · pasos ×%.2f ± %.2f · entrenos ×%.2f ± %.2f" % (
+                e["cal_ajuste_kcal"], sd["cal_ajuste_kcal"], e["cal_pasos_factor"], sd["cal_pasos_factor"], e["cal_ejercicio_factor"], sd["cal_ejercicio_factor"]))
+        else:
+            print(cal["reason"])
+        if cal.get("observed_maintenance") is not None:
+            print("Mantenimiento observado ≈ %s kcal (ingesta %s, tendencia %+.2f kg/sem, modelo %s)" % (
+                f(cal["observed_maintenance"]), f(cal["intake_avg"]), cal["slope_kg_week"], f(cal["model_tdee_avg"])))
     elif c == "historial":
         for h in core.history(conn, shift(today(), -(a.dias - 1)), today()):
             print("%s %s · %s kcal · P %s · peso %s · media %s · pasos %s · gasto %s · bal %s" % (
