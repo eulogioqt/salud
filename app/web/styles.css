@@ -1626,3 +1626,4 @@ img { -webkit-user-drag: none; user-select: none; }
 :root { --ring-over1: #b8860b; --ring-over3: #a3261b; }
 .ring .rg-x { fill: #8a6300; } .ring .rg-x.hi { fill: #a3261b; }
 @media (prefers-color-scheme: dark) { :root { --ring-over1: #d4a72c; --ring-over3: #d9473f; } .ring .rg-x { fill: #e6bd4f; } .ring .rg-x.hi { fill: #f06a62; } }
+.q.estimacion, .q.provisional, .q.pendiente { background: var(--warn-soft); color: var(--warn); }  /* todo lo «Aprox.» igual */
