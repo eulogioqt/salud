@@ -1706,7 +1706,7 @@ def _ingest_body(conn, payload, source):
                 vals.setdefault("bone_pct", round(100 * vals["bone_kg"] / w, 1))
         for f in ("fat_pct", "bmi"):
             if vals.get(f) is not None:
-                vals[f] = round(vals[f], 1)
+                vals[f] = round(vals[f], 2)
         # uno borrado a mano no vuelve (si el móvil lo reenvía, se ignora)
         if conn.execute("SELECT 1 FROM body_metrics WHERE date=? AND time=? AND source='movil' AND deleted_at IS NOT NULL", (d, t)).fetchone():
             out.append({"fecha": d, "hora": t, "nuevo": False, "motivo": "borrado"})
@@ -1722,8 +1722,11 @@ def _ingest_body(conn, payload, source):
         if "weight_kg" not in vals and "fat_pct" not in vals:
             continue
         try:
-            T.add_body(conn, dict(vals, date=d, time=t, source="movil"), source)
-            out.append({"fecha": d, "hora": t, "nuevo": True, **vals})
+            # El peso del día es el de la mañana (de 4:00 a 12:00): otros pesajes del día se guardan, pero no cuentan
+            # para la tendencia (por la tarde se pesa más: comida, agua…)
+            morning = "04:00" <= t < "12:00"
+            T.add_body(conn, dict(vals, date=d, time=t, source="movil", set_day_weight=morning), source)
+            out.append({"fecha": d, "hora": t, "nuevo": True, "peso_del_dia": morning, **vals})
         except (ValidationError, ClosedDayError):
             continue
     return out

@@ -1534,7 +1534,7 @@ function resizeImage(file, max) {
 }
 
 // ---------------------------------------------------------------- báscula
-const BODY_ROWS = [["weight_kg", "Peso", "kg", 1], ["fat_pct", "Grasa", "%", 1], ["fat_kg", "Grasa", "kg", 1], ["muscle_kg", "Masa muscular", "kg", 1],
+const BODY_ROWS = [["weight_kg", "Peso", "kg", 1], ["fat_pct", "Grasa", "%", 2], ["fat_kg", "Grasa", "kg", 1], ["muscle_kg", "Masa muscular", "kg", 1],
   ["skeletal_muscle_kg", "Músculo esquelético", "kg", 1], ["lean_kg", "Peso sin grasa", "kg", 1], ["water_pct", "Agua", "%", 1], ["protein_pct", "Proteína", "%", 1],
   ["bone_kg", "Hueso", "kg", 1], ["visceral_fat", "Grasa visceral", "", 1], ["bmr_kcal", "BMR báscula", "kcal", 0], ["bmi", "IMC", "", 1]];
 function bodyPanel(list) {
