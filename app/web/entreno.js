@@ -861,14 +861,28 @@ function prRow(p) {
     h("div", { class: "exr-v pr" }, h("b", { class: "num" }, h("span", { class: "trophy" }, icon("trophy")), recTxt(p.type, p.value, p.kind)), h("span", null, REC_LABEL[p.type])));
 }
 
+// Historial: se pintan de 20 en 20 (al llegar al final de la lista se cargan los siguientes solos)
+const HIST_PAGE = 20;
 function tHistorial(st, ws) {
-  let lastMonth = null; const out = [];
-  for (const w of ws) {
-    const mo = dateLabel(w.date, { month: "long", year: "numeric" });
-    if (mo !== lastMonth) { out.push(h("div", { class: "sec-t" }, mo)); lastMonth = mo; }
-    out.push(workoutCard(w));
+  const box = h("div"), more = h("div", { class: "hist-more" });
+  let shown = 0, lastMonth = null, io = null;
+  const add = () => {
+    const next = ws.slice(shown, shown + HIST_PAGE);
+    for (const w of next) {
+      const mo = dateLabel(w.date, { month: "long", year: "numeric" });
+      if (mo !== lastMonth) { box.append(h("div", { class: "sec-t" }, cap1(mo))); lastMonth = mo; }
+      box.append(workoutCard(w));
+    }
+    shown += next.length;
+    if (shown >= ws.length) { more.replaceChildren(ws.length > HIST_PAGE ? h("div", { class: "faint" }, `${ws.length} entrenos · no hay más`) : ""); if (io) io.disconnect(); }
+    else more.replaceChildren(h("button", { class: "btn", onclick: add }, `Ver más (${ws.length - shown} restantes)`));
+  };
+  add();
+  if ("IntersectionObserver" in window && shown < ws.length) {
+    io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting) && shown < ws.length) add(); }, { rootMargin: "400px" });
+    setTimeout(() => more.isConnected && io.observe(more), 0);
   }
-  return h("div", null, out);
+  return h("div", null, box, more);
 }
 
 function bestSetOf(ex) {
