@@ -186,7 +186,7 @@ document.addEventListener("pointermove", (e) => {
     if (t === HOVER.el) return;
     clearTimeout(HOVER.t); HOVER.el = t;
     if (t) HOVER.t = setTimeout(() => { if (HOVER.el === t && t.isConnected) showTipAt(t.dataset.tip, t); }, 150);
-    else if (!(e.target.closest && e.target.closest(".mchart.line, .wc svg"))) hideTip();
+    else if (!(e.target.closest && e.target.closest(".mchart.line, .wc svg, .rprog"))) hideTip();
     return;
   }
   if (HOLD.t && Math.hypot(e.clientX - HOLD.x, e.clientY - HOLD.y) > 10) { clearTimeout(HOLD.t); HOLD.t = null; }
@@ -540,7 +540,7 @@ function lvlShield(L, size = 20) {
 function lvlPill(L) {
   if (!L) return null;
   const u = L.metric === "reps" ? " reps" : " kg", sg = (x) => (L.metric === "add" && x > 0 ? "+" : "") + fmt(x) + u;
-  const lines = [`${LVL[L.idx]} · ${TIER[L.idx][1]} · ${topTxt(L.pct)}`, `Más fuerte que el ${fmt(L.pct)} % de los ${sexWord()} de ${fmt(L.bw, 1)} kg` + (L.date ? ` (tu peso el ${dateLabel(L.date, { day: "numeric", month: "short" })})` : ""),
+  const lines = [`${LVL[L.idx]} · ${TIER[L.idx][1]} · ${topTxt(L.pct)}`, `Más fuerte que el ${fmt(L.pct)} % de los ${sexWord()} de ${fmt(L.bw, 1)} kg` + (S.bwEst ? " (tu peso aproximado del perfil)" : L.date ? ` (tu peso el ${dateLabel(L.date, { day: "numeric", month: "short" })})` : ""),
     "## Tu marca", L.valTxt, L.need ? "Siguiente | " + L.need.replace(/ para .*/, "") + " → " + LVL[L.idx + 1] : "Rango máximo",
     "## Cortes", ...L.cuts.map((c, i) => `${LVL[i + 1]} | ${sg(c)}`)];
   lines.push("Pulsa para ver la curva");
@@ -1159,6 +1159,10 @@ async function loadBodyMeta() {
   const [ws, st, set] = await Promise.all([api("GET", "/api/weights").catch(() => []), api("GET", "/api/settings").catch(() => ({})),
     api("GET", "/api/exercise-settings").catch(() => ({}))]);
   S.weights = (ws || []).filter((w) => w.kg).sort((a, b) => a.date.localeCompare(b.date));
+  // Sin ningún pesaje: el peso aproximado del perfil, el mismo para todas las fechas (antes del primer pesaje se usa ese pesaje)
+  const est = parseFloat(String((st.settings || st).peso_estimado_kg || "").replace(",", "."));
+  S.bwEst = !S.weights.length && est > 0;
+  if (S.bwEst) S.weights = [{ date: todayISO(), kg: est }];
   const last = S.weights[S.weights.length - 1];
   S.bw = last ? last.kg : null; S.bwDate = last ? last.date : null;
   const sx = ((st.settings || st).sexo || "").toUpperCase().slice(0, 1); S.sex = sx === "M" ? "M" : sx === "H" ? "H" : "";
@@ -1288,7 +1292,7 @@ function levelSheet(name, L) {
   })()));
   sheet("Rango · " + name, [
     h("div", { class: "lvhero mini" }, h("div", { class: "lvh-b" }, lvlBadge(L.idx, 54)), h("div", { class: "lvh-t" }, h("b", { class: "tn t" + L.idx }, LVL[L.idx]),
-      h("span", { class: "muted" }, `${topTxt(L.pct)} · más fuerte que el ${fmt(L.pct)} % de los ${sexWord()} de ${fmt(L.bw, 1)} kg` + (L.date ? ` (tu peso el ${dateLabel(L.date, { day: "numeric", month: "short" })})` : "")), h("span", { class: "faint" }, L.valTxt + (L.need ? " · " + L.need : "")))),
+      h("span", { class: "muted" }, `${topTxt(L.pct)} · más fuerte que el ${fmt(L.pct)} % de los ${sexWord()} de ${fmt(L.bw, 1)} kg` + (S.bwEst ? " (tu peso aproximado del perfil)" : L.date ? ` (tu peso el ${dateLabel(L.date, { day: "numeric", month: "short" })})` : "")), h("span", { class: "faint" }, L.valTxt + (L.need ? " · " + L.need : "")))),
     (() => { ensureTierDefs(); return h("div", { class: "card panel flat rl-card" }, rankLadder(L)); })(),
     (() => { const pr = rankProgress(name, L); return pr ? h("div", { class: "card panel flat" }, h("h3", null, "Tu progreso", h("span", { class: "faint", style: { fontWeight: 400 } }, " · " + (L.metric === "reps" ? "reps máximas" : L.metric === "secs" ? "segundos" : L.metric === "add" ? "lastre (1RM)" : "1RM estimado") + " de cada sesión" + (L.metric === "secs" ? "" : "; los cortes siguen tu peso de cada día"))), pr) : null; })(),
     h("table", { class: "t lvtable" }, h("tr", null, h("th", null, "Rango"), h("th", { class: "r" }, L.metric === "reps" ? "Reps" : L.metric === "secs" ? "Segundos" : "1RM"), h("th", { class: "r" }, "Percentil"), h("th", { class: "r" }, "Te falta")), rows),
@@ -1331,23 +1335,27 @@ function rankProgress(name, L) {
   const X = (i) => PL + (i / (hist.length - 1)) * (W - PL - PR);
   const vs = hist.map((x) => x.L.raw), top = Math.max(...hist.map((x) => x.L.idx)), low = Math.min(...hist.map((x) => x.L.idx));
   // El eje empieza en 0 (kg, reps o segundos); con lastre puede bajar de 0 si hay series asistidas
+  // Arriba se ve el corte del rango siguiente al mejor que tienes y un trozo de esa franja; lo que queda más arriba no se dibuja
   let hi = Math.max(...vs, ...cs.map((c) => c[Math.min(5, top + 1)])), lo = L.metric === "add" ? Math.min(0, ...vs) : 0;
-  hi += (hi - lo) * 0.06 || 1;
-  const Y = (v) => PT + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * (H - PT - PB);
+  hi += (hi - lo) * 0.12 || 1;
+  const Y = (v) => PT + (hi - v) / (hi - lo) * (H - PT - PB);
   const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, class: "rprog" });
+  const cid = "rpc" + Math.random().toString(36).slice(2, 7), cp = svgEl("clipPath", { id: cid });
+  cp.append(svgEl("rect", { x: PL, y: PT, width: W - PL - PR, height: H - PT - PB })); const defs = svgEl("defs", {}); defs.append(cp); svg.append(defs);
+  const plot = svgEl("g", { "clip-path": `url(#${cid})` }); svg.append(plot);
   const lbl = (x, y, txt, cls, anchor = "start") => { const t = svgEl("text", { x, y, "text-anchor": anchor, class: cls }); t.textContent = txt; svg.append(t); };
   if (from) {  // habilidad: por debajo del mínimo (1 rep, sostenerlo…) no hay rango
     let tp = "", bt = ""; hist.forEach((x, k) => { tp += (k ? "L" : "M") + X(k).toFixed(1) + " " + Y(cs[k][from]).toFixed(1); bt = "L" + X(k).toFixed(1) + " " + Y(lo).toFixed(1) + bt; });
-    svg.append(svgEl("path", { d: tp + bt + "Z", class: "norank" }));
+    plot.append(svgEl("path", { d: tp + bt + "Z", class: "norank" }));
   }
   for (let i = from; i < 6; i++) {
     let tp = "", bt = "";
     hist.forEach((x, k) => { const a = i === from ? (from ? cs[k][from] : lo) : cs[k][i], b = i === 5 ? hi : cs[k][i + 1]; tp += (k ? "L" : "M") + X(k).toFixed(1) + " " + Y(b).toFixed(1); bt = "L" + X(k).toFixed(1) + " " + Y(a).toFixed(1) + bt; });
-    svg.append(svgEl("path", { d: tp + bt + "Z", fill: TCOL(i), opacity: 0.13 }));
+    plot.append(svgEl("path", { d: tp + bt + "Z", fill: TCOL(i), opacity: 0.13 }));
     if (i > from) { let dl = ""; hist.forEach((x, k) => { dl += (k ? "L" : "M") + X(k).toFixed(1) + " " + Y(cs[k][i]).toFixed(1); });
-      svg.append(svgEl("path", { d: dl, fill: "none", stroke: TCOL(i), "stroke-dasharray": "4 3", "stroke-width": 1.2 }));
+      if (Math.min(...cs.map((c) => c[i])) < hi) plot.append(svgEl("path", { d: dl, fill: "none", stroke: TCOL(i), "stroke-dasharray": "4 3", "stroke-width": 1.2 }));
       const last = cs[hist.length - 1][i]; if (last > lo && last < hi && Y(lo) - Y(last) > 12) lbl(PL - 6, Y(last) + 4, fmt(last), "rl-c", "end"); }
-    const ya = Y(i === from ? (from ? cs[hist.length - 1][from] : lo) : cs[hist.length - 1][i]), yb = Y(i === 5 ? hi : cs[hist.length - 1][i + 1]);
+    const ya = Math.min(Y(lo), Y(i === from ? (from ? cs[hist.length - 1][from] : lo) : cs[hist.length - 1][i])), yb = Math.max(PT, Y(i === 5 ? hi : Math.min(hi, cs[hist.length - 1][i + 1])));
     if (ya - yb > 13) lbl(W - PR + 12, (ya + yb) / 2 + 4, LVL[i], "rl-n lvname l" + i);
   }
   // abajo, el 0 (y en habilidades, el mínimo para tener rango si no queda pegado al 0)
@@ -1356,9 +1364,25 @@ function rankProgress(name, L) {
   svg.append(svgEl("line", { x1: PL, x2: W - PR, y1: Y(lo), y2: Y(lo), class: "axisl" }));
   let d = ""; hist.forEach((x, i) => { d += (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(x.L.raw).toFixed(1); });
   svg.append(svgEl("path", { d, fill: "none", stroke: "var(--text)", "stroke-width": 1.8 }));
-  hist.forEach((x, i) => svg.append(tip(svgEl("circle", { cx: X(i), cy: Y(x.L.raw), r: i === hist.length - 1 ? 5 : 3.4, fill: TCOL(x.L.idx), stroke: "var(--surface, #fff)", "stroke-width": 1.5, class: "rp-pt" }),
-    `${dateLabel(x.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}\n${x.L.valTxt}\nRango | ${LVL[x.L.idx]}\nTu peso | ${fmt(x.bw, 1)} kg`)));
+  hist.forEach((x, i) => svg.append(svgEl("circle", { cx: X(i), cy: Y(x.L.raw), r: i === hist.length - 1 ? 5 : 3.4, fill: TCOL(x.L.idx), stroke: "var(--surface, #fff)", "stroke-width": 1.5 })));
   [0, hist.length - 1].forEach((i, k) => lbl(X(i), H - 6, dateLabel(hist[i].date, { day: "numeric", month: "short", year: "2-digit" }), "rl-c", k ? "end" : "start"));
+  const tipOf = (x) => `${dateLabel(x.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}\n${x.L.valTxt}\nRango | ${LVL[x.L.idx]}` +
+    (x.L.idx < 5 && x.L.need ? `\nSiguiente | ${x.L.need}` : "") + `\nTu peso | ${fmt(x.bw, 1)} kg`;
+  const guide = svgEl("line", { y1: PT, y2: H - PB, class: "guide", style: "display:none" }), hov = svgEl("circle", { r: 6, class: "rp-hov", style: "display:none" });
+  const hit = svgEl("rect", { x: PL - 6, y: 0, width: W - PL - PR + 12, height: H, fill: "transparent" });
+  svg.append(guide, hov, hit);
+  const move = (ev) => {
+    const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+    const q = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const i = Math.max(0, Math.min(hist.length - 1, Math.round((q.x - PL) / (W - PL - PR) * (hist.length - 1)))), x = hist[i];
+    guide.setAttribute("x1", X(i)); guide.setAttribute("x2", X(i)); guide.style.display = "";
+    hov.setAttribute("cx", X(i)); hov.setAttribute("cy", Y(x.L.raw)); hov.setAttribute("fill", TCOL(x.L.idx)); hov.style.display = "";
+    showTipAt(tipOf(x), hov);
+  };
+  const off = () => { guide.style.display = "none"; hov.style.display = "none"; hideTip(); };
+  hit.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") move(e); });
+  hit.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") off(); });
+  touchHold(hit, move, off);
   return svg;
 }
 

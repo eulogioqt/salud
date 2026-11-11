@@ -223,6 +223,13 @@ class Ctx:
         sx = (core.settings(conn).get("sexo") or "").upper()[:1]
         self.sx = "M" if sx == "M" else "H"
         ws = [(r[0], r[1]) for r in conn.execute("SELECT date, weight_kg FROM days WHERE weight_kg IS NOT NULL ORDER BY date")]
+        if not ws:  # sin ningún pesaje: el peso aproximado del perfil, constante
+            try:
+                est = float(str(core.settings(conn).get("peso_estimado_kg") or "").replace(",", "."))
+            except ValueError:
+                est = 0
+            if est > 0:
+                ws = [(core.today(), est)]
         self.wd = [d for d, _ in ws]
         self.wk = [k for _, k in ws]
 
@@ -375,7 +382,8 @@ def _signature(conn):
     es = sorted(json.dumps(v, sort_keys=True, default=str) for v in T.exercise_settings(conn).values())
     d = _sl_dir(conn)
     tabs = sorted(os.listdir(d)) if os.path.isdir(d) else []
-    sx = core.settings(conn).get("sexo")
+    sx = [core.settings(conn).get("sexo"), core.settings(conn).get("peso_estimado_kg"),
+          conn.execute("SELECT COUNT(*) FROM days WHERE weight_kg IS NOT NULL").fetchone()[0] > 0]
     return json.dumps([list(w), list(s), es, tabs, sx], default=str)
 
 

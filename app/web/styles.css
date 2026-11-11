@@ -1612,3 +1612,5 @@ img { -webkit-user-drag: none; user-select: none; }
 .ring .rg-x { fill: var(--ring-over1b); } .ring .rg-x.hi { fill: var(--ring-over3b); }
 @media (prefers-color-scheme: dark) { .ring .rg-x { fill: var(--ring-over1); } .ring .rg-x.hi { fill: var(--ring-over3); } }
 .rprog .norank { fill: var(--line); opacity: .45; } .rprog .axisl { stroke: var(--line-2, #d8d4cc); stroke-width: 1; }
+.rprog .guide { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; opacity: .6; }
+.rprog .rp-hov { stroke: var(--surface, #fff); stroke-width: 2.5; filter: drop-shadow(0 1px 3px rgba(0,0,0,.25)); }
