@@ -846,7 +846,22 @@ function upRow(u) {
     h("div", { class: "exr-v up" }, h("span", { class: "upfromto" }, h("span", { class: "upfrom" }, lvlBadge(u.from, 14), h("span", { class: "lvname sm l" + u.from }, LVL[u.from])), h("span", { class: "uparr" }, icon("up")), lvlShield(u.L, 18), h("b", { class: "lvname l" + u.to }, LVL[u.to]))));
 }
 // Subidas de rango de un entreno (en la lista y en Hoy): flecha naranja y número
-function upsOf(wid) { return ((S.tStats && S.tStats.ups) || []).filter((u) => u.wid === wid); }
+// Subidas de rango: se calculan en el navegador con todo el historial y las tablas de Strength Level (tarda un poco);
+// mientras tanto se usa lo último calculado, guardado en este navegador, para que salgan al momento.
+const UPS_KEY = () => "salud.ups." + ((S.me && S.me.usuario) || "local");
+let UPS_CACHE = null, UPS_SEEN = null, SL_READY = false;
+function upsCache() { if (UPS_CACHE == null) { try { UPS_CACHE = JSON.parse(localStorage.getItem(UPS_KEY()) || "{}"); } catch (e) { UPS_CACHE = {}; } } return UPS_CACHE; }
+function upsOf(wid) {
+  const c = upsCache(), cur = S.tStats && S.tStats.ups;
+  if (cur && UPS_SEEN !== cur) {  // nuevo cálculo: actualiza la copia (solo los entrenos que ya tienen su tabla calculada)
+    UPS_SEEN = cur; const by = {};
+    for (const u of cur) (by[u.wid] = by[u.wid] || []).push({ wid: u.wid, name: u.name, from: u.from, to: u.to });
+    if (SL_READY) { UPS_CACHE = by; } else Object.assign(c, by);  // con las tablas ya cargadas, el cálculo es completo y sustituye a la copia
+    try { localStorage.setItem(UPS_KEY(), JSON.stringify(UPS_CACHE)); } catch (e) { /* sin almacenamiento: solo tarda un poco más */ }
+  }
+  const mine = cur ? cur.filter((u) => u.wid === wid) : [];
+  return mine.length ? mine : UPS_CACHE[wid] || [];
+}
 function upsChip(wid) {
   const ups = upsOf(wid);
   return ups.length ? tip(h("span", { class: "upchip" }, icon("up"), String(ups.length)), ups.map((u) => `${dispName(u.name)}: ${LVL[u.from]} → ${LVL[u.to]}`).join("\n")) : null;
@@ -1159,9 +1174,10 @@ async function loadSLTables() {
   const want = new Set(STD.map(([, , k]) => k.replace(/\.(reps|add)$/, "")));
   for (const x of Object.values(S.exSet || {})) if (x.sl_slug) want.add(x.sl_slug);
   const slugs = [...want].filter((sl) => !SL_TABLES[sl] && !SL_TABLES[sl + ".reps"] && !SL_FAIL[sl]);
-  if (!slugs.length) return;
+  if (!slugs.length) { SL_READY = true; return; }
   const got = await api("GET", "/api/strength/varias?slugs=" + slugs.join(",")).catch(() => ({}));
   for (const sl of slugs) if (got[sl]) addSL(got[sl]);
+  SL_READY = true;
   // las que aún no estén en la caché del servidor se piden de una en una, sin bloquear la página
   for (const sl of slugs.filter((x) => !got[x])) api("GET", "/api/strength/" + sl).then((d) => { addSL(d); S.tStats = null; if (S.view === "entreno" && !S.sheetOpen) render(); }).catch(() => { SL_FAIL[sl] = "sin tabla"; });
 }

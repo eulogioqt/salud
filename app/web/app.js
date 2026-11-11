@@ -141,6 +141,7 @@ function toast(msg, opts = {}) {
 
 // ------------------------------------------------------------------- sheets
 const OPEN_SHEETS = new Set();
+const SHEET_STACK = [];  // modales abiertos, de abajo arriba
 let LAST_SHEET = null;  // para no abrir dos veces el mismo modal con varios clics seguidos
 // Abre algo asíncrono una sola vez aunque se pulse varias veces mientras carga.
 const OPENING = new Set();
@@ -153,13 +154,18 @@ function sheet(title, body, footer, opts = {}) {
   const tkey = typeof title === "string" ? title : null;
   if (tkey && LAST_SHEET && LAST_SHEET.key === tkey && LAST_SHEET.ctl.el.isConnected && !LAST_SHEET.ctl.el.parentNode.classList.contains("closing")
       && Date.now() - LAST_SHEET.t < 1200) return LAST_SHEET.ctl;
+  // Los modales se apilan: uno nuevo se abre encima. Si se abre uno que ya estaba más abajo (mismo título o misma clave),
+  // se vuelve a ese nivel: se cierran los de encima y él mismo, y se abre de nuevo en su sitio (sin escaleras infinitas).
+  const skey = opts.key || tkey;
+  if (skey) { const i = SHEET_STACK.findIndex((x) => x.key === skey); if (i >= 0) SHEET_STACK.slice(i).reverse().forEach((x) => x.close(true)); }
   S.sheetOpen++;
   document.body.classList.add("modal-open");
   const bd = h("div", { class: "backdrop" });
-  const close = () => {
+  const close = (instant) => {
     if (!bd.isConnected || bd.classList.contains("closing")) return;
     OPEN_SHEETS.delete(close);
-    bd.classList.add("closing");
+    const si = SHEET_STACK.findIndex((x) => x.close === close); if (si >= 0) SHEET_STACK.splice(si, 1);
+    bd.classList.add("closing"); if (instant === true) bd.style.display = "none";
     S.sheetOpen--; document.removeEventListener("keydown", onKey);
     setTimeout(() => bd.remove(), 140);
     if (!S.sheetOpen) document.body.classList.remove("modal-open");
@@ -168,7 +174,7 @@ function sheet(title, body, footer, opts = {}) {
   };
   const onKey = (e) => { if (e.key === "Escape" && bd === document.querySelector("#sheet-root .backdrop:last-child")) close(); };
   document.addEventListener("keydown", onKey);
-  OPEN_SHEETS.add(close);
+  OPEN_SHEETS.add(close); SHEET_STACK.push({ key: skey, close });
   const titleEl = h("h2", null, title), subEl = h("div", { class: "sheet-sub" }), descEl = h("div", { class: "sheet-desc hidden" }), extraEl = h("div", { class: "title-x" });
   const backEl = h("button", { class: "icon-btn round hidden", "aria-label": "Atrás" }, icon("back"));
   const bodyEl = h("div", { class: "sheet-b" });
@@ -317,6 +323,8 @@ function energySheet(st) {
       h("div", { class: "bd-leg" }, meals.map(([l, k], i) => h("span", null, h("i", { class: "m" + i }), l + " ", h("b", { class: "num" }, fmt(k)))))) : null,
     h("div", { class: "bd-macros" },
       macroRow("p", "Proteína", "protein_g", tg.protein_g), macroRow("c", "Carbohidratos", "carbs_g", tg.carbs_g), macroRow("g", "Grasas", "fat_g", tg.fat_mid_g)),
+    st.approx_kcal && kc ? h("div", { class: "bd-apx" }, h("div", { class: "bd-apx-bar" }, h("i", { style: { width: pct(st.approx_kcal, kc) + "%" } })),
+      h("span", null, h("b", { class: "num" }, Math.round(pct(st.approx_kcal, kc)) + " %"), ` aproximado (${fmt(st.approx_kcal)} kcal): comidas fuera y productos sin etiqueta. El resto viene de etiquetas o de tu histórico.`)) : null,
     (t.missing || []).length ? h("div", { class: "note warn" }, "Hay valores desconocidos: los totales son un mínimo.") : null);
   // Lo gastado
   const parts = [
@@ -468,7 +476,7 @@ async function stepsData(st) {
 const agoTxt = (ts) => { if (!ts) return "—"; const m = Math.round((Date.now() - new Date(ts.replace(" ", "T"))) / 60000); return m < 1 ? "ahora" : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : dateLabel(ts.slice(0, 10), { day: "numeric", month: "short" }); };
 function stepsFooter(d, sh) {
   return [h("span", { class: "faint sm" }, `Último envío del móvil: ${agoTxt(d.last_received)}`), h("span", { class: "grow" }),
-    h("button", { class: "btn ghost sm", onclick: () => { sh.close(); connectionsSheet(); } }, "Conexiones"),
+    h("button", { class: "btn ghost sm", onclick: () => connectionsSheet() }, "Conexiones"),
     h("button", { class: "btn sm", onclick: () => { for (const c of [...OPEN_SHEETS]) c(); location.hash = "#/progreso"; } }, "Ver todo en Progreso")];
 }
 // Ficha de pasos del día (desde Hoy): objetivo, gasto, distancia, racha y el día por horas frente a tu media
@@ -668,7 +676,7 @@ async function connectionsSheet() {
     const st_ = (k, ok, any) => isOff(k) || !any ? "off" : ok ? "ok" : "warn";
     const btn_ = (k, any) => any && !isOff(k)
       ? h("button", { class: "btn sm ghost", onclick: async () => { if (!confirm("¿Desconectar? Lo que mande el móvil de esto dejará de guardarse (puedes desactivarlo también en HC Webhook).")) return; await api("POST", "/api/movil", { off: k }); info = await api("GET", "/api/movil").catch(() => info); draw(); loadPasos(); } }, "Desconectar")
-      : h("button", { class: "btn sm ghost", onclick: () => { sh.close(); stepsConnectSheet(k); } }, "Conectar");
+      : h("button", { class: "btn sm ghost", onclick: () => stepsConnectSheet(k) }, "Conectar");
     const row_ = (ic, t, state, sub_, btn) => h("div", { class: "pc-row" }, h("span", { class: "pc-i " + state }, ic),
       h("div", { class: "grow" }, h("div", { class: "pc-t" }, h("b", null, t), h("span", { class: "pc-badge " + state }, { ok: "Conectado", warn: "Sin datos recientes", off: "Sin conectar", man: "A mano" }[state])),
         h("div", { class: "faint sm" }, sub_)), btn);
@@ -677,7 +685,7 @@ async function connectionsSheet() {
       h("div", { class: "pc-list" },
         S.me ? row_("✦", "Agente (Claude, ChatGPT…)", agentConnected() ? "ok" : "off",
           agentConnected() ? S.me.agente.agents.map((t) => agentOf(t.agent || t.kind).n).join(", ") : "Para apuntar por chat, mandar capturas de Hevy o de la báscula",
-          h("button", { class: "btn sm ghost", onclick: () => { sh.close(); connectAgent(); } }, agentConnected() ? "Gestionar" : "Conectar")) : null,
+          h("button", { class: "btn sm ghost", onclick: () => connectAgent() }, agentConnected() ? "Gestionar" : "Conectar")) : null,
         S.me ? row_("👟", "Pasos del móvil", st_("pasos", pasosOk, info.pasos_ultimo), info.pasos_ultimo && !isOff("pasos") ? `Último envío ${agoTxt(info.pasos_ultimo)}` : "Que lleguen solos desde el móvil", btn_("pasos", info.pasos_ultimo)) : null,
         S.me ? row_("⚖", "Báscula", st_("bascula", !!info.bascula, info.bascula), info.bascula && !isOff("bascula") ? `Último pesaje ${whenTxt(info.bascula)}` : "Que cada pesaje llegue solo (peso, % de grasa…)", btn_("bascula", info.bascula)) : null,
         S.me ? row_("🏋", "Entrenos", st_("entreno", !!info.entreno_ultimo, info.entreno_ultimo), info.entreno_ultimo && !isOff("entreno") ? `Último entreno detectado ${whenTxt(info.entreno_ultimo)}` : "Que se sepa solo cuándo entrenas (Hevy u otra app)", btn_("entreno", info.entreno_ultimo)) : null      ),
@@ -708,7 +716,7 @@ function stepsSheet(st) {
   draw();
   const sh = sheet("Pasos", [h("div", { class: "steps-box" }, inp, h("div", { class: "faint" }, "pasos del día"), kcalEl),
     h("div", { class: "note" }, `Zancada ${fmt(en.stride_m, 2)} m · ${fmt(en.weight_used_kg, 1)} kg · ${String(en.kcal_per_kg_km).replace(".", ",")} kcal/kg/km. Si una sesión de carrera ya está en el contador, se descuenta para no contarla dos veces.`)],
-    [S.me ? h("button", { class: "btn ghost sm", onclick: () => { sh.close(); stepsConnectSheet(); } }, (S.pasos || {}).conectado ? "Pasos automáticos" : "🔗 Que lleguen solos") : null,
+    [S.me ? h("button", { class: "btn ghost sm", onclick: () => stepsConnectSheet() }, (S.pasos || {}).conectado ? "Pasos automáticos" : "🔗 Que lleguen solos") : null,
       h("span", { class: "grow" }), h("button", { class: "btn primary lg", onclick: save }, "Guardar")], { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }) });
   setTimeout(() => { inp.focus(); inp.select(); }, 60);
 }
@@ -720,7 +728,7 @@ async function trainingDaySheet(st) {
   const closed = st.status === "cerrado", rest = st.day.rest_day === 1;
   const pend = ws.length ? [] : (st.sessions || []).filter((x) => !x.registrada);
   const sh = sheet("Entreno", [
-    ws.length ? h("div", { class: "list" }, ws.map((w) => h("div", { class: "item", onclick: () => { sh.close(); workoutSheet(w.id); } },
+    ws.length ? h("div", { class: "list" }, ws.map((w) => h("div", { class: "item", onclick: () => workoutSheet(w.id) },
       h("div", { class: "nm" }, w.title), h("div", { class: "kc num" }, fmt(w.duration_min) + "′"), h("div", { class: "sub" }, `${w.sets_count} series · ${fmt(w.volume_kg)} kg`), h("div"))))
       : pend.length ? h("div", { class: "det-card" },
           h("div", { class: "det-src" }, h("span", { class: "det-i" }, "!"), `Ha llegado de ${pend[0].app || "tu móvil"} · falta mandar el entreno`),
@@ -912,7 +920,7 @@ function addSheet(meal) {
   const drawList = () => {
     const q = norm(search.value.trim());
     const foods = S.catalog.foods.filter((f) => !f.hidden && !f.deleted && f.reviewed);
-    const tpls = S.catalog.templates.filter((t) => !t.hidden && !t.deleted && t.reviewed);
+    const tpls = S.catalog.templates.filter((t) => !t.hidden && !t.deleted && t.reviewed).sort((a, b) => (b.favorite - a.favorite) || a.name.localeCompare(b.name, "es"));
     if (!foods.length && !tpls.length) { list.replaceChildren(h("div", { class: "card empty flat" }, h("h3", null, "Nada aceptado todavía"), h("p", { class: "muted" }, "Revisa y acepta productos en Comida para que aparezcan aquí."))); return; }
     const secs = [];
     if (q) {
@@ -938,7 +946,7 @@ function addSheet(meal) {
       [h("div", { class: "search sticky" }, icon("search"), search),
         h("div", { class: "quick-actions" },
           h("button", { type: "button", class: "qa", onclick: () => estimateForm() }, icon("out"), "Comida fuera / estimación"),
-          h("button", { type: "button", class: "qa", onclick: () => { sh.close(); foodEditor(null); } }, icon("plus"), "Nuevo producto")),
+          h("button", { type: "button", class: "qa", onclick: () => foodEditor(null) }, icon("plus"), "Nuevo producto")),
         list], null, { sub: dateLabel(S.date, { weekday: "long", day: "numeric", month: "long" }) });
     drawList(); setTimeout(() => search.focus(), 30);
   };
@@ -1289,7 +1297,7 @@ function viewLibrary() {
     const match = (n) => !q || norm(n).includes(q);
     const foods = c.foods.filter((f) => !f.deleted && match(f.name + " " + (f.original_name || "")) && (F === "oculto" ? f.hidden : !f.hidden) &&
       (F === "todo" || F === "oculto" || (F === "supl" && isSupp(f)) || (F === "revisar" && !f.reviewed) || (F === "producto" && f.kind === "producto") || (F === "receta" && f.kind === "receta") || (F === "pendiente" && ["pendiente", "provisional"].includes(f.status) || (F === "pendiente" && (f.units || []).every((u) => (u.per.missing || []).length === 4)))));
-    const tpls = c.templates.filter((t) => !t.deleted && match(t.name) && (F === "oculto" ? t.hidden : !t.hidden) && (["todo", "habitual", "oculto"].includes(F) || (F === "revisar" && !t.reviewed)));
+    const tpls = c.templates.filter((t) => !t.deleted && match(t.name) && (F === "oculto" ? t.hidden : !t.hidden) && (["todo", "habitual", "oculto"].includes(F) || (F === "revisar" && !t.reviewed))).sort((a, b) => (b.favorite - a.favorite) || a.name.localeCompare(b.name, "es"));
     const secs = [];
     if (tpls.length) secs.push(["Comidas habituales", tpls.map((t) => tplTile(t, () => templateEditor(t)))]);
     const recs = foods.filter((f) => f.kind === "receta"), prods = foods.filter((f) => f.kind === "producto");
@@ -1529,7 +1537,9 @@ function templateEditor(t) {
   };
   const sh = sheet(isNew ? "Nueva comida habitual" : t.name, body, [
     !isNew ? h("button", { class: "btn ghost danger", onclick: (e) => confirmDel(e, () => act(() => api("PUT", "/api/templates/" + t.id, { deleted: 1 }), "Eliminada").then(sh.close)) }, "Eliminar") : null,
-    h("span", { class: "grow" }), ...saveButtons(isNew, t, save)], { wide: true, sub: reviewSub(isNew, t) });
+    h("span", { class: "grow" }), ...saveButtons(isNew, t, save)], { wide: true, sub: reviewSub(isNew, t),
+    titleExtra: isNew ? null : h("button", { class: "fav-btn" + (t.favorite ? " on" : ""), title: t.favorite ? "Quitar de favoritas" : "Añadir a favoritas (sale antes al añadir comida)",
+      onclick: async (e) => { const b = e.currentTarget; await act(() => api("PUT", "/api/templates/" + t.id, { favorite: t.favorite ? 0 : 1 })); t.favorite = t.favorite ? 0 : 1; b.classList.toggle("on", !!t.favorite); b.textContent = t.favorite ? "★" : "☆"; await loadCatalog(); } }, t.favorite ? "★" : "☆") });
   if (isNew) setTimeout(() => name.focus(), 40);
 }
 
@@ -1698,6 +1708,14 @@ function stepsPanel(hist, goal) {
 }
 // Calibración del gasto (Progreso): lo que dicen tus pesajes frente a lo que calcula el modelo
 const CAL_ROWS = [["cal_ajuste_kcal", "Base: metabolismo y día a día", (v) => signed(v) + " kcal/día"], ["cal_pasos_factor", "Pasos", (v) => "× " + fmt(v, 2)], ["cal_ejercicio_factor", "Entrenos", (v) => "× " + fmt(v, 2)]];
+// Qué parte de lo comido es aproximada (comidas fuera, sin etiqueta): explica parte del error del ajuste
+function apxNote(hist) {
+  const ds = (hist || []).filter((d) => d.entries > 0 && d.kcal), k = ds.reduce((a, d) => a + d.kcal, 0), ap = ds.reduce((a, d) => a + (d.approx_kcal || 0), 0);
+  if (!k) return null;
+  const p = Math.round((100 * ap) / k);
+  return h("div", { class: "bd-apx cal-apx" }, h("div", { class: "bd-apx-bar" }, h("i", { style: { width: p + "%" } })),
+    h("span", null, h("b", { class: "num" }, p + " %"), ` de lo que has comido ${ds.length === 1 ? "en el único día apuntado" : `en estos ${ds.length} días`} es aproximado (comidas fuera, productos sin etiqueta). ${p >= 25 ? "Es bastante: parte de la diferencia entre peso y balance puede venir de ahí." : "Es poco: tus datos son fiables para calibrar."}`));
+}
 function calPanel(cal) {
   if (!cal) return null;
   const ap = cal.applied || {}, est = cal.estimate, sd = cal.sd || {}, lr = cal.learned || {};
@@ -1713,6 +1731,7 @@ function calPanel(cal) {
       h("span", { class: "pc-badge " + (cal.auto ? "ok" : "man") }, cal.auto ? "Automática" : "Manual")),
     h("p", { class: "faint sm cal-p" }, "Si apuntas todo lo que comes y te pesas por la mañana, el peso tiene que seguir al balance. Con la diferencia se corrige el gasto: los días sin entreno separan los pasos de la base y los de pocos pasos, la base de los pasos. Solo cambia lo que tus datos justifican; se revisa cada semana."),
     cal.ready ? null : h("div", { class: "note cal-n" }, cal.reason || "Aún sin datos suficientes."),
+    apxNote(S.progress && S.progress.history),
     h("div", { class: "cal-list" }, rows),
     cal.updated ? h("div", { class: "faint sm", style: { marginTop: "6px" } }, "Última actualización: " + dateLabel(cal.updated, { day: "numeric", month: "short" })) : null,
     h("div", { class: "row", style: { gap: "8px", marginTop: "12px", flexWrap: "wrap" } },
@@ -1740,9 +1759,9 @@ function calEditSheet(cal) {
 function weeksTable(weeks) {
   if (!weeks.length) return h("div", { class: "muted" }, "Sin datos todavía.");
   return h("div", { class: "tbl-wrap" }, h("table", { class: "t" },
-    h("tr", null, ...["Semana", "Días", "kcal", "P", "C", "G", "Peso medio", "Δ", "Gasto est.", "Balance"].map((x, i) => h("th", { class: i > 0 ? "r" : "" }, x))),
+    h("tr", null, ...["Semana", "Días", "kcal", "Aprox.", "P", "C", "G", "Peso medio", "Δ", "Gasto est.", "Balance"].map((x, i) => h("th", { class: i > 0 ? "r" : "" }, x))),
     [...weeks].reverse().map((w) => h("tr", null, h("td", null, dateLabel(w.week, { day: "numeric", month: "short" })), h("td", { class: "r" }, `${w.days_logged}/${w.days}`),
-      h("td", { class: "r num" }, w.kcal == null ? "—" : fmt(w.kcal)), h("td", { class: "r num" }, w.protein_g == null ? "—" : fmt(w.protein_g)),
+      h("td", { class: "r num" }, w.kcal == null ? "—" : fmt(w.kcal)), h("td", { class: "r num faint" }, w.approx_pct == null ? "—" : w.approx_pct + " %"), h("td", { class: "r num" }, w.protein_g == null ? "—" : fmt(w.protein_g)),
       h("td", { class: "r num" }, w.carbs_g == null ? "—" : fmt(w.carbs_g)), h("td", { class: "r num" }, w.fat_g == null ? "—" : fmt(w.fat_g)),
       h("td", { class: "r num" }, w.weight == null ? "—" : fmt(w.weight, 2)), h("td", { class: "r num" }, signed(w.weight_delta, 2)),
       h("td", { class: "r num" }, w.tdee == null ? "—" : fmt(w.tdee)), h("td", { class: "r num" }, signed(w.balance))))));
@@ -1957,7 +1976,7 @@ function targetSheet(tg, onSaved) {
     ]), prev);
     drawPills(); upd();
   };
-  const sh = sheet("Objetivo diario", [seg, body], [h("label", { class: "f", style: { margin: 0 } }, "Desde"), h("div", { style: { width: "160px" } }, vf), h("span", { class: "grow" }),
+  const sh = sheet("Objetivo diario", [seg, body], [h("span", { class: "grow" }),
     h("button", { class: "btn primary", onclick: async () => {
       try { await api("POST", "/api/targets", { ...payload(), valid_from: vf.value, provisional: true, note: "Editado desde la web" }); } catch (e) { toast(e.message, { error: true }); return; }
       toast("Objetivo guardado"); sh.close(); await refresh(); onSaved && onSaved(); } }, "Guardar")]);

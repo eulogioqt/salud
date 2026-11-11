@@ -282,6 +282,10 @@ MIGRATIONS = [
     ALTER TABLE hc_sessions ADD COLUMN title TEXT;
     ALTER TABLE hc_sessions ADD COLUMN origin TEXT;
     """,
+    # v14 — comidas habituales favoritas: la columna existía (por defecto 1) pero no se usaba; empiezan todas sin marcar
+    """
+    UPDATE templates SET favorite = 0;
+    """,
 ]
 
 

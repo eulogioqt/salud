@@ -607,8 +607,8 @@ def create_template(conn, data, source="web"):
     if meal and meal not in MEALS:
         raise ValidationError("Franja no válida")
     with tx(conn, "create_template", source, payload=data):
-        cur = conn.execute("INSERT INTO templates(name,meal,notes,reviewed,created_at,updated_at) VALUES(?,?,?,?,?,?)",
-                           (name, meal, data.get("notes"), _auto_reviewed(conn, data, source), ts(), ts()))
+        cur = conn.execute("INSERT INTO templates(name,meal,notes,favorite,reviewed,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+                           (name, meal, data.get("notes"), 1 if data.get("favorite") else 0, _auto_reviewed(conn, data, source), ts(), ts()))
         _write_template_items(conn, cur.lastrowid, data.get("items") or [])
     return get_template(conn, cur.lastrowid)
 
@@ -621,6 +621,8 @@ def update_template(conn, tid, data, source="web"):
                 v = data[k]
                 if k == "meal" and v and v not in MEALS:
                     raise ValidationError("Franja no válida")
+                if k in ("favorite", "hidden", "deleted", "reviewed"):
+                    v = 1 if v else 0
                 conn.execute("UPDATE templates SET %s=?, updated_at=? WHERE id=?" % k, (v, ts(), tid))
         if "items" in data:
             _write_template_items(conn, tid, data["items"])
@@ -1059,6 +1061,7 @@ def day_state(conn, d=None):
         "balance": None if totals["kcal"] is None or en["total"] is None else round(totals["kcal"] - en["total"]),
         "activities": acts, "avg7": None if a7 is None else round(a7, 2), "avg7_n": n7,
         "weight_interp": None if day["weight_kg"] is not None else (lambda v: None if v is None else round(v, 1))(weight_at(weights_between(conn, shift(d, -30), shift(d, 30)), d)),
+        "approx_kcal": round(sum(e["kcal"] or 0 for e in entries if e["quality"] not in ("etiqueta", "historico"))),
         "entry_count": len(entries), "closure": closure, "closure_count": n_closures, "rev": rev(conn),
         "steps_hours": steps_hours(conn, d), "supplements": supplements(conn), "supplements_taken": supplements_taken(conn, d), "sessions": hc_sessions(conn, d), "neat_levels": [{"key": k, "label": l, "kcal": v, "kcal_adj": round(v * (en.get("neat_factor") or 1))} for k, l, v in NEAT_LEVELS],
     }
@@ -1231,7 +1234,7 @@ def history(conn, a, b):
         out.append({
             "date": d, "status": st["status"], "kcal": st["totals"]["kcal"], "protein_g": st["totals"]["protein_g"],
             "carbs_g": st["totals"]["carbs_g"], "fat_g": st["totals"]["fat_g"], "missing": st["totals"]["missing"],
-            "entries": st["entry_count"], "weight_kg": st["day"]["weight_kg"], "avg7": st["avg7"],
+            "entries": st["entry_count"], "approx_kcal": st["approx_kcal"], "weight_kg": st["day"]["weight_kg"], "avg7": st["avg7"],
             "steps": st["day"]["steps"], "tdee": st["energy"]["total"], "tdee_complete": st["energy"]["complete"],
             "balance": st["balance"], "target_kcal": (st["target"] or {}).get("kcal"),
             "training": ", ".join(x["type"] for x in st["activities"]),
@@ -1268,6 +1271,7 @@ def weekly(conn, weeks=12):
             "tdee": _mean([h["tdee"] for h in logged if h["tdee_complete"]]),
             "balance": _mean([h["balance"] for h in logged if h["tdee_complete"]]),
             "steps": _mean([h["steps"] for h in hs]),
+            "approx_pct": (lambda k: None if not k else round(100 * sum(h["approx_kcal"] or 0 for h in logged) / k))(sum(h["kcal"] or 0 for h in logged)),
         })
         if w is not None:
             prev_w = w

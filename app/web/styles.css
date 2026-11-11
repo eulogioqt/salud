@@ -1546,3 +1546,11 @@ img { -webkit-user-drag: none; user-select: none; }
 .stat .v.sv { gap: 4px; align-items: center; }
 .stat .v.sv > span:first-child { line-height: 1; }
 .stat .v .skc { margin-left: 6px; height: 20px; display: inline-flex; align-items: center; padding: 0 7px; border-radius: 99px; background: var(--surface-2); color: var(--muted); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.bd-apx { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+.bd-apx b { color: var(--text, inherit); }
+.bd-apx-bar { flex: 0 0 64px; height: 6px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.bd-apx-bar i { display: block; height: 100%; background: #b9a06a; border-radius: 99px; }
+.cal-apx { margin: 4px 0 10px; }
+/* centrado óptico: los números quedan a la misma altura que el icono (medido en píxeles) */
+.prc.lg, .upchip.lg, .wk-hd .datec, .wchips .datec { padding-top: 1.75px; }
+.prc.lg svg, .upchip.lg svg { margin-top: -1.75px; }
