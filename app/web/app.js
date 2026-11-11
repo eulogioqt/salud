@@ -283,6 +283,16 @@ function ringSvg(size, r, w, p, cls, center, laps) {
   for (const [y, txt, c] of center) { const t = svgE("text", { y, "text-anchor": "middle", class: c }); t.textContent = txt; svg.append(t); }
   return svg;
 }
+// Qué cuenta el gasto de hoy y qué falta (lo que explica el *), y con qué cuenta el objetivo
+function gastoTip(st) {
+  const en = st.energy, tg = st.target || {}, falta = [];
+  if (en.steps == null) falta.push("los pasos de hoy");
+  if (en.neat_pending) falta.push("el día a día (de pie, tareas…), que eliges al cerrar el día");
+  const lines = ["Gasto de hoy hasta ahora", "Metabolismo + digestión de lo comido + pasos y entrenos apuntados."];
+  if (falta.length) lines.push("## * Falta", ...falta.map((f) => "· " + f));
+  if (tg.dynamic) lines.push("## El objetivo ya cuenta con", tg.steps_pending ? `tus pasos medios (${fmt(tg.projected_steps || 0)}, últimos 7 días)` : "tus pasos de hoy", "un día a día normal", "los entrenos que ya estén apuntados");
+  return lines.join("\n");
+}
 function summaryCard(st) {
   const t = st.totals, tg = st.target || {}, en = st.energy;
   const kcalT = tg.kcal || 0, rest = kcalT && t.kcal != null ? kcalT - t.kcal : null, over = rest != null && rest < 0;
@@ -305,7 +315,7 @@ function summaryCard(st) {
       macro("c", "Carbohidratos", "carbs_g", tg.carbs_g, fmt(tg.carbs_g)),
       macro("g", "Grasas", "fat_g", tg.fat_mid_g, fmt(tg.fat_mid_g))),
     h("div", { class: "sum-chips" },
-      h("button", { class: "schip", onclick: open }, "Gasto ", h("b", { class: "num" }, fmt(en.total)), en.complete ? null : h("span", { class: "miss", title: "Faltan datos" }, " *")),
+      tip(h("button", { class: "schip", onclick: open }, "Gasto ", h("b", { class: "num" }, fmt(en.total)), en.complete && !en.neat_pending ? null : h("span", { class: "miss" }, " *")), gastoTip(st)),
       h("button", { class: "schip", onclick: open }, "Balance ", h("b", { class: "num" }, signed(st.balance)))));
 }
 // Desglose del día (diseño B): balance arriba, lo comido (macros y comidas) y lo gastado (cada parte con su barra).

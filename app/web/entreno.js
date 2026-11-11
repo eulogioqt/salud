@@ -1327,12 +1327,15 @@ function rankProgress(name, L) {
   const e = S.tStats && S.tStats.list.find((x) => exKeyName(x.name) === exKeyName(name));
   if (!e) return null;
   const hist = e.sessions.map((x) => ({ date: x.date, bw: bwAt(x.date), L: exLevel({ name: e.name, kind: e.kind, sessions: [x] }, bwAt) })).filter((x) => x.L);
-  if (hist.length < 2) return null;
+  if (!hist.length) return null;
   const from = L.model.skill || 0, fixed = L.metric === "secs";
   const cutsAt = (bw) => { const M = fixed ? L.model : slModel(L.slug, L.metric, bw) || L.model; return M.all.map((x) => x - M.off); };
   const cs = hist.map((x) => cutsAt(x.bw));
-  const W = Math.max(300, Math.min(660, window.innerWidth - 72)), H = 230, PL = 40, PR = W < 420 ? 70 : 88, PT = 10, PB = 22;
-  const X = (i) => PL + (i / (hist.length - 1)) * (W - PL - PR);
+  // En el móvil: los nombres de los rangos van dentro de su franja (a la derecha) para dejar todo el ancho a la gráfica
+  const narrow = window.innerWidth < 640;
+  const W = Math.max(300, Math.min(660, window.innerWidth - (narrow ? 44 : 72))), H = narrow ? 210 : 230, PL = 34, PR = narrow ? 6 : 88, PT = 10, PB = 22;
+  const X = (i) => hist.length === 1 ? (PL + W - PR) / 2 : PL + (i / (hist.length - 1)) * (W - PL - PR);
+  const XB = (k) => hist.length === 1 ? (k ? W - PR : PL) : X(k), BI = hist.length === 1 ? [0, 0] : hist.map((x, k) => k);  // las franjas, de lado a lado
   const vs = hist.map((x) => x.L.raw), top = Math.max(...hist.map((x) => x.L.idx)), low = Math.min(...hist.map((x) => x.L.idx));
   // El eje empieza en 0 (kg, reps o segundos); con lastre puede bajar de 0 si hay series asistidas
   // Arriba se ve el corte del rango siguiente al mejor que tienes y un trozo de esa franja; lo que queda más arriba no se dibuja
@@ -1343,20 +1346,21 @@ function rankProgress(name, L) {
   const cid = "rpc" + Math.random().toString(36).slice(2, 7), cp = svgEl("clipPath", { id: cid });
   cp.append(svgEl("rect", { x: PL, y: PT, width: W - PL - PR, height: H - PT - PB })); const defs = svgEl("defs", {}); defs.append(cp); svg.append(defs);
   const plot = svgEl("g", { "clip-path": `url(#${cid})` }); svg.append(plot);
+  const late = [];  // nombres de los rangos: se pintan al final, encima de la línea
   const lbl = (x, y, txt, cls, anchor = "start") => { const t = svgEl("text", { x, y, "text-anchor": anchor, class: cls }); t.textContent = txt; svg.append(t); };
   if (from) {  // habilidad: por debajo del mínimo (1 rep, sostenerlo…) no hay rango
-    let tp = "", bt = ""; hist.forEach((x, k) => { tp += (k ? "L" : "M") + X(k).toFixed(1) + " " + Y(cs[k][from]).toFixed(1); bt = "L" + X(k).toFixed(1) + " " + Y(lo).toFixed(1) + bt; });
+    let tp = "", bt = ""; BI.forEach((j, k) => { tp += (k ? "L" : "M") + XB(k).toFixed(1) + " " + Y(cs[j][from]).toFixed(1); bt = "L" + XB(k).toFixed(1) + " " + Y(lo).toFixed(1) + bt; });
     plot.append(svgEl("path", { d: tp + bt + "Z", class: "norank" }));
   }
   for (let i = from; i < 6; i++) {
     let tp = "", bt = "";
-    hist.forEach((x, k) => { const a = i === from ? (from ? cs[k][from] : lo) : cs[k][i], b = i === 5 ? hi : cs[k][i + 1]; tp += (k ? "L" : "M") + X(k).toFixed(1) + " " + Y(b).toFixed(1); bt = "L" + X(k).toFixed(1) + " " + Y(a).toFixed(1) + bt; });
+    BI.forEach((j, k) => { const a = i === from ? (from ? cs[j][from] : lo) : cs[j][i], b = i === 5 ? hi : cs[j][i + 1]; tp += (k ? "L" : "M") + XB(k).toFixed(1) + " " + Y(b).toFixed(1); bt = "L" + XB(k).toFixed(1) + " " + Y(a).toFixed(1) + bt; });
     plot.append(svgEl("path", { d: tp + bt + "Z", fill: TCOL(i), opacity: 0.13 }));
-    if (i > from) { let dl = ""; hist.forEach((x, k) => { dl += (k ? "L" : "M") + X(k).toFixed(1) + " " + Y(cs[k][i]).toFixed(1); });
+    if (i > from) { let dl = ""; BI.forEach((j, k) => { dl += (k ? "L" : "M") + XB(k).toFixed(1) + " " + Y(cs[j][i]).toFixed(1); });
       if (Math.min(...cs.map((c) => c[i])) < hi) plot.append(svgEl("path", { d: dl, fill: "none", stroke: TCOL(i), "stroke-dasharray": "4 3", "stroke-width": 1.2 }));
       const last = cs[hist.length - 1][i]; if (last > lo && last < hi && Y(lo) - Y(last) > 12) lbl(PL - 6, Y(last) + 4, fmt(last), "rl-c", "end"); }
     const ya = Math.min(Y(lo), Y(i === from ? (from ? cs[hist.length - 1][from] : lo) : cs[hist.length - 1][i])), yb = Math.max(PT, Y(i === 5 ? hi : Math.min(hi, cs[hist.length - 1][i + 1])));
-    if (ya - yb > 13) lbl(W - PR + 12, (ya + yb) / 2 + 4, LVL[i], "rl-n lvname l" + i);
+    if (ya - yb > 13) late.push([narrow ? W - PR - 6 : W - PR + 12, (ya + yb) / 2 + 4, LVL[i], "rl-n lvname l" + i + (narrow ? " in" : ""), narrow ? "end" : "start"]);
   }
   // abajo, el 0 (y en habilidades, el mínimo para tener rango si no queda pegado al 0)
   lbl(PL - 6, Y(lo) + 4, fmt(lo), "rl-c", "end");
@@ -1365,7 +1369,8 @@ function rankProgress(name, L) {
   let d = ""; hist.forEach((x, i) => { d += (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(x.L.raw).toFixed(1); });
   svg.append(svgEl("path", { d, fill: "none", stroke: "var(--text)", "stroke-width": 1.8 }));
   hist.forEach((x, i) => svg.append(svgEl("circle", { cx: X(i), cy: Y(x.L.raw), r: i === hist.length - 1 ? 5 : 3.4, fill: TCOL(x.L.idx), stroke: "var(--surface, #fff)", "stroke-width": 1.5 })));
-  [0, hist.length - 1].forEach((i, k) => lbl(X(i), H - 6, dateLabel(hist[i].date, { day: "numeric", month: "short", year: "2-digit" }), "rl-c", k ? "end" : "start"));
+  (hist.length === 1 ? [0] : [0, hist.length - 1]).forEach((i, k) => lbl(hist.length === 1 ? X(i) : X(i), H - 6, dateLabel(hist[i].date, { day: "numeric", month: "short", year: "2-digit" }), "rl-c", hist.length === 1 ? "middle" : k ? "end" : "start"));
+  late.forEach((a) => lbl(...a));
   const tipOf = (x) => `${dateLabel(x.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}\n${x.L.valTxt}\nRango | ${LVL[x.L.idx]}` +
     (x.L.idx < 5 && x.L.need ? `\nSiguiente | ${x.L.need}` : "") + `\nTu peso | ${fmt(x.bw, 1)} kg`;
   const guide = svgEl("line", { y1: PT, y2: H - PB, class: "guide", style: "display:none" }), hov = svgEl("circle", { r: 6, class: "rp-hov", style: "display:none" });
@@ -1374,7 +1379,7 @@ function rankProgress(name, L) {
   const move = (ev) => {
     const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
     const q = pt.matrixTransform(svg.getScreenCTM().inverse());
-    const i = Math.max(0, Math.min(hist.length - 1, Math.round((q.x - PL) / (W - PL - PR) * (hist.length - 1)))), x = hist[i];
+    const i = hist.length === 1 ? 0 : Math.max(0, Math.min(hist.length - 1, Math.round((q.x - PL) / (W - PL - PR) * (hist.length - 1)))), x = hist[i];
     guide.setAttribute("x1", X(i)); guide.setAttribute("x2", X(i)); guide.style.display = "";
     hov.setAttribute("cx", X(i)); hov.setAttribute("cy", Y(x.L.raw)); hov.setAttribute("fill", TCOL(x.L.idx)); hov.style.display = "";
     showTipAt(tipOf(x), hov);
