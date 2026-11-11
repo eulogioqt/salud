@@ -1448,3 +1448,4 @@ table.t tr.rowhl td { background: color-mix(in srgb, var(--accent) 12%, transpar
 .prchip svg, .prc svg { margin-top: -2px; }
 .prc.lg { padding-top: 3px; } .prc.lg svg { margin-top: -2.5px; }
 .acts .a.det b { color: var(--warn); } .acts .a.det .faint { font-size: 12px; }
+.hcw-key { margin-top: 8px; } .hcw-key summary { cursor: pointer; font-size: 13px; } .hcw-key[open] summary { margin-bottom: 4px; }

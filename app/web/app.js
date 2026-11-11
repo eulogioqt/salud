@@ -562,7 +562,7 @@ async function stepsConnectSheet(mode = "pasos") {
     bascula: { t: "Conectar tu báscula", p: "Así cada pesaje llega solo, con su composición.",
       app: ["Una app de báscula que guarde en Health Connect", "La de tu báscula, o ScaleLauncher (gratis) si es una Xiaomi.", { href: "https://f-droid.org/es/packages/de.pritcloud.scalelauncher/", t: "ScaleLauncher" }],
       tipos: "Peso, Grasa corporal, Masa magra, Masa ósea, Agua corporal y Metabolismo basal", done: () => !!info.bascula, ok: () => `Conectada · último pesaje ${whenTxt(info.bascula)}`, wait: "Pésate: cuando llegue el pesaje, aquí pondrá «Conectada»." },
-    entreno: { t: "Conectar tus entrenos", p: "Así sabemos cuándo entrenas y te pedimos el entreno al cerrar el día.",
+    entreno: { t: "Conectar tus entrenos", p: "Así sabemos cuándo entrenas y, si al cerrar el día no has mandado el entreno, te lo pedimos. Las series y los pesos se los mandas a tu agente (captura o ChatGPT) o subes el CSV de Hevy en Entreno.",
       app: ["Una app de entreno que guarde en Health Connect", "Recomendada: Hevy → Ajustes → Integraciones → Health Connect, y al guardar el entreno deja activado «Health Connect»."],
       tipos: "Sesiones de ejercicio", done: () => !!info.entreno_ultimo, ok: () => `Conectado · último entreno ${whenTxt(info.entreno_ultimo)}`, wait: "Guarda un entreno: cuando llegue, aquí pondrá «Conectado»." },
   }[mode];
@@ -579,7 +579,12 @@ async function stepsConnectSheet(mode = "pasos") {
       const [t1, d1, x1] = M.app;
       body = [
         step(1, t1, d1, x1 ? h("a", { class: "btn sm ext", href: x1.href, target: "_blank", rel: "noopener" }, x1.t, " ↗") : null),
-        have ? step(2, "En «HC Webhook», activa: " + M.tipos, h("span", { class: "faint" }, "La misma app que ya usas para lo demás."))
+        have ? step(2, "En «HC Webhook», activa: " + M.tipos, h("span", { class: "faint" }, "La misma app que ya usas para lo demás."),
+            h("details", { class: "hcw-key" }, h("summary", { class: "faint" }, "Clave de HC Webhook"),
+              h("div", { class: "faint sm" }, "Una sola clave para todo lo que manda el móvil. Si la cambias, ponla también en la app."), tok ? tokLine : null,
+              h("div", { class: "row", style: { gap: "8px", marginTop: "6px" } },
+                h("button", { class: "btn sm", onclick: async () => { if (!confirm("¿Generar una clave nueva? La actual dejará de funcionar.")) return; tok = (await api("POST", "/api/movil", {})).token; draw(); } }, "Generar clave nueva"),
+                h("button", { class: "btn sm ghost danger", onclick: async () => { if (!confirm("¿Desconectar el móvil? Dejarán de llegar pasos, pesajes y entrenos.")) return; await api("DELETE", "/api/movil"); info = await api("GET", "/api/movil").catch(() => ({})); tok = null; draw(); } }, "Desconectar"))))
           : step(2, "Instala «HC Webhook» y activa: " + M.tipos, "Gratis desde GitHub (la misma sirve para pasos, báscula y entrenos). En Webhooks → Añadir, pon esta dirección:",
             h("div", null, url, h("div", { class: "muted", style: { marginTop: "8px" } }, "Y en Encabezado, «Authorization» con tu clave:"), tokLine,
               h("a", { class: "btn sm ext", style: { marginTop: "8px" }, href: "https://github.com/mcnaveen/health-connect-webhook/releases/latest", target: "_blank", rel: "noopener" }, "Descargar HC Webhook", " ↗"))),
@@ -625,16 +630,8 @@ async function connectionsSheet() {
           h("button", { class: "btn sm ghost", onclick: () => { sh.close(); stepsConnectSheet("bascula"); } }, info.bascula ? "Cómo se configura" : "Conectar")) : null,
         S.me ? row_("🏋", "Entrenos", info.entreno_ultimo ? "ok" : "off", info.entreno_ultimo ? `Último entreno detectado ${whenTxt(info.entreno_ultimo)}` : "Que se sepa solo cuándo entrenas (Hevy u otra app)",
           h("button", { class: "btn sm ghost", onclick: () => { sh.close(); stepsConnectSheet("entreno"); } }, info.entreno_ultimo ? "Cómo se configura" : "Conectar")) : null,
-        row_("📄", "Historial de Hevy", "man", lastW ? `Último entreno: ${lastW.title} · ${dateLabel(lastW.date, { day: "numeric", month: "short" })}` : "Aún no hay entrenos",
-          h("button", { class: "btn sm ghost", onclick: () => { sh.close(); importCsv(); } }, "Subir CSV"))),
-      h("div", { class: "note" }, "Las series y los pesos llegan con capturas o ChatGPT a tu agente, o subiendo el CSV de Hevy (no duplica)."),
-      S.me && info.configurado ? h("div", { class: "pc-key" }, h("div", null, h("b", null, "Clave del móvil"), h("div", { class: "faint sm" }, "Una sola clave para todo lo que manda el móvil (pasos, báscula y entrenos). Si la cambias, hay que ponerla en la app.")),
-        tok ? copyLine("Bearer " + tok) : null) : null,
-    ], S.me && info.configurado ? [
-      h("button", { class: "btn ghost sm danger", onclick: async () => { if (!confirm("¿Desconectar el móvil? La clave dejará de funcionar y dejarán de llegar pasos y pesajes.")) return; await api("DELETE", "/api/movil"); info = await api("GET", "/api/movil").catch(() => ({})); tok = null; draw(); } }, "Desconectar el móvil"),
-      h("span", { class: "grow" }),
-      h("button", { class: "btn sm", onclick: async () => { if (!confirm("¿Generar una clave nueva? La actual dejará de funcionar.")) return; tok = (await api("POST", "/api/movil", {})).token; draw(); } }, "Generar clave nueva"),
-    ] : null);
+      ),
+    ], null);
   };
   draw();
 }
