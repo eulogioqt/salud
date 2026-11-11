@@ -472,6 +472,19 @@ class TestNotes(Base):
             dispatch(self.conn, "PUT", "/api/notes/claude", {}, {"body": 5}, "chat")
 
 
+class TestUploadLink(unittest.TestCase):
+    def test_token_firma_caducidad_y_un_uso(self):
+        import tempfile
+        from salud import auth
+        d = tempfile.mkdtemp()
+        t = auth.upload_token(d, "ana", "habitual", 7)
+        self.assertEqual(auth.upload_check(d, t), ("ana", "habitual", 7))
+        self.assertIsNone(auth.upload_check(d, t[:-2] + "00"))  # firma alterada
+        self.assertIsNone(auth.upload_check(d, auth.upload_token(d, "ana", "alimento", 1, ttl=-1)))  # caducado
+        auth.upload_used(t)
+        self.assertIsNone(auth.upload_check(d, t))  # ya usado
+
+
 if __name__ == "__main__":
     unittest.main()
 

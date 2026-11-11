@@ -491,7 +491,14 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             return self._json(400, {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "JSON no válido"}})
         _conn, lock = user_ctx(user)
-        run = lambda argv: self.run_cli(argv, lock, user)  # noqa: E731
+
+        def run(argv):
+            if argv and argv[0] == "__enlace_foto":  # enlace de un solo uso para subir una foto sin pasarla por el chat
+                url = "%s/subir/%s" % (self._base(), auth.upload_token(MULTI, user, argv[1], int(argv[2])))
+                return 0, ("Enlace para subir la foto (30 min, un solo uso):\n%s\n\n"
+                           "Con terminal: curl -sS -X POST --data-binary @foto.jpg -H 'Content-Type: image/jpeg' '%s'\n"
+                           "Sin terminal: pásale el enlace a la persona; lo abre en el móvil, elige la foto y se guarda sola.") % (url, url), ""
+            return self.run_cli(argv, lock, user)
         # Sesión sin estado: el id lleva la versión de las herramientas con la que empezó el chat (para avisar si cambian).
         sid = self.headers.get("Mcp-Session-Id") or ""
         ver = sid[1:9] if sid.startswith("v") and "." in sid else None
@@ -540,7 +547,52 @@ class Handler(BaseHTTPRequestHandler):
         if u.path in ("/mcp", "/mcp/"):
             self._mcp(method)
             return True
+        if u.path.startswith("/subir/") and method in ("GET", "POST"):
+            self._subir(method, u.path[len("/subir/"):])
+            return True
         return False
+
+    def _subir(self, method, tok):
+        """Página pública (con enlace firmado de un solo uso) para subir la foto de un alimento o comida habitual."""
+        chk = auth.upload_check(MULTI, tok)
+        if not chk:
+            if method == "POST":
+                return self._json(410, {"error": "Enlace caducado o ya usado: pide uno nuevo"})
+            return self._page(410, "Enlace caducado", "<h1>Enlace caducado o ya usado</h1><p class=who>Pídele a tu agente uno nuevo.</p>")
+        user, tipo, item = chk
+        conn, lock = user_ctx(user)
+        tabla = "foods" if tipo == "alimento" else "templates"
+        with lock:
+            row = conn.execute("SELECT name FROM %s WHERE id=?" % tabla, (item,)).fetchone()
+        if not row:
+            return self._json(404, {"error": "No existe"}) if method == "POST" else self._page(404, "No existe", "<h1>No existe</h1>")
+        if method == "GET":
+            body = ("<h1>Foto de «%s»</h1><p class=who>Elige o haz la foto; se guarda sola.</p>"
+                    "<label class='b p' style='display:block;cursor:pointer'>Elegir foto<input id=f type=file accept='image/*' hidden></label>"
+                    "<p id=m class=who style='margin-top:14px'></p>"
+                    "<script>const m=document.getElementById('m');document.getElementById('f').onchange=async e=>{const file=e.target.files[0];if(!file)return;"
+                    "m.textContent='Subiendo…';try{const bm=await createImageBitmap(file);const k=Math.min(1,1280/Math.max(bm.width,bm.height));"
+                    "const c=document.createElement('canvas');c.width=Math.round(bm.width*k);c.height=Math.round(bm.height*k);c.getContext('2d').drawImage(bm,0,0,c.width,c.height);"
+                    "const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.85));const r=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'image/jpeg'},body:blob});"
+                    "const j=await r.json();m.textContent=r.ok?'Foto guardada ✓ Ya puedes cerrar esta página.':(j.error||'Error');}catch(err){m.textContent='No se pudo subir: '+err;}};</script>"
+                    ) % self._esc(row["name"])
+            return self._page(200, "Subir foto", body)
+        ct = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if ct not in ("image/jpeg", "image/png", "image/webp"):
+            return self._json(415, {"error": "Manda la imagen en bruto con Content-Type image/jpeg, image/png o image/webp"})
+        try:
+            raw = self._body_raw(3 * 1024 * 1024)
+        except ValueError:
+            return self._json(413, {"error": "Imagen demasiado grande (máx. 3 MB): redúcela"})
+        if not raw:
+            return self._json(400, {"error": "Falta la imagen"})
+        import base64
+        data = "data:%s;base64,%s" % (ct, base64.b64encode(raw).decode())
+        code, out, err = self.run_cli(["api", "POST", "/api/%s/%d/image" % (tabla, item), json.dumps({"data_url": data})], lock, user)
+        if code != 0:
+            return self._json(400, {"error": (err or out).strip() or "No se pudo guardar"})
+        auth.upload_used(tok)
+        return self._json(200, {"ok": True, "nombre": row["name"]})
 
     def _allowed(self):
         """Modo local: solo este ordenador y la red local. Modo servidor: lo protege el inicio de sesión."""

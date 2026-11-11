@@ -38,6 +38,7 @@ Reglas:
 - Entrenos desde capturas de Hevy: transcribe fielmente (no inventes series; si algo no se lee, pregunta) y usa `registrar_entreno`. El entreno ya cuenta en el gasto: no añadas además `registrar_actividad`. Las kcal de entrenos, pasos y actividades las calcula siempre el servidor con la misma fórmula: no las estimes tú ni copies las de Hevy, el reloj o ChatGPT.
 - Báscula: `registrar_bascula`; la composición corporal es una estimación con mucho error, solo tendencias de semanas.
 - Objetivos: pueden ser fijos o «según el gasto» (kcal = gasto estimado del día ± diferencia, proteína por kg, grasa en %). Calibra con la media de 7 días y tendencias de 2–4 semanas, nunca con un día suelto.
+- Fotos: para un producto de marca, mejor la de Open Food Facts (`poner_imagen` con su `url`). Si la persona te manda una foto suya del producto o del plato y quieres guardarla, pide `enlace_foto`: con terminal y el archivo, recórtala al producto, redúcela a ~1000 px y súbela con el curl que indica; sin terminal, dale el enlace para que la elija desde el móvil. No pases fotos en base64 por `poner_imagen`.
 - Ilustraciones: solo para comidas habituales (los productos llevan la foto de Open Food Facts o la suya). Cada vez que crees una comida habitual y la persona no te haya mandado foto, en ese MISMO turno lee `guia_ilustraciones`, dibuja su ilustración SVG y súbela con `poner_imagen`; no lo dejes para luego.
 - Suplementos (creatina, multivitamínico…): cada persona añade los suyos como producto con categoría «Suplemento» y su dosis como ración (p. ej. «1 cacito» de 5 g); salen en la Biblioteca, en «Suplementos». Cuando diga que se lo ha tomado, apúntalo con `anadir_alimento` (franja «otro», su ración). Son diarios: al cerrar el día, `revisar_dia` avisa de los que no están marcados; pregúntalo uno a uno («¿has tomado creatina hoy?») y si dice que sí, apúntalo. La proteína en polvo no es suplemento: va en su comida con sus gramos.
 Respuestas breves y en el idioma de la persona."""
@@ -89,16 +90,58 @@ def _bascula(a):
     return argv
 
 
+def _descargar_imagen(url, limite=3 * 1024 * 1024):
+    """Descarga una imagen pública (https) para guardarla como foto; nada de direcciones internas."""
+    import base64
+    import ipaddress
+    import socket
+    import urllib.error
+    import urllib.request
+    from urllib.parse import urlparse
+
+    def segura(u):
+        p = urlparse(u)
+        if p.scheme != "https" or not p.hostname:
+            raise ValueError("La url de la imagen debe empezar por https://")
+        try:
+            ips = {x[4][0] for x in socket.getaddrinfo(p.hostname, p.port or 443)}
+        except OSError:
+            raise ValueError("No se encuentra el servidor de la imagen")
+        if not ips or not all(ipaddress.ip_address(ip.split("%")[0]).is_global for ip in ips):
+            raise ValueError("Dirección no permitida")
+
+    class Redir(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            segura(newurl)
+            return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+    segura(url)
+    req = urllib.request.Request(url, headers={"User-Agent": "Salud/1.0 (+https://salud.eulogioqt.com)"})
+    try:
+        with urllib.request.build_opener(Redir).open(req, timeout=15) as r:
+            ct = (r.headers.get_content_type() or "").lower()
+            raw = r.read(limite + 1)
+    except (urllib.error.URLError, OSError) as e:
+        raise ValueError("No se pudo descargar la imagen: %s" % getattr(e, "reason", e))
+    if ct not in ("image/jpeg", "image/png", "image/webp"):
+        raise ValueError("La url no es una imagen JPG, PNG o WebP (%s)" % ct)
+    if len(raw) > limite:
+        raise ValueError("Imagen demasiado grande (máx. 3 MB)")
+    return "data:%s;base64,%s" % (ct, base64.b64encode(raw).decode())
+
+
 def _imagen(a):
     tipo = a.get("tipo") or "habitual"
     ruta = "/api/%s/%d/image" % ("foods" if tipo == "alimento" else "templates", int(a["id"]))
     if a.get("svg"):
         import base64
         data = "data:image/svg+xml;base64," + base64.b64encode(a["svg"].encode("utf-8")).decode()
+    elif a.get("url"):
+        data = _descargar_imagen(a["url"])
     elif a.get("data_url"):
         data = a["data_url"]
     else:
-        raise ValueError("Falta svg o data_url")
+        raise ValueError("Falta svg o url (para la foto de la persona usa enlace_foto)")
     return ["api", "POST", ruta, json.dumps({"data_url": data})]
 
 
@@ -208,8 +251,11 @@ TOOLS = [
      _o({"metodo": {"type": "string", "enum": ["GET", "POST", "PUT", "DELETE"]}, "ruta": U, "cuerpo": {"type": "object"}}, ["metodo", "ruta"]), _api, False),
     ("guia_ilustraciones", "Estilo de la casa para dibujar ilustraciones SVG de platos y comidas habituales (con un ejemplo). Léela antes de dibujar.",
      _o({}), None, True),
-    ("poner_imagen", "Pone la imagen de una comida habitual (tipo=habitual) o de un alimento/receta (tipo=alimento): `svg` con tu ilustración, o `data_url` (JPG/PNG/WebP en base64) si te mandan una foto.",
-     _o({"tipo": {"type": "string", "enum": ["habitual", "alimento"]}, "id": I, "svg": U, "data_url": U}, ["tipo", "id"]), _imagen, False),
+    ("poner_imagen", "Pone la imagen de una comida habitual (tipo=habitual) o de un alimento/receta (tipo=alimento): `svg` con tu ilustración, o `url` de una imagen pública (p. ej. la de Open Food Facts), que descarga el servidor. Para una foto que te mande la persona usa `enlace_foto`.",
+     _o({"tipo": {"type": "string", "enum": ["habitual", "alimento"]}, "id": I, "svg": U, "url": U, "data_url": U}, ["tipo", "id"]), _imagen, False),
+    ("enlace_foto", "Enlace de un solo uso (30 min) para subir una foto de un alimento/receta (tipo=alimento) o de una comida habitual (tipo=habitual) sin pasarla por el chat. Si tienes terminal con el archivo, súbela con el `curl` que te indica; si no, dale el enlace a la persona: lo abre en el móvil, elige la foto y se guarda sola.",
+     _o({"tipo": {"type": "string", "enum": ["habitual", "alimento"]}, "id": I}, ["tipo", "id"]),
+     lambda a: ["__enlace_foto", a.get("tipo") or "alimento", int(a["id"])], False),
 ]
 
 GUIA = """Ilustraciones de la casa (platos y comidas habituales sin foto). SVG plano, sin texto ni contornos negros:

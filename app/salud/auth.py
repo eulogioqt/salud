@@ -422,3 +422,55 @@ class RateLimit:
 
     def fail(self, ip):
         self.fails.setdefault(ip, []).append(time.time())
+
+
+# ---- enlaces de un solo uso para subir fotos (los da el MCP: la foto no pasa por el chat)
+UPLOAD_TTL = 30 * 60
+_UPLOADS_USED = {}
+
+
+def _upload_key(base):
+    p = os.path.join(base, ".subidas.key")
+    with _LOCK:
+        if not os.path.exists(p):
+            with open(p, "wb") as f:
+                f.write(secrets.token_bytes(32))
+            try:
+                os.chmod(p, 0o600)
+            except OSError:
+                pass
+        with open(p, "rb") as f:
+            return f.read()
+
+
+def upload_token(base, username, tipo, item_id, ttl=UPLOAD_TTL):
+    """Token firmado (sin estado) para subir la foto de un alimento («a») o comida habitual («h»)."""
+    import base64
+    t = "h" if tipo == "habitual" else "a"
+    payload = "%s:%s:%d:%d:%s" % (username, t, int(item_id), int(time.time() + ttl), secrets.token_hex(4))
+    sig = hmac.new(_upload_key(base), payload.encode(), hashlib.sha256).hexdigest()[:32]
+    return base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=") + "." + sig
+
+
+def upload_check(base, token):
+    """→ (usuario, tipo, id) si el token es válido, no ha caducado y no se ha usado; si no, None."""
+    import base64
+    try:
+        b, sig = token.split(".", 1)
+        payload = base64.urlsafe_b64decode(b + "=" * (-len(b) % 4)).decode()
+        user, t, item, exp, _n = payload.split(":")
+    except (ValueError, UnicodeDecodeError):
+        return None
+    if not hmac.compare_digest(sig, hmac.new(_upload_key(base), payload.encode(), hashlib.sha256).hexdigest()[:32]):
+        return None
+    now = time.time()
+    if int(exp) < now or token in _UPLOADS_USED:
+        return None
+    return user, ("habitual" if t == "h" else "alimento"), int(item)
+
+
+def upload_used(token):
+    now = time.time()
+    for k in [k for k, v in _UPLOADS_USED.items() if v < now]:
+        _UPLOADS_USED.pop(k, None)
+    _UPLOADS_USED[token] = now + UPLOAD_TTL + 60
