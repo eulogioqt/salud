@@ -261,10 +261,20 @@ function viewHoy() {
 // Resumen del día (prototipo B): anillo de kcal + anillos de macros; al tocarlo, el desglose completo.
 const NS_SVG = "http://www.w3.org/2000/svg";
 const svgE = (t, a) => { const e = document.createElementNS(NS_SVG, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
-function ringSvg(size, r, w, p, cls, center) {
+function ringSvg(size, r, w, p, cls, center, laps) {
   const C = 2 * Math.PI * r, svg = svgE("svg", { width: size, height: size, viewBox: `${-size / 2} ${-size / 2} ${size} ${size}`, class: "ring " + cls });
   svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-bg" }));
-  if (p > 0) svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${C * Math.min(1, p)} ${C}`, transform: "rotate(-90)" }));  // a 0, anillo vacío (sin puntito)
+  if (p > 0) svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${C * Math.min(1, p)} ${C}`, transform: "rotate(-90)" }));
+  // Al pasarte: lo que sobra da otra vuelta encima (con sombra al empezar), verde oscuro si es poco y naranja si es más del 10 %;
+  // una tercera vuelta (más del doble), rojo oscuro
+  if (laps && p > 1) {
+    const sid = "rsh" + Math.random().toString(36).slice(2, 7), f = svgE("filter", { id: sid, x: "-30%", y: "-30%", width: "160%", height: "160%" });
+    f.append(svgE("feDropShadow", { dx: 0, dy: 0, stdDeviation: 2, "flood-opacity": 0.4 })); const defs = svgE("defs", {}); defs.append(f); svg.prepend(defs);
+    for (let k = 1; k < 3 && p > k; k++) {
+      const ex = Math.min(1, p - k), col = k === 1 ? (p - 1 <= 0.1 ? "var(--ring-over1)" : "var(--ring-over2)") : "var(--ring-over3)";
+      svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, stroke: col, "stroke-linecap": "round", "stroke-dasharray": `${C * ex} ${C}`, transform: "rotate(-90)", filter: `url(#${sid})` }));
+    }
+  }  // a 0, anillo vacío (sin puntito)
   for (const [y, txt, c] of center) { const t = svgE("text", { y, "text-anchor": "middle", class: c }); t.textContent = txt; svg.append(t); }
   return svg;
 }
@@ -272,8 +282,9 @@ function summaryCard(st) {
   const t = st.totals, tg = st.target || {}, en = st.energy;
   const kcalT = tg.kcal || 0, rest = kcalT && t.kcal != null ? kcalT - t.kcal : null, over = rest != null && rest < 0;
   const open = () => energySheet(st);
-  const big = ringSvg(232, 98, 16, kcalT ? (t.kcal || 0) / kcalT : 0, "big" + (over ? " over" : ""), [
-    [-26, "Consumido", "rg-l"], [22, v(t, "kcal"), "rg-v"], [50, kcalT ? "/ " + fmt(kcalT) + " kcal" : "kcal · sin objetivo", "rg-o"]]);
+  const big = ringSvg(232, 98, 16, kcalT ? (t.kcal || 0) / kcalT : 0, "big" + (over ? " over" : ""), over ? [
+    [-34, "Consumido", "rg-l"], [14, v(t, "kcal"), "rg-v"], [40, "/ " + fmt(kcalT) + " kcal", "rg-o"], [64, "+" + fmt(-rest) + " de más", "rg-x" + (-rest / kcalT > 0.1 ? " hi" : "")]] : [
+    [-26, "Consumido", "rg-l"], [22, v(t, "kcal"), "rg-v"], [50, kcalT ? "/ " + fmt(kcalT) + " kcal" : "kcal · sin objetivo", "rg-o"]], true);
   const macro = (cls, label, f, target, unitT) => {
     const miss = (t.missing || []).includes(f);
     return h("div", { class: "mring " + cls }, ringSvg(96, 38, 9, target ? (t[f] || 0) / target : 0, cls, [[3, v(t, f) + (miss ? "+" : ""), "rg-mv"], [20, "/ " + unitT + " g", "rg-mo"]]),
@@ -317,12 +328,14 @@ function energySheet(st) {
         top ? h("span", { class: "mark", style: { left: pct(top, scale) + "%" } }) : null),
       top ? h("div", { class: "bd-goal-l" }, h("span", { style: { left: pct(top, scale) + "%" } }, "objetivo " + fmt(top))) : null);
   };
-  const meals = MEALS.map(([m, l]) => [l, (st.meals[m] && st.meals[m].totals && st.meals[m].totals.kcal) || 0]).filter((x) => x[1] > 0);
+  const meals = MEALS.map(([m, l]) => [l, (st.meals[m] && st.meals[m].totals && st.meals[m].totals.kcal) || 0, (st.meals[m] && st.meals[m].totals) || {}]).filter((x) => x[1] > 0).map((x, i) => [...x, i]);
   const eaten = h("div", { class: "bd-sec" },
     h("div", { class: "bd-st" }, h("span", { class: "grow" }, "Lo que has comido"),
       h("span", { class: "num bd-tot" }, h("b", null, v(t, "kcal")), tg.kcal ? h("span", { class: "faint" }, " / " + fmt(tg.kcal) + " kcal") : " kcal")),
-    meals.length > 1 ? h("div", { class: "bd-meals" }, h("div", { class: "bd-stack" }, meals.map(([l, k], i) => h("i", { class: "m" + i, style: { flex: k }, title: `${l}: ${fmt(k)} kcal` }))),
-      h("div", { class: "bd-leg" }, meals.map(([l, k], i) => h("span", null, h("i", { class: "m" + i }), l + " ", h("b", { class: "num" }, fmt(k)))))) : null,
+    meals.length ? h("div", { class: "bd-meals" }, h("div", { class: "bd-stack big" }, meals.map(([l, k, , i]) => h("i", { class: "m" + i, style: { flex: k }, title: `${l}: ${fmt(k)} kcal` }))),
+      h("div", { class: "bd-parts" }, meals.map(([l, k, mt, i]) => h("div", { class: "bd-p" }, h("i", { class: "dot m" + i }),
+        h("div", { class: "bd-pl" }, h("span", null, l), h("small", null, `P ${fmt(mt.protein_g || 0)} · C ${fmt(mt.carbs_g || 0)} · G ${fmt(mt.fat_g || 0)}`)),
+        h("div", { class: "bd-pv num" }, h("b", null, fmt(k))))))) : null,
     h("div", { class: "bd-macros" },
       macroRow("p", "Proteína", "protein_g", tg.protein_g), macroRow("c", "Carbohidratos", "carbs_g", tg.carbs_g), macroRow("g", "Grasas", "fat_g", tg.fat_mid_g)),
     st.approx_kcal && kc ? h("div", { class: "bd-apx2" },
