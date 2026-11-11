@@ -103,12 +103,14 @@ def load_tables(conn):
     if not os.path.isdir(d):
         return out
     for f in os.listdir(d):
-        if not f.endswith(".json"):
+        if not f.endswith(".json") or f.startswith("_"):  # _no_existen.json y otros ficheros de control
             continue
         try:
             with open(os.path.join(d, f), encoding="utf-8") as fh:
                 j = json.load(fh)
         except (OSError, ValueError):
+            continue
+        if not isinstance(j, dict) or not isinstance(j.get("H") or {}, dict) or not isinstance(j.get("M") or {}, dict):
             continue
         slug = j.get("slug") or f[:-5]
 

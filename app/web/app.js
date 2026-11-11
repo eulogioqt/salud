@@ -279,7 +279,7 @@ function summaryCard(st) {
     return h("div", { class: "mring " + cls }, ringSvg(96, 38, 9, target ? (t[f] || 0) / target : 0, cls, [[3, v(t, f) + (miss ? "+" : ""), "rg-mv"], [20, "/ " + unitT + " g", "rg-mo"]]),
       h("div", { class: "mr-l" }, label, miss ? h("span", { class: "miss", title: "Hay valores desconocidos: el total es un mínimo" }, " *") : null));
   };
-  const goalTxt = !tg.mode ? "Sin objetivo" : tg.dynamic ? "Objetivo según gasto · " + (tg.kcal_offset ? signed(tg.kcal_offset) + " kcal" : "mantener") : "Objetivo fijo";
+  const goalTxt = !tg.mode ? "Sin objetivo" : tg.dynamic ? (tg.kcal_offset ? `Objetivo: tu gasto ${tg.kcal_offset < 0 ? "−" : "+"} ${fmt(Math.abs(tg.kcal_offset))} kcal` : "Objetivo: lo que gastas") : "Objetivo fijo";
   return h("div", { class: "card summary b" },
     h("button", { class: "sum-goal", title: "Cambiar el objetivo", onclick: async () => { const d = await api("GET", "/api/settings"); targetSheet(d.current_target, null); } }, goalTxt),
     h("button", { class: "sum-des", onclick: open }, "Desglose ›"),
@@ -325,8 +325,10 @@ function energySheet(st) {
       h("div", { class: "bd-leg" }, meals.map(([l, k], i) => h("span", null, h("i", { class: "m" + i }), l + " ", h("b", { class: "num" }, fmt(k)))))) : null,
     h("div", { class: "bd-macros" },
       macroRow("p", "Proteína", "protein_g", tg.protein_g), macroRow("c", "Carbohidratos", "carbs_g", tg.carbs_g), macroRow("g", "Grasas", "fat_g", tg.fat_mid_g)),
-    st.approx_kcal && kc ? tip(h("div", { class: "bd-apx-t" }, h("b", { class: "num" }, Math.round(pct(st.approx_kcal, kc)) + " % aproximado"), ` · ${fmt(st.approx_kcal)} kcal sin etiqueta`),
-      "Aproximado: comidas fuera y productos sin etiqueta (estimaciones).\nEl resto viene de etiquetas o de tu histórico.\nCuando pongas la etiqueta de un producto, se corrige en todos los días.") : null,
+    st.approx_kcal && kc ? h("div", { class: "bd-apx2" },
+      h("b", { class: "num bd-apx2-n" }, Math.round(pct(st.approx_kcal, kc)) + " %"),
+      h("div", { class: "grow" }, h("div", { class: "bd-apx2-t" }, "de lo que has comido es aproximado"),
+        h("div", { class: "bd-apx2-s" }, `${fmt(st.approx_kcal)} kcal de comidas fuera o productos sin etiqueta. Al ponerles la etiqueta se corrige en todos los días.`))) : null,
     (t.missing || []).length ? h("div", { class: "note warn" }, "Hay valores desconocidos: los totales son un mínimo.") : null);
   // Lo gastado
   const parts = [
