@@ -1080,7 +1080,7 @@ def close_check(conn, d):
     # (sin entreno no es un aviso: el día cuenta como descanso; sí lo es si el móvil dice que entrenó y falta el entreno)
     for x in hc_sessions(conn, d):
         if not x["registrada"]:
-            w.append({"level": "info", "code": "entreno", "text": "Has entrenado de %s a %s (%s): manda el entreno o apúntalo" % (x["inicio"], x["fin"], x["tipo"])})
+            w.append({"level": "info", "code": "entreno", "text": "Has entrenado de %s a %s (%s): manda el entreno o apúntalo" % (x["inicio"], x["fin"], x["titulo"] or x["tipo"])})
     if st["entry_count"] == 0:
         w.append({"level": "importante", "code": "comidas", "text": "No hay comidas registradas"})
     else:
@@ -1606,8 +1606,15 @@ HC_TYPES = [(r"WALK", "caminata"), (r"RUN|TREADMILL", "carrera"), (r"BIK|CYCL", 
             (r"YOGA|PILATES|STRETCH", "yoga")]
 
 
+# Health Connect manda el tipo como número (ExerciseSessionRecord.EXERCISE_TYPE_*)
+HC_NUM = {"8": "BIKING", "9": "BIKING", "13": "CALISTHENICS", "25": "ELLIPTICAL", "36": "HIGH_INTENSITY", "37": "HIKING", "48": "PILATES",
+          "53": "ROWING", "54": "ROWING", "56": "RUNNING", "57": "RUNNING", "68": "STAIR", "70": "STRENGTH", "73": "SWIM", "74": "SWIM",
+          "79": "WALKING", "81": "WEIGHTLIFTING", "83": "YOGA"}
+
+
 def _hc_type(t):
-    u = str(t or "").upper()
+    u = str(t or "").strip().upper()
+    u = HC_NUM.get(u, u)
     for rx, lab in HC_TYPES:
         if re.search(rx, u):
             return lab
@@ -1625,9 +1632,12 @@ def _ingest_sessions(conn, payload):
         dur = int(dur) if isinstance(dur, (int, float)) else int((b - a).total_seconds())
         if dur < 120:  # menos de 2 minutos: ruido
             continue
-        conn.execute("INSERT INTO hc_sessions(start, end, type, duration_s, received_at) VALUES(?,?,?,?,?) "
-                     "ON CONFLICT(start) DO UPDATE SET end=excluded.end, type=excluded.type, duration_s=excluded.duration_s, received_at=excluded.received_at",
-                     (a.strftime("%Y-%m-%dT%H:%M:%S"), b.strftime("%Y-%m-%dT%H:%M:%S"), str(r.get("type") or ""), dur, ts()))
+        origin = ((r.get("metadata") or {}).get("data_origin") or "")[:60] or None
+        conn.execute("INSERT INTO hc_sessions(start, end, type, duration_s, received_at, title, origin) VALUES(?,?,?,?,?,?,?) "
+                     "ON CONFLICT(start) DO UPDATE SET end=excluded.end, type=excluded.type, duration_s=excluded.duration_s, "
+                     "received_at=excluded.received_at, title=excluded.title, origin=excluded.origin",
+                     (a.strftime("%Y-%m-%dT%H:%M:%S"), b.strftime("%Y-%m-%dT%H:%M:%S"), str(r.get("type") or ""), dur, ts(),
+                      (str(r.get("title") or "").strip()[:80] or None), origin))
         n += 1
     return n
 
@@ -1657,7 +1667,9 @@ def hc_sessions(conn, d):
             we = ws + (w["duration_min"] or 60)
             if ws <= b + 45 and we >= a - 45:  # se solapan (con margen: Hevy y el móvil no empiezan a la vez)
                 cov = True
-        out.append({"inicio": r["start"][11:16], "fin": r["end"][11:16], "minutos": round(r["duration_s"] / 60), "tipo": tipo, "registrada": cov})
+        app = {"com.hevy": "Hevy"}.get(r["origin"] or "", None)
+        out.append({"inicio": r["start"][11:16], "fin": r["end"][11:16], "minutos": round(r["duration_s"] / 60), "tipo": tipo,
+                    "titulo": r["title"], "app": app, "registrada": cov})
     return out
 
 

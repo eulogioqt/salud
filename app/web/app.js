@@ -399,7 +399,7 @@ function bodyStrip(st) {
           w.notes ? h("div", { class: "wk-d" }, w.notes) : null,
           h("div", { class: "wk-s" }, [w.duration_min ? fmt(w.duration_min) + " min" : null, w.sets_count + " series", fmt(w.volume_kg) + " kg", w.activity_id ? kc(w.activity_id) + " kcal" : null].filter(Boolean).join(" · ")))),
          ...other.map((a) => h("div", { class: "a" }, h("b", null, (ACT_TYPES.find((x) => x[0] === a.type) || [0, a.type])[1]), ` ${a.minutes ? fmt(a.minutes) + "′" : ""}`, h("span", { class: "faint" }, " · " + kc(a.id) + " kcal")))]
-      : (st.sessions || []).length ? h("div", { class: "acts" }, st.sessions.map((x) => h("div", { class: "a det" }, h("b", null, "Entreno detectado"), h("div", { class: "faint" }, `${x.inicio}–${x.fin} · ${x.tipo} · mándaselo a tu agente`))))
+      : (st.sessions || []).length ? h("div", { class: "acts" }, st.sessions.map((x) => h("div", { class: "a det" }, h("b", null, "Entreno detectado"), h("div", { class: "faint" }, `${x.titulo ? x.titulo + " · " : ""}${x.inicio}–${x.fin}${x.app ? " · " + x.app : ""} · mándaselo a tu agente`))))
       : h("div", { class: "v none" }, h("small", null, day.rest_day === 1 ? "Descanso" : "Sin registrar"))));
   return h("div", { class: "strip" }, weight, steps, train);
 }
@@ -1671,7 +1671,7 @@ function calPanel(cal) {
   if (!cal) return null;
   const ap = cal.applied || {}, est = cal.estimate, sd = cal.sd || {}, lr = cal.learned || {};
   const rows = CAL_ROWS.map(([k, l, f]) => h("div", { class: "cal-r" },
-    h("div", { class: "grow" }, h("b", null, l), est ? h("div", { class: "faint sm" }, `tus datos dicen ${f(est[k])} ± ${k === "cal_ajuste_kcal" ? fmt(sd[k]) : fmt(sd[k], 2)}`) : null,
+    h("div", { class: "grow" }, h("b", null, l), est ? h("div", { class: "faint sm" }, `tus datos dicen ${f(est[k])} ± ${k === "cal_ajuste_kcal" ? fmt(sd[k]) : fmt(sd[k], 2)} · fiabilidad ${Math.round(Math.max(0, lr[k] || 0) * 100)} %`) : null,
       est ? h("div", { class: "cal-bar", title: "Cuánto han aprendido tus datos (0 % = todavía nada, se usa el modelo tal cual)" }, h("i", { style: { width: Math.round(Math.max(0, lr[k] || 0) * 100) + "%" } })) : null),
     h("div", { class: "cal-v num" }, f(ap[k] ?? (k === "cal_ajuste_kcal" ? 0 : 1)))));
   const reload = async (p) => { await act(() => p); await refresh(); };

@@ -277,6 +277,11 @@ MIGRATIONS = [
     """
     CREATE TABLE hc_sessions(start TEXT PRIMARY KEY, end TEXT, type TEXT, duration_s INTEGER, received_at TEXT);
     """,
+    # v13 — título y app de origen de cada sesión (Hevy manda el nombre del entreno)
+    """
+    ALTER TABLE hc_sessions ADD COLUMN title TEXT;
+    ALTER TABLE hc_sessions ADD COLUMN origin TEXT;
+    """,
 ]
 
 
