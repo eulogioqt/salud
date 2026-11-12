@@ -1676,3 +1676,4 @@ img { -webkit-user-drag: none; user-select: none; }
   .sf-st { justify-content: center; }
   .sf-b { margin-left: 0; } .sf-b .btn { flex: 1; padding: 9px 10px; font-size: 14px; }
 }
+.card.empty > .btn { margin-top: 14px; }
