@@ -239,20 +239,28 @@ def _weekday_steps(conn, d, weeks=6):
     return round(sum(vals) / len(vals)) if len(vals) >= 2 else None
 
 
-def resolve_dynamic(conn, d, t):
-    """Objetivo «según tu gasto»: kcal = (metabolismo + día a día + pasos + entrenos + diferencia) / (1 − TEF),
-    así lo comido menos el gasto (que incluye la digestión de lo comido) queda en la diferencia.
-    Pasos: los previstos (media del mismo día de la semana; si no hay, de los últimos 7 días). Hoy, mientras los
-    pasos que llevas sean menos que los previstos, cuenta con los previstos (el objetivo no baja por la mañana)."""
+def projected_base(conn, d):
+    """Gasto previsto del día entero sin la digestión (metabolismo + día a día normal + pasos previstos + entrenos).
+    Devuelve (base, energía, pasos_previstos o None)."""
     day = get_day_row(conn, d)
     acts = day_activities(conn, d)
     proj = _weekday_steps(conn, d) or _avg_steps(conn, d)
     no_steps = day["steps"] is None or (d == today() and proj is not None and day["steps"] < proj)
     if no_steps:
         day = dict(day, steps=proj if proj is not None else (day["steps"] or 0))
-    if day["neat_kcal"] is None:  # el objetivo cuenta con un día «normal» hasta que se elija al cerrar
+    if day["neat_kcal"] is None:  # cuenta con un día «normal» hasta que se elija al cerrar
         day = dict(day, neat_kcal=float(settings(conn)["neat_base_kcal"]))
     en = energy(conn, d, 0, day, acts)
+    return en["total"], en, (proj if no_steps else None)
+
+
+def resolve_dynamic(conn, d, t):
+    """Objetivo «según tu gasto»: kcal = (metabolismo + día a día + pasos + entrenos + diferencia) / (1 − TEF),
+    así lo comido menos el gasto (que incluye la digestión de lo comido) queda en la diferencia.
+    Pasos: los previstos (media del mismo día de la semana; si no hay, de los últimos 7 días). Hoy, mientras los
+    pasos que llevas sean menos que los previstos, cuenta con los previstos (el objetivo no baja por la mañana)."""
+    base_, en, proj = projected_base(conn, d)
+    no_steps = proj is not None
     tef = float(settings(conn)["tef_pct"])
     t = dict(t)
     if en["bmr"] is None or en["total"] is None:
@@ -705,6 +713,8 @@ def add_entry(conn, data, source="web"):
         ensure_open(conn, d)
         _ensure_day(conn, d)
         eid = _insert_food_entry(conn, d, meal, fid, data["unit_key"], q, time, data.get("note"))
+        if data.get("qty_est"):
+            conn.execute("UPDATE entries SET qty_est=1 WHERE id=?", (eid,))
     return entry_out(get_entry(conn, eid))
 
 
@@ -751,6 +761,8 @@ def update_entry(conn, eid, data, source="web"):
             sets.append("time=?"); args.append(_time(data["time"]))
         if "note" in data:
             sets.append("note=?"); args.append(data["note"])
+        if "qty_est" in data:
+            sets.append("qty_est=?"); args.append(1 if data["qty_est"] else 0)
         if e["kind"] != "estimacion" and ("quantity" in data or "unit_key" in data):
             q = _num(data.get("quantity", e["quantity"]), "cantidad", 0.0001, 100000, allow_none=False)
             uk = data.get("unit_key", e["unit_key"])
@@ -1077,12 +1089,15 @@ def day_state(conn, d=None):
             closure = {"version": c["version"], "closed_at": c["closed_at"], "forced": c["forced"],
                        "summary": json.loads(c["summary"]), "warnings": json.loads(c["warnings"] or "[]")}
     n_closures = conn.execute("SELECT COUNT(*) FROM closures WHERE date=?", (d,)).fetchone()[0]
+    west = None if day["weight_kg"] is not None else weight_estimates(conn, d, d).get(d)
     return {
         "date": d, "today": today(), "day": day, "status": day["status"], "meals": meals,
         "totals": N.rounded(totals), "target": tgt, "energy": en,
         "balance": None if totals["kcal"] is None or en["total"] is None else round(totals["kcal"] - en["total"]),
         "activities": acts, "avg7": None if a7 is None else round(a7, 2), "avg7_n": n7,
-        "weight_interp": None if day["weight_kg"] is not None else (lambda v: None if v is None else round(v, 1))(weight_at(weights_between(conn, shift(d, -30), shift(d, 30)), d)),
+        "weight_interp": None if west is None else round(west, 1),
+        "weight_est_fit": day["weight_kg"] is None and any(k > d for k in weights_between(conn, d, "9999-12-31")),
+        "weight_next": weight_next(conn, d, day["weight_kg"] if day["weight_kg"] is not None else west) if d == today() else None,
         "approx_kcal": round(sum(e["kcal"] or 0 for e in entries if e["quality"] not in ("etiqueta", "historico"))),
         "entry_count": len(entries), "open_days": open_days(conn), "today_entry_count": len(entries) if d == today() else conn.execute("SELECT COUNT(*) FROM entries WHERE date=? AND deleted_at IS NULL", (today(),)).fetchone()[0], "closure": closure, "closure_count": n_closures, "rev": rev(conn),
         "steps_hours": steps_hours(conn, d), "supplements": supplements(conn), "supplements_taken": supplements_taken(conn, d), "sessions": hc_sessions(conn, d), "neat_levels": [{"key": k, "label": l, "kcal": v, "kcal_adj": round(v * (en.get("neat_factor") or 1))} for k, l, v in NEAT_LEVELS],
@@ -1472,14 +1487,79 @@ def weight_at(allw, d):
     return allw[a] + (allw[b] - allw[a]) * da / db
 
 
+KCAL_PER_KG = 7700
+
+
+def day_balance(conn, d):
+    """Comido − gastado de un día (kcal), sin pasar por day_state. Sin nada apuntado: 0 (se supone mantenimiento)."""
+    es = day_entries(conn, d)
+    if not es:
+        return 0.0
+    kcal = N.total([N.nutr(e["kcal"], e["protein_g"], e["carbs_g"], e["fat_g"], e["missing"]) for e in es])["kcal"]
+    en = energy(conn, d, kcal)
+    return 0.0 if kcal is None or en["total"] is None else kcal - en["total"]
+
+
+def weight_estimates(conn, a, b):
+    """Peso de cada día sin pesaje entre a y b (el peso de un día = al levantarse, en ayunas; depende de lo de hasta ayer).
+    Desde el último pesaje se suma el balance de cada día (÷ 7.700). Si después hay otro pesaje, la diferencia con lo que
+    decía el modelo se reparte entre los días, para que la curva encaje en los dos pesajes reales."""
+    allw = weights_between(conn, "0000-01-01", "9999-12-31")
+    ks = sorted(allw)
+    out, bal = {}, {}
+
+    def B(k):
+        if k not in bal:
+            bal[k] = day_balance(conn, k)
+        return bal[k]
+    d = a
+    while d <= b:
+        if d not in allw:
+            p = next((k for k in reversed(ks) if k < d), None)
+            if p is not None:
+                f, k = allw[p], p
+                while k < d:
+                    f += B(k) / KCAL_PER_KG
+                    k = shift(k, 1)
+                n = next((k for k in ks if k > d), None)
+                if n is not None:
+                    fn, k = f, d
+                    while k < n:
+                        fn += B(k) / KCAL_PER_KG
+                        k = shift(k, 1)
+                    span = (parse_date(n) - parse_date(p)).days
+                    f += (allw[n] - fn) * (parse_date(d) - parse_date(p)).days / span
+                out[d] = round(f, 2)
+        d = shift(d, 1)
+    return out
+
+
+def weight_next(conn, d, base_weight):
+    """Previsto para mañana al levantarte: el peso de hoy (real o estimado) + (lo comido − el gasto previsto del día) ÷ 7.700.
+    Mientras lo comido no llegue al objetivo, cuenta con que llegarás a él (por la mañana no sale «bajarás medio kilo»)."""
+    if base_weight is None:
+        return None
+    es = day_entries(conn, d)
+    kcal = N.total([N.nutr(e["kcal"], e["protein_g"], e["carbs_g"], e["fat_g"], e["missing"]) for e in es])["kcal"] or 0
+    tg = target_for(conn, d) or {}
+    if tg.get("kcal") and kcal < tg["kcal"]:
+        kcal = tg["kcal"]
+    base, _en, _p = projected_base(conn, d)
+    if base is None:
+        return None
+    tef = float(settings(conn)["tef_pct"])
+    return round(base_weight + (kcal - base - tef * kcal) / KCAL_PER_KG, 2)
+
+
 def weight_series(conn, a, b):
     ws = weights_between(conn, shift(a, -6), b)
     allw = weights_between(conn, "0000-01-01", "9999-12-31")
+    est = weight_estimates(conn, a, b)
     out = []
     d = a
     while d <= b:
         win = [v for k, v in ws.items() if shift(d, -6) <= k <= d]
-        it = None if d in allw else weight_at(allw, d)
+        it = None if d in allw else est.get(d)
         out.append({"date": d, "weight_kg": ws.get(d), "interp": None if it is None else round(it, 2),
                     "avg7": round(sum(win) / len(win), 2) if win else None})
         d = shift(d, 1)

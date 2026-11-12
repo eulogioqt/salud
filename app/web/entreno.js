@@ -1422,12 +1422,6 @@ async function workoutSheet_(id) {
       h("div", { class: "srows" }, rows_));
   });
   const nPR = w.exercises.reduce((a, ex) => a + (ex.prs || []).length, 0);
-  const inten = h("div", { class: "seg" });
-  let curI = w.intensity;
-  const drawI = () => inten.replaceChildren(...INTENS.map((k) => h("button", { class: k === curI ? "on" : "", onclick: async () => {
-    curI = k; drawI(); await act(() => api("PUT", "/api/workouts/" + w.id, { intensity: k }), "Intensidad guardada");
-  } }, k)));
-  drawI();
   const upTip = wUps.map((u) => `${dispName(u.name)}: ${LVL[u.from]} → ${LVL[u.to]}`).join("\n");
   const prTip = w.exercises.filter((ex) => ex.prs && ex.prs.length).map((ex) => `${ex.name}: ${ex.prs.map((t) => PR_SHORT[t]).join(", ")}`).join("\n");
   // sm = versión reducida para el móvil: icono + número, fecha corta; la fecha siempre al final
@@ -1446,16 +1440,15 @@ async function workoutSheet_(id) {
       h("div", null, h("span", null, "Volumen"), h("b", null, fmt(w.volume_kg) + " kg")),
       h("div", null, h("span", null, "Series"), h("b", null, String(w.sets_count))),
       h("div", null, h("span", null, "Ejercicios"), h("b", null, String(w.exercises.length)))),
-    w.activity_id ? h("div", { class: "field" }, h("label", { class: "f" }, "Intensidad (para el gasto estimado)",
-      w.kcal != null ? tip(h("span", { class: "wk-kcal" }, ` · ≈ ${fmt(w.kcal)} kcal`), "Gasto neto estimado de la sesión (lo que suma al día): MET según tipo e intensidad × minutos × tu peso") : null), inten) : null,
+    w.activity_id && w.kcal != null ? tip(h("div", { class: "wk-kcal-l" }, icon("bolt"), "Gasto del entreno ", h("b", { class: "num" }, `≈ ${fmt(w.kcal)} kcal`)),
+      `Lo que suma al gasto del día. Se calcula con el tipo de entreno, la duración, tu peso y la intensidad (${w.intensity || "normal"}), que estima tu agente al apuntarlo.`) : null,
     ...exBlocks,
     h("div", { class: "note wk-orig" }, h("span", { class: "grow" }, `Origen: ${w.source}` + (w.volume_source === "hevy" ? " · volumen tomado de Hevy" : " · volumen: kg × reps de todas las series, como en Hevy")),
       h("button", { class: "lnk-del", title: "Solo para duplicados o errores: en Hevy no se borra", onclick: (e) => confirmDel(e, async () => { await act(() => api("DELETE", "/api/workouts/" + w.id), "Entreno eliminado"); sh.close(); }) }, "Eliminar")),
-  ], (() => {  // mismo pie que pasos/peso: desde Hoy lleva a Entreno; desde Entreno, al día
+  ], S.view === "hoy" ? (() => {  // desde Hoy, el mismo pie que pasos y peso; desde Entreno (historial), solo el entreno
     const on = !!(S.pasos || {}).entreno_ultimo && !((S.pasos || {}).off || []).includes("entreno");
-    const [lb, hs] = S.view === "hoy" ? ["Ir a Entreno", "#/entreno"] : w.activity_id ? ["Ver el día", "#/hoy/" + w.date] : [null, null];
-    return on ? sheetFoot(`Último entreno detectado: ${agoTxt(S.pasos.entreno_ultimo)}`, null, lb, hs) : sheetFoot(null, "entreno", lb, hs);
-  })(),
+    return on ? sheetFoot(`Último entreno detectado: ${agoTxt(S.pasos.entreno_ultimo)}`, null, "Ir a Entreno", "#/entreno") : sheetFoot(null, "entreno", "Ir a Entreno", "#/entreno");
+  })() : null,
   { big: true, desc: w.notes || "", titleExtra: fitc(h("span", { class: "wk-hd" }, mkChips())) });
 }
 

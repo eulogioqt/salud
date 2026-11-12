@@ -87,6 +87,8 @@ def _bascula(a):
     _opt(a, "--nota", "nota", argv)
     if a.get("sobrescribir_dia"):
         argv.append("--sobrescribir-dia")
+    if a.get("no_cuenta"):
+        argv.append("--no-dia")
     return argv
 
 
@@ -171,9 +173,10 @@ TOOLS = [
      _o({"fecha": FECHA}), lambda a: ["hoy"] + ([a["fecha"]] if a.get("fecha") else []), True),
     ("buscar_alimento", "Busca en sus alimentos, recetas y comidas habituales (con ids y unidades/raciones disponibles).",
      _o({"texto": U}, ["texto"]), lambda a: ["buscar"] + a["texto"].split(), True),
-    ("anadir_alimento", "Apunta un alimento en una comida. `alimento`: id o nombre (mejor el id de buscar_alimento). `unidad`: g, ml, rac (ración por defecto), total, o p:<id de ración>.",
-     _o({"alimento": U, "cantidad": N, "unidad": U, "comida": COMIDA, "fecha": FECHA, "hora": HORA, "nota": U}, ["alimento", "cantidad", "comida"]),
-     lambda a: _fh(a, ["add", str(a["alimento"]), str(a["cantidad"]), a.get("unidad") or "", "-c", a["comida"]]) + (["--nota", a["nota"]] if a.get("nota") else []), False),
+    ("anadir_alimento", "Apunta un alimento en una comida. `alimento`: id o nombre (mejor el id de buscar_alimento). `unidad`: g, ml, rac (ración por defecto), total, o p:<id de ración>. "
+     "`cantidad_estimada`: true si la cantidad es a ojo (no la ha pesado ni contado); los valores del alimento llevan su propia calidad.",
+     _o({"alimento": U, "cantidad": N, "unidad": U, "comida": COMIDA, "fecha": FECHA, "hora": HORA, "nota": U, "cantidad_estimada": {"type": "boolean"}}, ["alimento", "cantidad", "comida"]),
+     lambda a: _fh(a, ["add", str(a["alimento"]), str(a["cantidad"]), a.get("unidad") or "", "-c", a["comida"]]) + (["--nota", a["nota"]] if a.get("nota") else []) + (["--a-ojo"] if a.get("cantidad_estimada") else []), False),
     ("comida_habitual", "Apunta una comida habitual (plantilla) entera. `cambios`: cantidades distintas solo esta vez por id de ítem; `omitir`: ids de ítem que no tomó.",
      _o({"nombre": U, "comida": COMIDA, "fecha": FECHA, "hora": HORA,
          "cambios": {"type": "array", "items": _o({"item_id": I, "cantidad": N}, ["item_id", "cantidad"])},
@@ -187,10 +190,11 @@ TOOLS = [
      lambda a: _fh(a, ["estimar", a["descripcion"], "--kcal", str(a["kcal"]), "-c", a["comida"]]
                    + sum([[f, str(a[k])] for f, k in (("--p", "proteina_g"), ("--ch", "carbohidratos_g"), ("--g", "grasa_g"),
                                                        ("--min", "kcal_min"), ("--max", "kcal_max"), ("--nota", "nota")) if a.get(k) is not None], [])), False),
-    ("editar_entrada", "Cambia una entrada del día (id de ver_dia): cantidad, unidad, comida u hora.",
-     _o({"id": I, "cantidad": N, "unidad": U, "comida": COMIDA, "hora": HORA, "nota": U}, ["id"]),
+    ("editar_entrada", "Cambia una entrada del día (id de ver_dia): cantidad, unidad, comida, hora o si la cantidad es estimada (a ojo).",
+     _o({"id": I, "cantidad": N, "unidad": U, "comida": COMIDA, "hora": HORA, "nota": U, "cantidad_estimada": {"type": "boolean"}}, ["id"]),
      lambda a: ["edit", str(a["id"])] + sum([[f, str(a[k])] for f, k in (("--cantidad", "cantidad"), ("--unidad", "unidad"), ("-c", "comida"),
-                                                                        ("--hora", "hora"), ("--nota", "nota")) if a.get(k) is not None], []), False),
+                                                                        ("--hora", "hora"), ("--nota", "nota")) if a.get(k) is not None], [])
+     + ([] if a.get("cantidad_estimada") is None else ["--a-ojo" if a["cantidad_estimada"] else "--pesado"]), False),
     ("borrar_entrada", "Quita una entrada del día (reversible con restaurar_entrada).", _o({"id": I}, ["id"]), lambda a: ["del", str(a["id"])], False),
     ("restaurar_entrada", "Recupera una entrada borrada.", _o({"id": I}, ["id"]), lambda a: ["undo", str(a["id"])], False),
     ("registrar_peso", "Peso en ayunas (kg).", _o({"kg": N, "fecha": FECHA, "hora": HORA}, ["kg"]), lambda a: _fh(a, ["peso", str(a["kg"])]), False),
@@ -207,7 +211,8 @@ TOOLS = [
          "pasos_de_la_sesion": I, "descripcion": U, "fecha": FECHA}, ["tipo", "minutos"]),
      lambda a: ["act", a["tipo"], "--min", str(a["minutos"]), "--int", a.get("intensidad") or "normal"]
      + sum([[f, str(a[k])] for f, k in (("--kcal", "kcal_netas"), ("--pasos", "pasos_de_la_sesion"), ("--desc", "descripcion"), ("--fecha", "fecha")) if a.get(k) is not None], []), False),
-    ("registrar_entreno", "Entreno de fuerza (capturas de Hevy). Formato: {date, start_time, title, duration_min, activity_type, intensity, hevy_volume_kg, description, "
+    ("registrar_entreno", "Entreno de fuerza (capturas de Hevy). `intensity` (suave|normal|dura|muy dura): estímala tú viendo el entreno (series al fallo, RPE, descansos, volumen); con ella el servidor calcula las kcal. "
+     "Formato: {date, start_time, title, duration_min, activity_type, intensity, hevy_volume_kg, description, "
      "exercises:[{name (exactamente el de Hevy), kind: peso|lastre|corporal|asistido|tiempo|cardio, notes, sets:[{type: omitir|W|F|D, weight_kg, reps, seconds, distance_m, rpe}]}]}. "
      "Mancuernas: peso de las dos; máquinas con su peso incluido.",
      _o({"entreno": {"type": "object"}}, ["entreno"]), lambda a: ["entreno", "--contenido=" + json.dumps(a["entreno"], ensure_ascii=False)], False),
@@ -218,7 +223,8 @@ TOOLS = [
     ("historial_ejercicio", "Histórico y récords de un ejercicio (nombre de Hevy).", _o({"nombre": U}, ["nombre"]), lambda a: ["ejercicio", a["nombre"]], True),
     ("registrar_bascula", "Medición de báscula inteligente. `medidas`: peso, imc, grasa, grasa-kg, musculo, musculo-pct, esqueletico, magra, agua, agua-kg, "
      "proteina, proteina-kg, hueso, hueso-pct, visceral, bmr, edad-corporal, cintura-cadera, fc, puntuacion (ignora flechas y sugerencias de la app).",
-     _o({"medidas": {"type": "object", "additionalProperties": {"type": "number"}}, "fecha": FECHA, "hora": HORA, "nota": U, "sobrescribir_dia": {"type": "boolean"}}, ["medidas"]),
+     _o({"medidas": {"type": "object", "additionalProperties": {"type": "number"}}, "fecha": FECHA, "hora": HORA, "nota": U, "sobrescribir_dia": {"type": "boolean"},
+         "no_cuenta": {"type": "boolean", "description": "true si no debe contar como peso del día (p. ej. ya había comido): se guarda y se ve, pero no entra en la tendencia"}}, ["medidas"]),
      _bascula, False),
     ("revisar_dia", "Comprueba qué falta antes de cerrar el día.", _o({"fecha": FECHA}), lambda a: ["check"] + ([a["fecha"]] if a.get("fecha") else []), True),
     ("cerrar_dia", "Cierra el día (antes tiene que estar `como_fue_el_dia`; forzar=true si la persona quiere cerrarlo aunque falte algo importante).", _o({"fecha": FECHA, "forzar": {"type": "boolean"}}),

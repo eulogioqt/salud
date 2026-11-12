@@ -1683,3 +1683,18 @@ img { -webkit-user-drag: none; user-select: none; }
 .wk-orig { display: flex; align-items: center; gap: 10px; }
 .lnk-del { border: 0; background: none; color: var(--danger, #b3261e); font: inherit; font-size: 12.5px; cursor: pointer; padding: 2px 4px; opacity: .8; }
 .lnk-del:hover { opacity: 1; text-decoration: underline; }
+/* Peso previsto para mañana */
+.wnext { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px; color: var(--muted); }
+.wnext b { color: var(--text); }
+.wn-dot { width: 9px; height: 9px; border-radius: 50%; border: 1.6px dashed var(--accent); flex: none; }
+.chart .wnext-l { stroke: var(--accent); stroke-width: 1.4; stroke-dasharray: 3 3; opacity: .7; }
+.chart .wnext-pt { fill: var(--surface); stroke: var(--accent); stroke-width: 1.8; stroke-dasharray: 2.2 1.6; }
+.wk-kcal-l { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin: 2px 0 4px; } .wk-kcal-l b { color: var(--text); } .wk-kcal-l svg { width: 14px; height: 14px; }
+/* Qué es estimado: cantidad, valores o las dos */
+.item .sub .q { margin-right: 6px; vertical-align: 1px; }
+.q.qest { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+.q.both { background: var(--warn-soft); color: var(--warn); }
+.qe-btn { display: inline-flex; align-items: center; gap: 8px; margin: 10px 0 2px; padding: 6px 2px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 13.5px; cursor: pointer; }
+.qe-box { width: 18px; height: 18px; border-radius: 5px; border: 1.6px solid var(--line-2, #c9c5bd); display: inline-flex; align-items: center; justify-content: center; }
+.qe-box svg { width: 12px; height: 12px; stroke-width: 3; opacity: 0; color: #fff; }
+.qe-btn.on { color: var(--text); } .qe-btn.on .qe-box { background: var(--accent); border-color: var(--accent); } .qe-btn.on .qe-box svg { opacity: 1; }

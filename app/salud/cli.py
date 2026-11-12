@@ -166,6 +166,7 @@ def main(argv=None):
     p = sp.add_parser("add", help="Añadir alimento: add <alimento> <cantidad> [unidad] -c comida")
     p.add_argument("alimento"); p.add_argument("cantidad", type=float); p.add_argument("unidad", nargs="?", default="")
     p.add_argument("-c", "--comida", required=True); p.add_argument("--hora"); p.add_argument("--fecha"); p.add_argument("--nota")
+    p.add_argument("--a-ojo", action="store_true", help="cantidad estimada (sin pesar)")
     p = sp.add_parser("estimar", help="Comida fuera / estimación")
     p.add_argument("nombre"); p.add_argument("--kcal", type=float); p.add_argument("--p", type=float)
     p.add_argument("--ch", type=float); p.add_argument("--g", type=float); p.add_argument("--min", type=float)
@@ -174,7 +175,8 @@ def main(argv=None):
     p = sp.add_parser("edit", help="Editar entrada"); p.add_argument("id", type=int)
     p.add_argument("--cantidad", type=float); p.add_argument("--unidad"); p.add_argument("-c", "--comida"); p.add_argument("--hora")
     p.add_argument("--kcal", type=float); p.add_argument("--p", type=float); p.add_argument("--ch", type=float); p.add_argument("--g", type=float)
-    p.add_argument("--nota")
+    p.add_argument("--nota"); p.add_argument("--a-ojo", dest="a_ojo", action="store_true", default=None, help="cantidad estimada (sin pesar)")
+    p.add_argument("--pesado", dest="a_ojo", action="store_false", help="cantidad pesada")
     p = sp.add_parser("del", help="Eliminar entrada (reversible)"); p.add_argument("id", type=int)
     p = sp.add_parser("undo", help="Restaurar entrada eliminada"); p.add_argument("id", type=int)
     p = sp.add_parser("habitual", help="Añadir una comida habitual")
@@ -285,7 +287,7 @@ def main(argv=None):
         food = core.find_food(conn, a.alimento)
         uk = resolve_unit(conn, food, a.unidad)
         e = call("POST", "/api/entries", {"date": d, "meal": a.comida, "time": a.hora, "food_id": food["id"],
-                                          "unit_key": uk, "quantity": a.cantidad, "note": a.nota})
+                                          "unit_key": uk, "quantity": a.cantidad, "note": a.nota, "qty_est": a.a_ojo})
         print("Añadido [%d] %s · %s · %s" % (e["id"], e["name"], e["unit_label"], macro_line(e)))
     elif c == "estimar":
         e = call("POST", "/api/entries", {"estimate": True, "date": d, "meal": a.comida, "time": a.hora, "name": a.nombre,
@@ -301,6 +303,7 @@ def main(argv=None):
         if a.comida: body["meal"] = a.comida
         if a.hora is not None: body["time"] = a.hora
         if a.nota is not None: body["note"] = a.nota
+        if a.a_ojo is not None: body["qty_est"] = a.a_ojo
         for k, v in (("kcal", a.kcal), ("protein_g", a.p), ("carbs_g", a.ch), ("fat_g", a.g)):
             if v is not None: body[k] = v
         e = call("PUT", "/api/entries/%d" % a.id, body)

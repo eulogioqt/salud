@@ -291,6 +291,10 @@ MIGRATIONS = [
     CREATE TABLE rank_ups(id INTEGER PRIMARY KEY, workout_id INTEGER NOT NULL, ex_key TEXT, name TEXT, from_idx INTEGER, to_idx INTEGER);
     CREATE INDEX rank_ups_w ON rank_ups(workout_id);
     """,
+    # v16 — cantidad estimada (a ojo, sin pesar) en cada entrada; los valores ya llevan su calidad (quality)
+    """
+    ALTER TABLE entries ADD COLUMN qty_est INTEGER NOT NULL DEFAULT 0;
+    """,
 ]
 
 
