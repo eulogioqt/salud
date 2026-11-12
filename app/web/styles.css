@@ -1707,3 +1707,38 @@ img { -webkit-user-drag: none; user-select: none; }
 .oth-w { margin-top: 10px; display: flex; flex-direction: column; gap: 2px; }
 .oth-r { display: flex; align-items: center; gap: 4px; font-size: 13.5px; padding: 2px 0; }
 @media (max-width: 640px) { .bhist th:nth-child(4), .bhist td:nth-child(4), .bhist th:nth-child(5), .bhist td:nth-child(5), .bhist th:nth-child(6), .bhist td:nth-child(6) { display: none; } }
+.dayhead .icon-btn:disabled { opacity: .3; cursor: default; }
+.chart .hov-pt { fill: none; stroke: var(--text); stroke-width: 1.6; } .chart .hov-pt.hidden { display: none; }
+/* Medidas de la báscula en la ficha de peso: 6 fijas (6 en una fila en ordenador, 3 × 2 en móvil) */
+.btiles.six { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+@media (max-width: 640px) { .btiles.six { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.btile b.none { color: var(--faint); font-weight: 500; } .btile small.sec { color: var(--faint); }
+/* Ficha del entreno: 4 cuadraditos y el gasto como chip */
+.wstats.big.tiles4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; background: none; padding: 0; margin: 8px 0 10px; }
+.wstats.big.tiles4 > div { background: var(--surface-2); border-radius: 12px; padding: 9px 11px; gap: 2px; }
+.wstats.big.tiles4 b { font-size: 16px; }
+@media (max-width: 640px) { .wstats.big.tiles4 { gap: 6px; } .wstats.big.tiles4 > div { padding: 8px 9px; } .wstats.big.tiles4 b { font-size: 14.5px; } .sheet-desc { margin-top: 6px; } }
+.kcalc { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px; border-radius: 99px; background: color-mix(in srgb, #e0782a 14%, transparent); color: #b25a14; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.kcalc svg { width: 13px; height: 13px; fill: currentColor; stroke: none; }
+@media (prefers-color-scheme: dark) { .kcalc { color: #f0a060; } }
+/* Código de barras / Open Food Facts en la ficha del producto */
+.off-box { background: var(--surface-2); border-radius: 14px; padding: 10px; margin-bottom: 12px; }
+.off-row { display: flex; align-items: center; gap: 8px; }
+.off-row .input { flex: 1; min-width: 0; background: var(--surface); }
+.off-ic { display: inline-flex; color: var(--muted); } .off-ic svg { width: 20px; height: 20px; }
+.off-row .btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; } .off-row .btn svg { width: 15px; height: 15px; }
+.off-box .note { margin: 8px 2px 0; }
+@media (max-width: 640px) { .off-row { flex-wrap: wrap; } .off-row .input { flex-basis: calc(100% - 30px); } .off-row .btn { flex: 1; justify-content: center; } }
+.scan-w { position: relative; border-radius: 14px; overflow: hidden; background: #000; aspect-ratio: 4 / 3; }
+.scan-v { width: 100%; height: 100%; object-fit: cover; display: block; }
+.scan-line { position: absolute; left: 10%; right: 10%; top: 50%; height: 2px; background: #e5534b; box-shadow: 0 0 8px #e5534b; }
+.btiles.seven { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+@media (max-width: 900px) { .btiles.seven { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .btiles.seven { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.btile em { font-style: normal; font-size: 11px; color: var(--faint); }
+.bhist .dtc { white-space: nowrap; text-transform: capitalize; }
+.wstats.big.tiles4 b { white-space: nowrap; }
+@media (max-width: 640px) { .wstats.big.tiles4 b { font-size: 13.5px; } }
+.wchips .kcalc, .wk-hd .kcalc { background: #fde8d6; color: #b25a14; }
+@media (prefers-color-scheme: dark) { .wchips .kcalc, .wk-hd .kcalc { background: #3a2716; color: #f0a060; } }
+.kcalc .tx, .kcalc span { background: none !important; padding: 0 !important; color: inherit !important; }

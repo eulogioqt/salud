@@ -325,6 +325,27 @@ def _body_del(c, q, b, s, bid):
     return T.delete_body(c, int(bid), s)
 
 
+# ---- Open Food Facts (código de barras o enlace)
+@route("GET", r"/api/off")
+def _off(c, q, b, s):
+    from . import off
+    return off.lookup(q.get("q", ""))
+
+
+@route("POST", r"/api/foods/(\d+)/image-url")
+def _food_img_url(c, q, b, s, fid):
+    """Foto desde una url pública (p. ej. la de Open Food Facts): la descarga el servidor."""
+    from .mcp import _descargar_imagen
+    try:
+        data = _descargar_imagen(b.get("url") or "")
+    except ValueError as e:
+        raise ValidationError(str(e))
+    r = T.set_food_image(c, int(fid), data_url=data, source=s)
+    if b.get("image_source"):
+        c.execute("UPDATE foods SET image_source=? WHERE id=?", (b["image_source"], int(fid)))
+    return r
+
+
 # ---- fotos
 @route("POST", r"/api/foods/(\d+)/image")
 def _food_img(c, q, b, s, fid):

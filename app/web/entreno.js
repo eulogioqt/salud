@@ -1430,18 +1430,19 @@ async function workoutSheet_(id) {
   const mkChips = (sm) => [
     wUps.length ? tip(h("span", { class: "upchip lg" }, icon("up"), ...(sm ? [tx(String(wUps.length))] : two(`${wUps.length} ${wUps.length === 1 ? "rango nuevo" : "rangos nuevos"}`, String(wUps.length)))), upTip) : null,
     nPR ? tip(h("span", { class: "prc lg" }, icon("trophy"), ...(sm ? [tx(String(nPR))] : two(`${nPR} ${nPR === 1 ? "récord" : "récords"}`, String(nPR)))), prTip) : null,
+    w.activity_id && w.kcal != null ? tip(h("span", { class: "kcalc" }, icon("bolt"), tx(`${fmt(w.kcal)} kcal`)),
+      `Gasto del entreno: lo que suma al gasto del día. Sale del tipo de entreno, la duración, tu peso y la intensidad (${w.intensity || "normal"}), que estima tu agente al apuntarlo.`) : null,
     bwAt(w.date) ? tip(h("span", { class: "datec" }, tx(`${fmt(bwAt(w.date), 1)} kg`)), bwExact(w.date) ? "Tu peso ese día (pesaje)" : "Tu peso ese día (interpolado entre pesajes)") : null,
     h("span", { class: "datec dt" }, ...(() => { const t = w.start_time ? " · " + w.start_time : "", s_ = dateLabel(w.date, { day: "numeric", month: "short" }) + t;
       return sm ? [tx(s_)] : two(dateLabel(w.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) + t, s_); })())].filter(Boolean);
   sh.set(w.title, [
     fitc(h("div", { class: "wchips" }, mkChips())),
-    h("div", { class: "wstats big" },
+    h("div", { class: "wstats big tiles4" },
       h("div", null, h("span", null, "Duración"), h("b", null, w.duration_min ? fmt(w.duration_min) + " min" : "—")),
       h("div", null, h("span", null, "Volumen"), h("b", null, fmt(w.volume_kg) + " kg")),
       h("div", null, h("span", null, "Series"), h("b", null, String(w.sets_count))),
       h("div", null, h("span", null, "Ejercicios"), h("b", null, String(w.exercises.length)))),
-    w.activity_id && w.kcal != null ? tip(h("div", { class: "wk-kcal-l" }, icon("bolt"), "Gasto del entreno ", h("b", { class: "num" }, `≈ ${fmt(w.kcal)} kcal`)),
-      `Lo que suma al gasto del día. Se calcula con el tipo de entreno, la duración, tu peso y la intensidad (${w.intensity || "normal"}), que estima tu agente al apuntarlo.`) : null,
+
     ...exBlocks,
     h("div", { class: "note wk-orig" }, h("span", { class: "grow" }, `Origen: ${w.source}` + (w.volume_source === "hevy" ? " · volumen tomado de Hevy" : " · volumen: kg × reps de todas las series, como en Hevy")),
       h("button", { class: "lnk-del", title: "Solo para duplicados o errores: en Hevy no se borra", onclick: (e) => confirmDel(e, async () => { await act(() => api("DELETE", "/api/workouts/" + w.id), "Entreno eliminado"); sh.close(); }) }, "Eliminar")),

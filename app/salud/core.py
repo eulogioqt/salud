@@ -1097,7 +1097,6 @@ def day_state(conn, d=None):
         "activities": acts, "avg7": None if a7 is None else round(a7, 2), "avg7_n": n7,
         "weight_interp": None if west is None else round(west, 1),
         "weight_est_fit": day["weight_kg"] is None and any(k > d for k in weights_between(conn, d, "9999-12-31")),
-        "weight_next": weight_next(conn, d, day["weight_kg"] if day["weight_kg"] is not None else west) if d == today() else None,
         "approx_kcal": round(sum(e["kcal"] or 0 for e in entries if e["quality"] not in ("etiqueta", "historico"))),
         "entry_count": len(entries), "open_days": open_days(conn), "today_entry_count": len(entries) if d == today() else conn.execute("SELECT COUNT(*) FROM entries WHERE date=? AND deleted_at IS NULL", (today(),)).fetchone()[0], "closure": closure, "closure_count": n_closures, "rev": rev(conn),
         "steps_hours": steps_hours(conn, d), "supplements": supplements(conn), "supplements_taken": supplements_taken(conn, d), "sessions": hc_sessions(conn, d), "neat_levels": [{"key": k, "label": l, "kcal": v, "kcal_adj": round(v * (en.get("neat_factor") or 1))} for k, l, v in NEAT_LEVELS],
