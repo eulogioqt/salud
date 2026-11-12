@@ -444,13 +444,19 @@ def get_workout(conn, wid, with_previous=True):
         if with_previous:
             ex["previous"] = _previous(conn, ex["name"], w["date"], wid)
     _summ(w)
-    if w.get("activity_id"):  # gasto estimado de la sesión (el mismo que suma al día)
-        a = conn.execute("SELECT * FROM activities WHERE id=? AND deleted_at IS NULL", (w["activity_id"],)).fetchone()
-        if a:
-            kg = core.weight_for_energy(conn, w["date"], core.settings(conn))[0]
-            if kg is not None or a["kcal_net"] is not None:
-                w["kcal"] = round(core.activity_kcal(dict(a), kg)[0])
+    _kcal(conn, w)
     return w
+
+
+def _kcal(conn, w, s=None):
+    """Gasto estimado de la sesión (el mismo que suma al día), si cuenta en el gasto."""
+    if not w.get("activity_id"):
+        return
+    a = conn.execute("SELECT * FROM activities WHERE id=? AND deleted_at IS NULL", (w["activity_id"],)).fetchone()
+    if a:
+        kg = core.weight_for_energy(conn, w["date"], s or core.settings(conn))[0]
+        if kg is not None or a["kcal_net"] is not None:
+            w["kcal"] = round(core.activity_kcal(dict(a), kg)[0])
 
 
 def _summ(w):
@@ -470,6 +476,7 @@ def list_workouts(conn, a=None, b=None, limit=200):
     out = []
     prs = pr_map(conn)
     ups = _ups(conn)
+    st = core.settings(conn)
     for w in rows(conn.execute(q + " ORDER BY date DESC, COALESCE(start_time,'') DESC, id DESC LIMIT ?", args + [limit])):
         w["exercises"] = _exercises(conn, w["id"])
         for ex in w["exercises"]:
@@ -477,6 +484,7 @@ def list_workouts(conn, a=None, b=None, limit=200):
         w["prs_count"] = sum(len(ex["prs"]) for ex in w["exercises"])
         w["ups"] = ups.get(w["id"], [])
         _summ(w)
+        _kcal(conn, w, st)
         out.append(w)
     return out
 

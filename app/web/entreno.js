@@ -829,6 +829,12 @@ function deltaOf(cur, prev, f = (x) => fmt(x)) {
   return { v: dv, t: (dv > 0 ? "▲ " : dv < 0 ? "▼ " : "= ") + (dv ? f(Math.abs(dv)) : "") };
 }
 
+// Gasto del entreno en versión resumida (rayo + número, sin «kcal»): Hoy, último entreno, historial
+function kcChip(v) {
+  return v == null ? null : h("span", { class: "kcc", title: `Gasto del entreno: ${fmt(v)} kcal` }, icon("bolt"), tx(fmt(v)));
+}
+// Chips de un entreno juntos: si no caben al lado del título, bajan todos a la línea siguiente
+function chg(...c) { c = c.filter(Boolean); return c.length ? h("span", { class: "chg" }, ...c) : null; }
 // Último entreno (en Resumen, encima de «Actividad»)
 function lastCard(ws) {
   const w = [...(ws || [])].sort((a, b) => (b.date + (b.start_time || "")).localeCompare(a.date + (a.start_time || "")))[0];
@@ -836,7 +842,7 @@ function lastCard(ws) {
   const ago = Math.round((new Date(todayISO()) - new Date(w.date)) / 864e5);
   return h("button", { class: "card lastw", onclick: () => workoutSheet(w.id) },
     h("div", { class: "lw-top" }, h("span", { class: "lw-l" }, "Último entreno"), h("span", { class: "lw-ago" }, ago === 0 ? "hoy" : ago === 1 ? "ayer" : `hace ${ago} días`)),
-    h("div", { class: "lw-m" }, h("b", null, w.title), upsChip(w), w.prs_count ? h("span", { class: "prc" }, icon("trophy"), tx(String(w.prs_count))) : null),
+    h("div", { class: "lw-m" }, h("b", null, w.title), chg(upsChip(w), w.prs_count ? h("span", { class: "prc" }, icon("trophy"), tx(String(w.prs_count))) : null, kcChip(w.kcal))),
     w.notes ? h("div", { class: "lw-d" }, w.notes) : null,
     h("div", { class: "lw-s" }, [dateLabel(w.date, { weekday: "long", day: "numeric", month: "long" }) + (w.start_time ? " · " + w.start_time : ""), w.duration_min ? fmt(w.duration_min) + " min" : null,
       w.sets_count + " series", fmt(w.volume_kg) + " kg"].filter(Boolean).join(" · ")),
@@ -972,7 +978,7 @@ function workoutCard(w) {
   return h("div", { class: "card wcard v2", onclick: () => workoutSheet(w.id) },
     h("div", { class: "wdate" }, h("b", null, String(d)), h("span", null, dt.toLocaleDateString("es-ES", { weekday: "short" }))),
     h("div", { class: "wbody" },
-      h("div", { class: "wc-h" }, h("div", { class: "wc-t" }, w.title), upsChip(w), w.prs_count ? tip(h("span", { class: "prc" }, icon("trophy"), tx(String(w.prs_count))), `${w.prs_count} récords en este entreno`) : null, h("span", { class: "grow" }), w.start_time ? h("span", { class: "faint" }, w.start_time) : null),
+      h("div", { class: "wc-h" }, h("div", { class: "wc-tt" }, h("div", { class: "wc-t" }, w.title), chg(upsChip(w), w.prs_count ? tip(h("span", { class: "prc" }, icon("trophy"), tx(String(w.prs_count))), `${w.prs_count} récords en este entreno`) : null, kcChip(w.kcal))), h("span", { class: "grow" }), w.start_time ? h("span", { class: "faint" }, w.start_time) : null),
       w.notes ? h("div", { class: "wc-desc" }, w.notes) : null,
       h("div", { class: "wchips" }, w.duration_min ? h("span", null, fmt(w.duration_min) + " min") : null, w.volume_kg ? h("span", null, fmt(w.volume_kg) + " kg") : null, h("span", null, w.sets_count + " series")),
       h("div", { class: "wc-ex" }, w.exercises.map((ex) => { const b = ex.sets.length ? bestSetOf(ex) : null; return h("div", { class: "wc-exr" }, exIcon(ex.name, 22),

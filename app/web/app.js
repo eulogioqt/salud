@@ -520,8 +520,8 @@ function bodyStrip(st) {
       ws.length ? h("span", { class: "lnk" }, "Ver") : pend.length ? h("span", { class: "det-badge", title: "Ha llegado del móvil y falta mandar el entreno" }, h("span", { class: "det-i" }, "!"), h("span", { class: "det-bt" }, "Falta mandarlo")) : S.me && !closed && !trainOn ? h("button", { class: "lnk-btn", title: "Que se sepa solo cuándo entrenas", onclick: (e) => { e.stopPropagation(); stepsConnectSheet("entreno"); } }, "🔗 Conectar") : null),
     h("div", { class: "acts" }, ws.length || other.length
       ? [...ws.map((w) => h("div", { class: "a wk" },
-          h("div", { class: "wk-t" }, h("b", null, w.title), upsChip(w), w.prs_count ? h("span", { class: "prc", title: "Récords batidos en este entreno" }, icon("trophy"), tx(String(w.prs_count))) : null,
-            w.activity_id ? h("span", { class: "kcb" }, kc(w.activity_id) + " kcal") : null),
+          h("div", { class: "wk-t" }, h("b", null, w.title), chg(upsChip(w), w.prs_count ? h("span", { class: "prc", title: "Récords batidos en este entreno" }, icon("trophy"), tx(String(w.prs_count))) : null,
+            w.activity_id ? kcChip((en.exercise.find((x) => x.id === w.activity_id) || {}).kcal) : null)),
           w.notes ? h("div", { class: "wk-d" }, w.notes) : null,
           h("div", { class: "wk-s" }, [w.duration_min ? fmt(w.duration_min) + " min" : null, w.sets_count + " series", fmt(w.volume_kg) + " kg"].filter(Boolean).join(" · ")))),
          ...other.map((a) => h("div", { class: "a" }, h("b", null, (ACT_TYPES.find((x) => x[0] === a.type) || [0, a.type])[1]), ` ${a.minutes ? fmt(a.minutes) + "′" : ""}`, h("span", { class: "faint" }, " · " + kc(a.id) + " kcal")))]
