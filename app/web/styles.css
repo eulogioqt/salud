@@ -1894,3 +1894,4 @@ img { -webkit-user-drag: none; user-select: none; }
 .det-tip { margin-top: 8px; font-size: 12.5px; color: var(--faint); } .det-tip .lnk-btn { font-size: 12.5px; }
 .acts .a.wk.det .det-s { color: var(--warn); font-weight: 550; }
 .det-x { display: none; } @media (max-width: 640px) { .det-x { display: inline; } }
+.stat .v .kcc { margin-left: 6px; align-self: center; }

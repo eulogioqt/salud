@@ -830,8 +830,8 @@ function deltaOf(cur, prev, f = (x) => fmt(x)) {
 }
 
 // Gasto del entreno en versión resumida (rayo + número, sin «kcal»): Hoy, último entreno, historial
-function kcChip(v) {
-  return v == null ? null : h("span", { class: "kcc", title: `Gasto del entreno: ${fmt(v)} kcal` }, icon("bolt"), tx(fmt(v)));
+function kcChip(v, what = "del entreno") {
+  return v == null ? null : h("span", { class: "kcc", title: `Gasto ${what}: ${fmt(v)} kcal` }, icon("bolt"), tx(fmt(v)));
 }
 // Chips de un entreno juntos: si no caben al lado del título, bajan todos a la línea siguiente
 function chg(...c) { c = c.filter(Boolean); return c.length ? h("span", { class: "chg" }, ...c) : null; }

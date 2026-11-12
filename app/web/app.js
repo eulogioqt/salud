@@ -509,13 +509,13 @@ function bodyStrip(st) {
       st.avg7 != null && day.weight_kg != null ? `media 7 d ${fmt(st.avg7, 1)}` : null].filter(Boolean).join(" · ")));
   // Pasos: conectados al móvil → solo «Ver» (ficha con estadísticas); si no, se apuntan a mano y se ofrece conectar
   const auto = !!(S.pasos || {}).conectado && !((S.pasos || {}).off || []).includes("pasos");
-  const skc = day.steps != null && en.steps_kcal != null ? fmt(en.steps_kcal) + " kcal" : null;
+  const skc = day.steps != null && en.steps_kcal != null ? kcChip(en.steps_kcal, "de los pasos") : null;
   const steps = h("div", { class: "stat clickable", onclick: auto ? () => stepsStatsSheet(st) : closed ? null : () => stepsSheet(st) },
     h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic s" }, "👟"), "Pasos"),
       auto ? h("span", { class: "lnk" }, "Ver") : closed ? null : S.me ? h("button", { class: "lnk-btn", onclick: (e) => { e.stopPropagation(); stepsConnectSheet(); } }, "🔗 Conectar")
         : h("span", { class: "lnk" }, day.steps == null ? "+ Añadir" : "Editar")),
     day.steps == null ? h("div", { class: "v none" }, h("small", null, auto ? "Aún sin datos" : "Sin registrar"))
-      : h("div", { class: "v sv" }, h("span", null, fmt(day.steps)), h("small", null, "pasos"), skc ? h("span", { class: "kcb skc" }, skc) : null),
+      : h("div", { class: "v sv" }, h("span", null, fmt(day.steps)), h("small", null, "pasos"), skc),
     st.steps_hours ? blockBars(st.steps_hours, st.date === st.today) : null);
   const ws = st.workouts || [];
   const pend = ws.length ? [] : (st.sessions || []).filter((x) => !x.registrada);  // entrenos que han llegado del móvil y faltan
@@ -534,7 +534,7 @@ function bodyStrip(st) {
          ...other.map((a) => h("div", { class: "a" }, h("b", null, (ACT_TYPES.find((x) => x[0] === a.type) || [0, a.type])[1]), ` ${a.minutes ? fmt(a.minutes) + "′" : ""}`, h("span", { class: "faint" }, " · " + kc(a.id) + " kcal")))]
       : pend.length ? h("div", { class: "acts" }, pend.map((x) => h("div", { class: "a wk det" },
           h("div", { class: "wk-t" }, h("b", null, x.titulo || "Entreno")),
-          h("div", { class: "wk-s det-s" }, `Detectado a las ${x.inicio}`, h("span", { class: "det-x" }, " · falta subirlo")))))
+          h("div", { class: "wk-s det-s" }, `Empezó a las ${x.inicio}`, h("span", { class: "det-x" }, " · falta subirlo")))))
       : h("div", { class: "v none" }, h("small", null, day.rest_day === 1 ? "Descanso" : "Sin registrar"))));
   return h("div", { class: "strip" }, weight, steps, train);
 }
