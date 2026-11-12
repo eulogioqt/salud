@@ -244,19 +244,16 @@ function mono(name, cat, img, lg) {
   return h("div", { class: "mono" + (lg ? " lg" : "") + (src ? " has-img" : ""), style: { "--h": hue } }, src ? h("img", { src, alt: "", loading: "lazy", onerror: (e) => { const m = e.target.parentNode; if (m) { m.classList.remove("has-img"); m.textContent = ini; } } }) : ini);
 }
 // Solo se marca lo que es menos fiable que la etiqueta (estimación, provisional, pendiente): lo bueno no necesita etiqueta.
-// Qué es estimado en una entrada: la cantidad (a ojo), los valores (sin etiqueta o estimados) o las dos cosas
-function estInfo(es) {
+// Qué es aproximado en una entrada: un badge por cada cosa. «Cantidad a ojo» (no pesada) y «Valores a ojo» (no son de la
+// etiqueta ni de tu histórico: estimados o sin confirmar). Una comida estimada entera lleva los dos.
+function estBadges(es) {
   es = [].concat(es);
-  if (es.some((e) => e.kind === "estimacion")) return { cls: "estimacion", txt: "Estimado", tip: "Comida estimada entera: cantidad y valores" };
-  const qty = es.some((e) => e.qty_est), worst = es.map((e) => e.quality).sort((a, b) => QORDER.indexOf(b) - QORDER.indexOf(a))[0];
-  const vals = ["estimacion", "provisional", "pendiente"].includes(worst) ? worst : null;
-  const vTxt = vals === "estimacion" ? "valores estimados" : vals ? "sin etiqueta" : null;
-  if (qty && vals) return { cls: "both", txt: "Cantidad y " + vTxt, tip: "La cantidad es a ojo (sin pesar) y los valores " + (vals === "estimacion" ? "son una estimación" : "no son de la etiqueta") };
-  if (qty) return { cls: "qest", txt: "Cantidad estimada", tip: "Cantidad a ojo, sin pesar; los valores del alimento son buenos" };
-  if (vals) return { cls: vals, txt: vTxt[0].toUpperCase() + vTxt.slice(1), tip: vals === "estimacion" ? "Cantidad exacta; los valores nutricionales son una estimación" : "Cantidad exacta; valores sin etiqueta (provisionales)" };
-  return null;
+  const whole = es.some((e) => e.kind === "estimacion");
+  const qty = whole || es.some((e) => e.qty_est), vals = whole || es.some((e) => ["estimacion", "provisional", "pendiente"].includes(e.quality));
+  return [qty ? h("span", { class: "q qest", title: whole ? "Comida estimada: la cantidad es a ojo" : "No se ha pesado ni contado: cantidad a ojo" }, "Cantidad a ojo") : null,
+    vals ? h("span", { class: "q estimacion", title: whole ? "Comida estimada: los valores son una estimación" : "Los valores no son de la etiqueta: estimados o sin confirmar" }, "Valores a ojo") : null].filter(Boolean);
 }
-function estTag(es) { const i = estInfo(es); return i ? h("span", { class: "q " + i.cls, title: i.tip }, i.txt) : null; }
+const estTag = (es) => { const b = estBadges(es); return b.length ? h("span", { class: "estb" }, b) : null; };
 function qBadge(q) { return q && !["historico", "etiqueta"].includes(q) ? h("span", { class: "q " + q, title: QUAL[q] }, QUAL[q]) : null; }
 function macroTxt(n, cls = "mc") {
   return h("span", { class: cls }, h("span", { class: "p" }, "P ", v(n, "protein_g")), " · ", h("span", { class: "c" }, "C ", v(n, "carbs_g")), " · ", h("span", { class: "g" }, "G ", v(n, "fat_g")));
@@ -428,9 +425,18 @@ function energySheet(st) {
   const closedNote = closed && c ? h("span", { class: "bd-closed-x", title: c.forced ? "Cerrado con datos incompletos" : "" }, icon("lock"),
     h("span", { class: "cx-l" }, tx(`Cerrado el ${dateLabel(c.closed_at.slice(0, 10), { day: "numeric", month: "short" })} a las ${c.closed_at.slice(11, 16)}` + (c.version > 1 ? ` · v${c.version}` : ""))),
     h("span", { class: "cx-s" }, tx(`${+c.closed_at.slice(8, 10)}/${+c.closed_at.slice(5, 7)} · ${c.closed_at.slice(11, 16)}` + (c.version > 1 ? ` · v${c.version}` : "")))) : null;
+  // Con qué cuenta el objetivo de hoy (lo que aún no se sabe se supone)
+  const tgt = st.target || {};
+  const goalNote = !closed && tgt.dynamic ? h("div", { class: "bd-sec" }, h("div", { class: "bd-st" }, "Tu objetivo de hoy cuenta con"),
+    h("div", { class: "bd-assume" },
+      h("div", null, h("b", null, tgt.steps_pending ? `${fmt(tgt.projected_steps || 0)} pasos` : `${fmt(st.day.steps || 0)} pasos`),
+        h("span", null, tgt.steps_pending ? `previstos: tu media de los ${dateLabel(st.date, { weekday: "long" })}. Si das más, cuentan los reales` : "los que llevas (ya pasas de tu media)")),
+      h("div", null, h("b", null, st.day.neat_kcal == null ? "Día a día normal" : "Día a día elegido"),
+        h("span", null, st.day.neat_kcal == null ? `≈ ${fmt(Math.round(150 * (en.neat_factor || 1)))} kcal de moverte por casa, de pie… Al cerrar eliges cómo fue` : "el que elegiste")),
+      h("div", null, h("b", null, "Solo los entrenos apuntados"), h("span", null, "no se prevé si vas a entrenar: al apuntarlo, el objetivo sube")))) : null;
   const obs = closed && c && c.summary && (c.summary.observations || []).length
     ? h("div", { class: "bd-sec" }, h("div", { class: "bd-st" }, "Observaciones del cierre"), h("ul", { class: "bd-obs" }, c.summary.observations.map((o) => h("li", null, o)))) : null;
-  sheet(closed ? "Resumen del día" : "Desglose del día", [hero, eaten, burned, obs,
+  sheet(closed ? "Resumen del día" : "Desglose del día", [hero, eaten, burned, goalNote, obs,
     h("div", { class: "faint bd-foot" }, "El gasto es una estimación: tu metabolismo en reposo (según peso, altura, edad y sexo) + la digestión (10 % de lo que comes) + lo que te mueves en el día + tus pasos + tus entrenos.")], null, { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }), titleExtra: closedNote });
 }
 function energyTable(en, balance) {
@@ -906,7 +912,7 @@ function mealBlock(st, meal, closed) {
   const itemEl = (e, child) => { const fo = foodOf(e.food_id);
     return h("div", { class: "item b" + (child ? " child" : ""), onclick: closed ? null : (ev) => { ev.stopPropagation(); entrySheet(e); } },
       mono(e.name, fo.category, fo.image),
-      h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, e.name)),
+      h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, e.name), estTag(e)),
         h("div", { class: "sub" }, estTag(e), [e.time, e.unit_label, e.kind === "estimacion" && e.kcal_min != null ? `rango ${fmt(e.kcal_min)}–${fmt(e.kcal_max)}` : null].filter(Boolean).join(" · ")), chips(e)),
       h("div", { class: "kc num" }, v(e, "kcal"), h("small", null, "kcal"))); };
   // Las comidas habituales se muestran como un solo plato (desplegable con sus ingredientes)
@@ -928,7 +934,7 @@ function mealBlock(st, meal, closed) {
     const kids = h("div", { class: "tpl-kids" + (S.openTpl[key] ? "" : " hidden") }, grp.map((x) => itemEl(x, true)));
     const row = h("div", { class: "item b tpl" + (S.openTpl[key] ? " open" : ""), onclick: () => { S.openTpl[key] = !S.openTpl[key]; kids.classList.toggle("hidden"); row.classList.toggle("open"); } },
       mono(tpl ? tpl.name : "Comida habitual", "comida", tpl && tpl.image),
-      h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, tpl ? tpl.name : "Comida habitual"), h("span", { class: "chev" }, "›")),
+      h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, tpl ? tpl.name : "Comida habitual"), estTag(grp), h("span", { class: "chev" }, "›")),
         h("div", { class: "sub" }, estTag(grp), [e.time, `comida habitual · ${grp.length} ${grp.length === 1 ? "alimento" : "alimentos"}`].filter(Boolean).join(" · ")), chips(tot)),
       h("div", { class: "kc num" }, v(tot, "kcal"), h("small", null, "kcal")));
     list.append(h("div", { class: "tpl-grp" }, row, kids));
@@ -993,7 +999,7 @@ function tilePhoto(name, cat, img) {
 function foodTile(f, onclick) {
   const cat = f.kind === "receta" ? "receta" : f.category;
   const [n, lbl] = foodBasis(f);
-  const tag = !f.reviewed ? h("span", { class: "rev" }, "Por revisar") : (f.status === "pendiente" || f.status === "provisional" ? h("span", { class: "miss" }, QUAL[f.status]) : null);
+  const tag = !f.reviewed ? h("span", { class: "rev" }, "Por revisar") : (["pendiente", "provisional", "estimacion"].includes(f.status) ? h("span", { class: "miss", title: "Los valores no son de la etiqueta: estimados o sin confirmar" }, "Valores a ojo") : null);
   return h("button", { class: "tile", onclick, type: "button" }, tilePhoto(f.name, cat, f.image),
     h("div", { class: "tx" }, h("div", { class: "tn" }, f.name), h("div", { class: "ts" }, tag, tag && f.kind === "receta" ? " · " : "", f.kind === "receta" ? "Receta" : "", !tag && f.kind !== "receta" ? (f.brand || f.category || "") : ""),
       macroBadges(n, lbl)));
@@ -1161,7 +1167,7 @@ function amountForm(food, init) {
     if (!u) { note.textContent = "Este alimento no tiene unidades registrables."; note.className = "note warn"; return; }
     const miss = u.per.missing || [];
     note.className = "note" + (miss.length || ["pendiente", "provisional"].includes(u.quality) ? " warn" : "");
-    const vq = u.quality === "estimacion" ? "Valores estimados" : ["provisional", "pendiente"].includes(u.quality) ? "Valores sin etiqueta" : "Valores de " + (u.quality === "etiqueta" ? "la etiqueta" : "tu histórico");
+    const vq = ["estimacion", "provisional", "pendiente"].includes(u.quality) ? "Valores a ojo (no son de la etiqueta)" : "Valores de " + (u.quality === "etiqueta" ? "la etiqueta" : "tu histórico");
     note.textContent = [uHint(u), vq, qtyEst ? "cantidad a ojo" : null, uHint(u) ? null : u.basis, miss.length === 4 ? "sin datos: se registra como pendiente (no cuenta como 0)" : miss.length ? "macros incompletos: no se suman como 0" : null].filter(Boolean).join(" · ");
   };
   qIn.addEventListener("input", draw);
@@ -1456,12 +1462,12 @@ function foodEditor(f, opt = {}) {
   const prows = (f.portions || []).map(prow);
   const tbody = h("tbody", null, prows.map((r) => r.el));
   const ptable = h("div", { class: "tbl-wrap" }, h("table", { class: "t ptable" },
-    h("thead", null, h("tr", null, ...["Ración", "Cant.", "Ud.", "kcal", "P", "C", "G", "Dato", "Base", ""].map((x) => h("th", null, x)))), tbody));
+    h("thead", null, h("tr", null, ...["Ración*", "Cant.*", "Ud.*", "kcal", "P", "C", "G", "Dato", "Base", ""].map((x) => h("th", null, x.endsWith("*") ? [x.slice(0, -1), h("i", { class: "req" }, "*")] : x)))), tbody));
   const applyOpen = h("input", { type: "checkbox", checked: true });
   const orig = !isNew && (f.original_name || f.historical_text || f.import_note) ? h("details", { style: { marginTop: "12px" } }, h("summary", null, "Origen e historial del dato"),
     h("pre", { class: "orig" }, [f.original_name && "Nombre original: " + f.original_name, f.previous_name && "Nombre anterior: " + f.previous_name, f.code && "Código: " + f.code,
       f.import_note && "Nota de importación: " + f.import_note, f.historical_text && "Referencia histórica:\n" + f.historical_text].filter(Boolean).join("\n\n"))) : null;
-  let pendingImg = null;
+  let pendingImg = null, completeBtn = null;
   const photoBox = h("div", { class: "photo-box" });
   const fileIn = h("input", { type: "file", accept: "image/*", class: "hidden" });
   const drawPhoto = () => {
@@ -1469,6 +1475,7 @@ function foodEditor(f, opt = {}) {
     photoBox.replaceChildren(photoFrame(name.value || f.name || "?", f.category, src),
       h("div", { class: "pb-actions" },
         h("button", { type: "button", class: "btn sm", onclick: () => fileIn.click() }, icon("camera"), src ? "Cambiar foto" : "Añadir foto"),
+        completeBtn,
         src ? h("button", { type: "button", class: "btn sm ghost danger", onclick: async () => {
           if (pendingImg) { pendingImg = null; drawPhoto(); return; }
           await act(() => api("DELETE", `/api/foods/${f.id}/image`), "Foto quitada"); f.image = null; drawPhoto();
@@ -1487,7 +1494,6 @@ function foodEditor(f, opt = {}) {
   drawPhoto();
   // Código de barras o enlace de Open Food Facts: rellena nombre, marca, valores por 100 g, la ración y la foto (si no tiene)
   let offImg = null;
-  const offIn = h("input", { class: "input", placeholder: "Código de barras o enlace de Open Food Facts", inputMode: "text" });
   const offNote = h("div", { class: "note hidden" });
   const applyOff = (o) => {
     if (!name.value.trim() || isNew) name.value = o.name || name.value;
@@ -1507,30 +1513,23 @@ function foodEditor(f, opt = {}) {
       const rs = prow({ quality: q }); prows.push(rs); tbody.append(rs.el); setRow(rs, o.serving, o.serving.label, o.serving.amount, o.serving.unit);
     }
     if (o.image_url && !f.image && !pendingImg) { offImg = o.image_url; pendingImg = o.image_url; drawPhoto(); }
-    offNote.className = "note" + (o.complete ? "" : " warn");
-    offNote.textContent = `Encontrado: ${o.name || "sin nombre"}${o.brand ? " (" + o.brand + ")" : ""} · ${o.per100.kcal == null ? "?" : fmt(o.per100.kcal)} kcal por 100 ${o.unit}` +
-      (o.complete ? " · revisa y guarda" : " · le faltan valores: complétalos de la etiqueta") + (offImg ? " · con su foto" : "");
+    offNote.className = "note off-found" + (o.complete ? "" : " warn");
+    offNote.textContent = `De Open Food Facts: ${o.name || "sin nombre"}${o.brand ? " (" + o.brand + ")" : ""} · ${o.per100.kcal == null ? "?" : fmt(o.per100.kcal)} kcal por 100 ${o.unit}` +
+      (o.complete ? " · revísalo y guarda" : " · le faltan valores: complétalos con la etiqueta") + (offImg ? " · con su foto" : "");
   };
-  const offFind = async (q) => {
-    q = (q || offIn.value).trim(); if (!q) return toast("Pon el código o el enlace", { error: true });
-    try { offNote.className = "note"; offNote.textContent = "Buscando…"; applyOff(await api("GET", "/api/off?q=" + encodeURIComponent(q))); }
-    catch (e) { offNote.className = "note warn"; offNote.textContent = e.message; }
-  };
-  offIn.addEventListener("keydown", (e) => { if (e.key === "Enter") offFind(); });
-  const offBox = h("div", { class: "off-box" },
-    h("div", { class: "off-row" }, h("span", { class: "off-ic" }, icon("barcode")), offIn,
-      "BarcodeDetector" in window ? h("button", { type: "button", class: "btn sm", onclick: () => scanBarcode((c) => { offIn.value = c; offFind(c); }) }, icon("camera"), "Escanear") : null,
-      h("button", { type: "button", class: "btn sm primary", onclick: () => offFind() }, isNew ? "Buscar" : "Completar")),
-    offNote);
+  completeBtn = !isNew ? h("button", { type: "button", class: "btn sm", onclick: () => {
+    const m = sheet("Completar producto", offChooser((o) => { m.close(); applyOff(o); }), null, { sub: "Con el código de barras o el enlace de Open Food Facts: valores, ración y foto" });
+  } }, icon("barcode"), "Completar con código de barras") : null;
+  drawPhoto();
   const credit = f.image_source ? h("div", { class: "note", style: { marginTop: "-8px", marginBottom: "10px" } }, "Foto: ", f.image_source.startsWith("http") ? h("a", { href: f.image_source, target: "_blank", rel: "noopener" }, "Open Food Facts (CC BY-SA)") : f.image_source, " · cámbiala por la tuya cuando quieras") : null;
-  const body = [dl, fileIn, offBox, photoBox, credit,
-    h("div", { class: "grid2" }, h("div", null, h("label", { class: "f" }, "Nombre"), name), h("div", null, h("label", { class: "f" }, "Estado del dato"), status)),
+  const body = [dl, fileIn, offNote, photoBox, credit,
+    h("div", { class: "grid2" }, h("div", null, h("label", { class: "f" }, "Nombre", h("i", { class: "req" }, " *")), name), h("div", null, h("label", { class: "f" }, "Estado del dato"), status)),
     h("div", { class: "grid3", style: { marginTop: "10px" } }, h("div", null, h("label", { class: "f" }, "Categoría"), cat), h("div", null, h("label", { class: "f" }, "Marca"), brand), h("div", null, h("label", { class: "f" }, "Fuente"), source)),
     !isNew ? h("div", { class: "gap-top" }, field("Se registra por", duSel), h("div", { class: "note" }, "Las cosas que van por unidad (una lata, una bolsa, un yogur) se añaden por unidad y su resumen muestra la unidad, no los 100 g.")) : null,
     h("div", { class: "sec-t" }, "Raciones y valores"),
     ptable,
     h("div", { class: "row", style: { marginTop: "6px" } }, h("button", { class: "btn sm", onclick: () => { const r = prow({ quality: status.value }); prows.push(r); tbody.append(r.el); r.label.focus(); } }, "+ Ración"),
-      h("span", { class: "note", style: { margin: 0 } }, "Vacío = desconocido (no cuenta como 0). «Base» fija qué ración se usa para escalar por gramos.")),
+      h("span", { class: "note", style: { margin: 0 } }, h("i", { class: "req" }, "*"), " obligatorio. Valores vacíos = desconocidos (no cuentan como 0). «Base» fija qué ración se usa para escalar por gramos.")),
     h("div", { style: { marginTop: "10px" } }, h("label", { class: "f" }, "Notas"), notes),
     !isNew ? h("label", { class: "note row", style: { gap: "6px" } }, applyOpen, "Corregir también lo ya apuntado (todos los días, también los cerrados)") : null,
     orig];
@@ -1553,16 +1552,47 @@ function foodEditor(f, opt = {}) {
     }
     sh.close();
   };
+  const fullOpts = { wide: true, sub: reviewSub(isNew, f) };
+  const formFoot = () => [h("span", { class: "grow" }), ...saveButtons(isNew, f, save)];
+  if (isNew && !opt.supp && !opt.manual) {
+    // Nuevo producto: primero el código de barras (cámara, código o enlace); a mano, con un botón
+    const sh = sheet("Nuevo producto", [offChooser((o) => { sh.close(); foodEditor(null, { ...opt, manual: true, off: o }); }, true)],
+      [h("span", { class: "grow" }), h("button", { class: "btn", onclick: () => { sh.close(); foodEditor(null, { ...opt, manual: true }); } }, "Rellenar a mano")],
+      { sub: "Escanea el código de barras o pega el enlace de Open Food Facts" });
+    return;
+  }
   const sh = sheet(isNew ? "Nuevo producto" : f.name, body, [
     !isNew ? h("button", { class: "btn ghost danger", onclick: (e) => confirmDel(e, () => act(() => api("POST", `/api/foods/${f.id}/deleted`, { value: true }), "Eliminado (recuperable desde la base de datos)").then(sh.close)) }, "Eliminar") : null,
     h("span", { class: "grow" }), ...saveButtons(isNew, f, save)], { wide: true, sub: reviewSub(isNew, f),
     titleExtra: isNew ? null : h("button", { class: "fav-btn" + (f.favorite ? " on" : ""), title: f.favorite ? "Quitar de favoritos" : "Añadir a favoritos (sale antes al buscar)",
       onclick: async (e) => { const b = e.currentTarget; await act(() => api("POST", `/api/foods/${f.id}/favorite`, { value: !f.favorite })); f.favorite = f.favorite ? 0 : 1; b.classList.toggle("on", !!f.favorite); b.textContent = f.favorite ? "★" : "☆"; } }, f.favorite ? "★" : "☆") });
+  if (opt.off) applyOff(opt.off);
   if (isNew) setTimeout(() => name.focus(), 40);
 }
 
-// Escáner de códigos de barras con la cámara (Chrome en Android; en el ordenador, escribe el código o pega el enlace)
+// Elegir cómo traer un producto de Open Food Facts: cámara o código/enlace escrito
+function offChooser(onFound, big) {
+  const inp = h("input", { class: "input", placeholder: "Código de barras o enlace de Open Food Facts", inputMode: "text" });
+  const note = h("div", { class: "note hidden" });
+  const find = async (q) => {
+    q = (q || inp.value).trim(); if (!q) { inp.focus(); return; }
+    note.className = "note"; note.textContent = "Buscando en Open Food Facts…";
+    try { onFound(await api("GET", "/api/off?q=" + encodeURIComponent(q))); } catch (e) { note.className = "note warn"; note.textContent = e.message; }
+  };
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") find(); });
+  return h("div", { class: "offc" + (big ? " big" : "") },
+    h("button", { type: "button", class: "offc-cam", onclick: () => scanBarcode((c) => { inp.value = c; find(c); }) },
+      h("span", { class: "offc-i" }, icon("camera")), h("b", null, "Escanear con la cámara"), h("span", null, "Apunta al código de barras del envase")),
+    h("div", { class: "offc-or" }, h("span", null, "o")),
+    h("div", { class: "offc-man" }, h("label", { class: "f" }, "Escribe el código o pega el enlace"),
+      h("div", { class: "off-row" }, h("span", { class: "off-ic" }, icon("barcode")), inp, h("button", { type: "button", class: "btn primary", onclick: () => find() }, "Buscar"))),
+    note);
+}
+let ZX_LOAD = null;
+const loadZxing = () => ZX_LOAD || (ZX_LOAD = new Promise((ok, ko) => { const s = document.createElement("script"); s.src = "/vendor/zxing.min.js"; s.onload = () => ok(window.ZXing); s.onerror = () => { ZX_LOAD = null; ko(new Error("No se pudo cargar el lector")); }; document.head.append(s); }));
+// Escáner de códigos de barras con la cámara: nativo (Chrome en Android) o con ZXing (ordenador, iPhone)
 async function scanBarcode(onCode) {
+  if (!("BarcodeDetector" in window)) return scanZxing(onCode);
   let stream = null, stop = false;
   const video = h("video", { class: "scan-v", playsInline: true, muted: true, autoplay: true });
   const msg = h("div", { class: "note" }, "Apunta al código de barras del envase");
@@ -1577,6 +1607,17 @@ async function scanBarcode(onCode) {
       setTimeout(tick, 200);
     };
     tick();
+  } catch (e) { msg.className = "note warn"; msg.textContent = "No se puede usar la cámara: escribe el código o pega el enlace."; }
+}
+async function scanZxing(onCode) {
+  let reader = null;
+  const video = h("video", { class: "scan-v", playsInline: true, muted: true, autoplay: true });
+  const msg = h("div", { class: "note" }, "Apunta al código de barras del envase");
+  const sh = sheet("Escanear código", [h("div", { class: "scan-w" }, video, h("i", { class: "scan-line" })), msg], null, { onClose: () => { if (reader) reader.reset(); } });
+  try {
+    const ZX = await loadZxing();
+    reader = new ZX.BrowserMultiFormatReader();
+    await reader.decodeFromConstraints({ video: { facingMode: "environment" } }, video, (res) => { if (res) { const c = res.getText(); reader.reset(); sh.close(); onCode(c); } });
   } catch (e) { msg.className = "note warn"; msg.textContent = "No se puede usar la cámara: escribe el código o pega el enlace."; }
 }
 
@@ -1662,6 +1703,7 @@ function recipeEditor(r) {
   const sh = sheet(isNew ? "Nueva receta" : r.name, body, [
     !isNew ? h("button", { class: "btn ghost danger", onclick: (e) => confirmDel(e, () => act(() => api("POST", `/api/foods/${r.id}/deleted`, { value: true }), "Receta eliminada").then(sh.close)) }, "Eliminar") : null,
     h("span", { class: "grow" }), ...saveButtons(isNew, r, save)], { wide: true, sub: reviewSub(isNew, r) });
+  if (opt.off) applyOff(opt.off);
   if (isNew) setTimeout(() => name.focus(), 40);
 }
 
@@ -1700,6 +1742,7 @@ function templateEditor(t) {
     h("span", { class: "grow" }), ...saveButtons(isNew, t, save)], { wide: true, sub: reviewSub(isNew, t),
     titleExtra: isNew ? null : h("button", { class: "fav-btn" + (t.favorite ? " on" : ""), title: t.favorite ? "Quitar de favoritas" : "Añadir a favoritas (sale antes al añadir comida)",
       onclick: async (e) => { const b = e.currentTarget; await act(() => api("PUT", "/api/templates/" + t.id, { favorite: t.favorite ? 0 : 1 })); t.favorite = t.favorite ? 0 : 1; b.classList.toggle("on", !!t.favorite); b.textContent = t.favorite ? "★" : "☆"; await loadCatalog(); } }, t.favorite ? "★" : "☆") });
+  if (opt.off) applyOff(opt.off);
   if (isNew) setTimeout(() => name.focus(), 40);
 }
 
@@ -1724,14 +1767,23 @@ const BODY_ROWS = [["weight_kg", "Peso", "kg", 1], ["fat_pct", "Grasa", "%", 2],
   ["bone_kg", "Hueso", "kg", 1], ["visceral_fat", "Grasa visceral", "", 1], ["bmr_kcal", "BMR báscula", "kcal", 0], ["bmi", "IMC", "", 1]];
 // Medidas de la báscula: siempre las mismas y en el mismo orden (lo que no da la báscula sale «—»). Con `ref`, el cambio en ~1 mes.
 const BODY_TILES = [["fat_pct", "Grasa", "%", 1], ["muscle_kg", "Masa muscular", "kg", 1], ["water_pct", "Agua", "%", 1], ["visceral_fat", "Grasa visceral", "", 0], ["bone_kg", "Hueso", "kg", 1], ["bmi", "IMC", "", 1]];
+// Masa muscular como la calcula Xiaomi: peso − grasa − hueso (si la báscula no la manda)
+function muscleOf(b) {
+  if (b.muscle_kg != null) return b.muscle_kg;
+  const fat = b.fat_kg != null ? b.fat_kg : b.fat_pct != null && b.weight_kg != null ? b.weight_kg * b.fat_pct / 100 : null;
+  return b.weight_kg != null && fat != null && b.bone_kg != null ? Math.round((b.weight_kg - fat - b.bone_kg) * 10) / 10 : null;
+}
+const bodyVal = (b, k) => k === "muscle_kg" ? muscleOf(b) : b[k];
 function bodyTiles(b, ref, withWeight) {
   const rows = withWeight ? [["weight_kg", "Peso", "kg", 1], ...BODY_TILES] : BODY_TILES;
   return rows.map(([k, l, u, nd]) => {
-    const v = b[k], d = ref && v != null && ref[k] != null ? v - ref[k] : null;
-    return h("div", { class: "btile" }, h("span", null, l),
+    const v = bodyVal(b, k), rv = ref ? bodyVal(ref, k) : null, d = v != null && rv != null ? v - rv : null;
+    const why = k === "muscle_kg" && b.muscle_kg == null && v != null ? "Calculada como Xiaomi: peso − grasa − hueso"
+      : k === "visceral_fat" && v == null ? "Necesita la impedancia de la báscula: llegará cuando la app la lea directamente" : null;
+    return tip(h("div", { class: "btile" }, h("span", null, l),
       v == null ? h("b", { class: "num none" }, "—") : h("b", { class: "num" }, fmt(v, nd), u ? h("small", null, " " + u) : null,
         k === "fat_pct" && b.fat_kg != null ? h("small", { class: "sec" }, " · " + fmt(b.fat_kg, 1) + " kg") : null),
-      d != null ? h("em", { class: "num" }, signed(d, nd) + " en ~1 mes") : null);
+      d != null ? h("em", { class: "num" }, signed(d, nd) + " en ~1 mes") : null), why);
   });
 }
 // Peso del día de cada fecha: el pesaje (el más temprano) que coincide con el peso guardado en el día
@@ -1766,7 +1818,7 @@ function histBody(list, weights) {
     const rows = list.filter((b) => all || counts(b));
     tbl.replaceChildren(h("table", { class: "t bhist" }, h("tr", null, h("th", null, "Fecha"), ...["Peso", "Grasa %", "Músculo", "Agua %", "Visceral"].map((x) => h("th", { class: "r" }, x)), h("th", { class: "c" }, "Cuenta"), h("th", null, "")),
       rows.map((b) => { const on = counts(b);
-        return h("tr", { class: on ? "" : "nc" }, h("td", { class: "dtc" }, dateLabel(b.date, { weekday: "short", day: "numeric", month: "short" }), b.time ? h("span", { class: "faint" }, " · " + b.time) : null), ...["weight_kg", "fat_pct", "muscle_kg", "water_pct", "visceral_fat"].map((k) => h("td", { class: "r num" }, b[k] == null ? "—" : fmt(b[k], 1))),
+        return h("tr", { class: on ? "" : "nc" }, h("td", { class: "dtc" }, dateLabel(b.date, { weekday: "short", day: "numeric", month: "short" }), b.time ? h("span", { class: "faint" }, " · " + b.time) : null), ...["weight_kg", "fat_pct", "muscle_kg", "water_pct", "visceral_fat"].map((k) => h("td", { class: "r num" }, bodyVal(b, k) == null ? "—" : fmt(bodyVal(b, k), 1))),
           h("td", { class: "c" }, b.weight_kg == null ? null : tip(h("button", { class: "cnt-btn" + (on ? " on" : ""), onclick: () => setDayWeight(b, !on) }, icon("check")), on ? "Es el peso del día: cuenta para la media, la tendencia y los ajustes. Toca para quitarlo." : "No cuenta para la tendencia. Toca para usarlo como peso del día.")),
           h("td", null, h("button", { class: "icon-btn", title: "Eliminar", onclick: async () => { await act(() => api("DELETE", "/api/body/" + b.id), "Medición eliminada"); } }, icon("x")))); })));
   };
@@ -1836,8 +1888,9 @@ function weightChart(ws, bodies, sel, next) {
   // Eje Y ajustado a los datos: la variación ocupa la mayor parte del alto (mínimo 0,6 kg de margen para no exagerar el ruido)
   let lo = Math.min(...vals), hi = Math.max(...vals); const span = Math.max(hi - lo, 0.6), pad = span * 0.25, mid = (hi + lo) / 2;
   lo = mid - span / 2 - pad; hi = mid + span / 2 + pad;
-  const n = ws.length, x = (i) => L + (n === 1 ? (W - L - R) / 2 : (i * (W - L - R)) / (n - 1)), y = (val) => T + ((hi - val) * (H - T - B)) / (hi - lo);
-  const dayW = n > 1 ? (W - L - R) / (n - 1) : 0, xt = (i, t) => x(i) + dayW * ((mins(t) - 480) / 1440);
+  // Medio día de margen a cada lado: el primer y el último punto no quedan pegados al borde
+  const n = ws.length, x = (i) => L + ((i + 0.5) * (W - L - R)) / n, y = (val) => T + ((hi - val) * (H - T - B)) / (hi - lo);
+  const dayW = (W - L - R) / n, xt = (i, t) => x(i) + dayW * ((mins(t) - 480) / 1440);
   const xw = (i) => { const w = ws[i]; if (w.weight_kg == null) return x(i); const m = mainOf(w); return m ? xt(i, m.time) : x(i); };
   const NS = "http://www.w3.org/2000/svg", el = (t, a) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
   const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, class: "chart", preserveAspectRatio: "none" });

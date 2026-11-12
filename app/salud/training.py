@@ -368,11 +368,11 @@ def _previous(conn, name, before_date, wid):
     return None
 
 
-# Récords como Hevy, por tipo de ejercicio
-# (solo los que avisan con trofeo: 1RM, peso máximo y mejor serie; el volumen de sesión y las reps
-# totales de una sesión se ven como récord en la ficha, pero sin trofeo, como Hevy)
-PR_KINDS = {"peso": ("e1", "w", "sv"), "lastre": ("w", "sv"), "corporal": ("reps",),
-            "asistido": ("reps",), "tiempo": ("secs",), "cardio": ("dist", "w")}
+# Récords exactamente como Hevy, por tipo de ejercicio: peso y reps → peso máximo, mejor 1RM, mejor volumen de serie y de
+# sesión; con lastre → peso máximo y volumen de serie; peso corporal → mejor serie y reps de la sesión; asistido → reps de la
+# sesión y de una serie; tiempo → mejor tiempo (y peso si lleva); distancia → mayor distancia y tiempo (y peso si lleva).
+PR_KINDS = {"peso": ("w", "e1", "sv", "vol"), "lastre": ("w", "sv"), "corporal": ("reps", "sreps"),
+            "asistido": ("sreps", "reps"), "tiempo": ("secs", "w"), "cardio": ("dist", "secs", "w")}
 
 
 def _recs(kind, sets):

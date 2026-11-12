@@ -560,13 +560,15 @@ const mondayOf = (iso) => { const [y, m, d] = iso.split("-").map(Number); const 
 const MAIN_GROUPS = ["Pecho", "Espalda", "Pierna", "Hombro", "Brazos", "Core"];
 
 // Récords como en Hevy: varias métricas por ejercicio según su tipo.
-const REC_LABEL = { w: "Peso máximo", e1: "1RM estimado", sv: "Volumen (mejor serie)", vol: "Volumen de sesión", reps: "Máx. repeticiones",
-  sreps: "Reps en una sesión", secs: "Máx. tiempo", stime: "Tiempo en una sesión", dist: "Máx. distancia" };
-// Récords que avisan con trofeo (como Hevy): 1RM, peso máximo y mejor serie (volumen); en peso corporal, reps; tiempo; distancia.
-// El volumen de la sesión y las reps de una sesión se ven en la ficha, pero no dan trofeo.
-const TROPHY = ["e1", "w", "sv", "reps", "secs", "dist"];
-const REC_KINDS = { peso: ["e1", "w", "sv"], lastre: ["w", "sv", "vol"], corporal: ["reps", "sreps"], asistido: ["reps", "sreps"],
-  tiempo: ["secs", "stime"], cardio: ["dist", "w"] };
+const REC_LABEL = { w: "Peso máximo", e1: "Mejor 1RM", sv: "Mejor volumen (serie)", vol: "Mejor volumen (sesión)", reps: "Más reps (serie)",
+  sreps: "Más reps (sesión)", secs: "Mejor tiempo", stime: "Tiempo en una sesión", dist: "Mayor distancia" };
+// Récords exactamente como Hevy, según el tipo de ejercicio (todos dan trofeo):
+// peso y reps: peso máximo, mejor 1RM, mejor volumen de serie y de sesión · con lastre: peso máximo y mejor volumen de serie ·
+// peso corporal: mejor serie (reps) y más reps en la sesión · asistido: más reps en la sesión y en una serie ·
+// tiempo: mejor tiempo (y peso máximo si lleva peso) · distancia: mayor distancia y mayor tiempo (o peso máximo si se lleva peso, p. ej. paseo del granjero)
+const TROPHY = ["e1", "w", "sv", "vol", "reps", "sreps", "secs", "dist"];
+const REC_KINDS = { peso: ["w", "e1", "sv", "vol"], lastre: ["w", "sv"], corporal: ["reps", "sreps"], asistido: ["sreps", "reps"],
+  tiempo: ["secs", "w"], cardio: ["dist", "secs", "w"] };
 function recsOf(kind, sets, name, date) {
   const ws_ = workSets(sets), r = {};
   const up = (k, v, st) => { if (v != null && v > 0 && (r[k] == null || v > r[k].v)) r[k] = { v, set: st }; };
@@ -848,7 +850,17 @@ function tResumen(st, ws) {
   ];
   const showBars = P.buckets.length > 1;
   const yr = (b) => (P.gran === "day" ? "" : "");
+  // Último entreno, siempre arriba
+  const lastW = [...(ws || [])].sort((a, b) => (b.date + (b.start_time || "")).localeCompare(a.date + (a.start_time || "")))[0];
+  const ago = lastW ? Math.round((new Date(todayISO()) - new Date(lastW.date)) / 864e5) : null;
+  const lastCard = lastW ? h("button", { class: "last-w", onclick: () => workoutSheet(lastW.id) },
+    h("span", { class: "lw-l" }, "Último entreno"),
+    h("div", { class: "lw-m" }, h("b", null, lastW.title), upsChip(lastW), lastW.prs_count ? h("span", { class: "prc" }, icon("trophy"), tx(String(lastW.prs_count))) : null),
+    h("span", { class: "lw-s" }, [ago === 0 ? "hoy" : ago === 1 ? "ayer" : `hace ${ago} días`, dateLabel(lastW.date, { weekday: "short", day: "numeric", month: "short" }),
+      lastW.duration_min ? fmt(lastW.duration_min) + " min" : null, lastW.sets_count + " series"].filter(Boolean).join(" · ")),
+    h("span", { class: "chev" }, "›")) : null;
   return h("div", null,
+    lastCard,
     sel,
     h("div", { class: "prow" }, h("div", { class: "faint" }, `${dateLabel(R.from, { day: "numeric", month: "short", year: R.all || R.gran === "año" ? "numeric" : undefined })} – ${R.to === todayISO() ? "hoy" : dateLabel(R.to, { day: "numeric", month: "short" })} · ${fmt(days)} ${days === 1 ? "día entrenado" : "días entrenados"}`)),
     h("div", { class: "kpis five" },
