@@ -801,8 +801,8 @@ function hevyAgentSheet(ok) {
     h("p", { class: "muted wz-p" }, "Así tu agente sube cada entreno con todas sus series y pesos, sin capturas. Si además tienes los entrenos conectados por Health Connect, lo sube él solo cuando habléis."),
     h("div", { class: "agent-steps simple" },
       step(1, "Añade Hevy a tu agente", "En Claude: Ajustes → Conectores → busca Hevy. En ChatGPT: la app de Hevy."),
-      step(2, "Dile «sube el entreno»", "Lo trae de Hevy y lo sube aquí."),
-      step(3, "Listo", ok ? `Conectado · último entreno subido desde Hevy ${agoTxt(ok)}` : "Cuando suba el primero, aquí pondrá «Conectado».", !!ok)),
+      step(2, "Abre un chat nuevo con tu agente", "Al empezar comprueba que ve tu Hevy y nos lo dice."),
+      step(3, "Listo", ok ? `Conectado · comprobado ${agoTxt(ok)}` : "Cuando lo compruebe, aquí pondrá «Conectado».", !!ok)),
   ], null);
 }
 // Conexiones (menú de tu nombre): agente, pasos, báscula y Hevy en un solo sitio.
@@ -832,7 +832,7 @@ async function connectionsSheet() {
         S.me ? row_("👟", "Pasos del móvil", st_("pasos", pasosOk, info.pasos_ultimo), info.pasos_ultimo && !isOff("pasos") ? `Último envío ${agoTxt(info.pasos_ultimo)}` : "Que lleguen solos desde el móvil", btn_("pasos", info.pasos_ultimo)) : null,
         S.me ? row_("⚖", "Báscula", st_("bascula", !!info.bascula, info.bascula), info.bascula && !isOff("bascula") ? `Último pesaje ${whenTxt(info.bascula)}` : "Que cada pesaje llegue solo (peso, % de grasa…)", btn_("bascula", info.bascula)) : null,
         S.me ? row_("🏋", "Entrenos", st_("entreno", !!info.entreno_ultimo, info.entreno_ultimo), info.entreno_ultimo && !isOff("entreno") ? `Último entreno detectado ${whenTxt(info.entreno_ultimo)}` : "Que se sepa solo cuándo entrenas (Hevy u otra app)", btn_("entreno", info.entreno_ultimo)) : null,
-        S.me ? row_("📋", "Series de Hevy", info.hevy_agente ? "ok" : "man", info.hevy_agente ? `A través de tu agente · último ${agoTxt(info.hevy_agente)}` : "Capturas a tu agente, o conecta Hevy a tu agente y las sube él",
+        S.me ? row_("📋", "Series de Hevy", info.hevy_agente ? "ok" : "man", info.hevy_agente ? `A través de tu agente · comprobado ${agoTxt(info.hevy_agente)}` : "Capturas a tu agente, o conecta Hevy a tu agente y las sube él",
           h("button", { class: "btn sm ghost", onclick: () => hevyAgentSheet(info.hevy_agente) }, info.hevy_agente ? "Ver" : "Conectar")) : null),
     ], S.me && info.configurado ? [h("button", { class: "btn sm ghost", onclick: () => mobileKeySheet(async () => { info = await api("GET", "/api/movil").catch(() => info); }) }, icon("key"), "Clave del móvil")] : null);
   };

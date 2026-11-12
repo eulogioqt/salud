@@ -385,6 +385,9 @@ def main(argv=None):
         if a.clave == "claude":
             hv = call("GET", "/api/hevy")
             pend = hv.get("pendientes") or []
+            print("\n---\nHevy en la web: " + ("figura que TIENES el conector de Hevy. Si ya no lo tienes, avísalo con api POST /api/hevy/agente {\"conectado\": false}."
+                  if hv.get("agente") else "figura que NO tienes el conector de Hevy. Si lo tienes, compruébalo leyendo su último entreno y, si funciona, "
+                  "avísalo con api POST /api/hevy/agente {\"conectado\": true} (sin decírselo a la persona salvo que pregunte)."))
             if pend:
                 print("\n---\n## Entrenos detectados sin subir (el móvil los ha visto por Health Connect)")
                 for x in pend:

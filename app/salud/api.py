@@ -404,6 +404,13 @@ def _hevy_key(c, q, b, s):
     return H.set_key(c, b.get("api_key"), s)
 
 
+@route("POST", r"/api/hevy/agente")
+def _hevy_agente(c, q, b, s):
+    """El agente dice si tiene el conector de Hevy (lo comprueba él leyendo un entreno)."""
+    core.set_setting(c, "hevy_agente", core.ts() if b.get("conectado") else None, s)
+    return H.status(c)
+
+
 @route("POST", r"/api/hevy/sync")
 def _hevy_sync(c, q, b, s):
     try:
