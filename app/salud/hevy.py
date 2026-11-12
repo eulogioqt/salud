@@ -217,9 +217,14 @@ def import_json(conn, data, source="chat"):
                  "duration_min": round((en - st).total_seconds() / 60) if en else None,
                  "activity_type": _activity_type(w.get("title") or "", exercises), "notes": w.get("description") or None,
                  "exercises": exercises}
+            if w.get("intensity"):  # lo que estima el agente al analizar el entreno
+                d["intensity"] = w["intensity"]
+            if w.get("kcal_netas") is not None:
+                d["kcal_netas"] = w["kcal_netas"]
             r = conn.execute("SELECT id, intensity, activity_type FROM workouts WHERE hevy_id=?", (d["hevy_id"],)).fetchone()
             if r:
-                d["intensity"], d["activity_type"] = r["intensity"], r["activity_type"]
+                d["activity_type"] = r["activity_type"]
+                d.setdefault("intensity", r["intensity"])
                 T.update_workout(conn, r["id"], d, source)
                 res["updated"] += 1
             else:

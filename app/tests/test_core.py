@@ -540,6 +540,19 @@ class TestHevyAgente(Base):
             self.assertEqual(w2["exercises"][0]["kind"], "asistido")
 
 
+class TestKcalAgente(Base):
+    def test_kcal_netas_del_agente(self):
+        from salud import training as T
+        d = core.today()
+        w = T.create_workout(self.conn, {"date": d, "start_time": "18:00", "title": "Pierna", "duration_min": 80, "intensity": "dura", "kcal_netas": 410,
+                                         "exercises": [{"name": "Sentadilla (Barra)", "kind": "peso", "sets": [{"weight_kg": 100, "reps": 5}]}]})
+        self.assertEqual((w["kcal"], w["kcal_source"]), (410, "agente"))
+        w = T.update_workout(self.conn, w["id"], {"title": "Pierna pesada"})  # sin kcal: se mantienen
+        self.assertEqual(w["kcal"], 410)
+        w = T.update_workout(self.conn, w["id"], {"kcal_netas": 380})
+        self.assertEqual(w["kcal"], 380)
+
+
 class TestCalibration(unittest.TestCase):
     def test_descubre_el_error_del_gasto(self):
         import random

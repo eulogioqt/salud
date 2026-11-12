@@ -211,7 +211,15 @@ def _tracked(conn, d):
     return d >= core.tracking_start(conn)
 
 
-def _sync_activity(conn, wid):
+def _kcal_in(data):
+    """kcal netas del entreno estimadas por el agente (opcional): `kcal_netas` (o `kcal_net`)."""
+    for k in ("kcal_netas", "kcal_net"):
+        if data.get(k) not in (None, ""):
+            return _n(data[k], "kcal netas", 0, 3000)
+    return None
+
+
+def _sync_activity(conn, wid, kcal=None):
     w = row(conn.execute("SELECT * FROM workouts WHERE id=?", (wid,)).fetchone())
     if w["deleted_at"] or not w["duration_min"] or not _tracked(conn, w["date"]):
         if w["activity_id"]:
@@ -226,6 +234,8 @@ def _sync_activity(conn, wid):
         cur = conn.execute("INSERT INTO activities(date,type,description,minutes,intensity,kcal_source,created_at,updated_at) "
                            "VALUES(?,?,?,?,?,'estimado',?,?)", vals + (ts(), ts()))
         conn.execute("UPDATE workouts SET activity_id=? WHERE id=?", (cur.lastrowid, wid))
+    if kcal is not None:  # el agente ha analizado el entreno: sus kcal netas mandan sobre la fórmula
+        conn.execute("UPDATE activities SET kcal_net=?, kcal_source='agente' WHERE id=(SELECT activity_id FROM workouts WHERE id=?)", (kcal, wid))
     conn.execute("UPDATE days SET rest_day=0 WHERE date=?", (w["date"],))
 
 
@@ -260,7 +270,7 @@ def create_workout(conn, data, source="chat"):
                             v["hevy_volume_kg"], v["notes"], v["source"], data.get("hevy_id"), ts(), ts()))
         wid = cur.lastrowid
         _write_exercises(conn, wid, data.get("exercises"))
-        _sync_activity(conn, wid)
+        _sync_activity(conn, wid, _kcal_in(data))
     return get_workout(conn, wid)
 
 
@@ -277,7 +287,7 @@ def update_workout(conn, wid, data, source="web"):
                      "notes=?,source=?,updated_at=? WHERE id=?", tuple(v.values()) + (ts(), wid))
         if "exercises" in data:
             _write_exercises(conn, wid, data["exercises"])
-        _sync_activity(conn, wid)
+        _sync_activity(conn, wid, _kcal_in(data))
     return get_workout(conn, wid)
 
 
@@ -457,6 +467,7 @@ def _kcal(conn, w, s=None):
         kg = core.weight_for_energy(conn, w["date"], s or core.settings(conn))[0]
         if kg is not None or a["kcal_net"] is not None:
             w["kcal"] = round(core.activity_kcal(dict(a), kg)[0])
+            w["kcal_source"] = a["kcal_source"]
 
 
 def _summ(w):

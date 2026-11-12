@@ -1454,7 +1454,8 @@ async function workoutSheet_(id) {
     wUps.length ? tip(h("span", { class: "upchip lg" }, icon("up"), ...(sm ? [tx(String(wUps.length))] : two(`${wUps.length} ${wUps.length === 1 ? "rango nuevo" : "rangos nuevos"}`, String(wUps.length)))), upTip) : null,
     nPR ? tip(h("span", { class: "prc lg" }, icon("trophy"), ...(sm ? [tx(String(nPR))] : two(`${nPR} ${nPR === 1 ? "récord" : "récords"}`, String(nPR)))), prTip) : null,
     w.activity_id && w.kcal != null ? tip(h("span", { class: "datec kcalchip" }, icon("bolt"), tx(`${fmt(w.kcal)} kcal`)),
-      `Gasto del entreno: lo que suma al gasto del día. Sale del tipo de entreno, la duración, tu peso y la intensidad (${w.intensity || "normal"}), que estima tu agente al apuntarlo.`) : null,
+      w.kcal_source === "agente" ? "Gasto del entreno (kcal netas, por encima del reposo): lo que suma al gasto del día. Lo ha estimado tu agente analizando los ejercicios, las series, las cargas y la duración."
+        : `Gasto del entreno (kcal netas): lo que suma al gasto del día. Sale del tipo de entreno, la duración, tu peso y la intensidad (${w.intensity || "normal"}).`) : null,
     bwAt(w.date) ? tip(h("span", { class: "datec" }, tx(`${fmt(bwAt(w.date), 1)} kg`)), bwExact(w.date) ? "Tu peso ese día (pesaje)" : "Tu peso ese día (interpolado entre pesajes)") : null,
     h("span", { class: "datec dt" }, ...(() => { const t = w.start_time ? " · " + w.start_time : "", s_ = dateLabel(w.date, { day: "numeric", month: "short" }) + t;
       return sm ? [tx(s_)] : two(dateLabel(w.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) + t, s_); })())].filter(Boolean);

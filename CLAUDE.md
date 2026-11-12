@@ -61,7 +61,7 @@ Transcribir fielmente lo que se ve (no inventar series ni pesos ilegibles; si al
 
 ```json
 {"date":"2026-11-09","start_time":"18:30","title":"Pierna","duration_min":72,"activity_type":"fuerza",
- "intensity":"normal","hevy_volume_kg":9850,"description":"…",
+ "intensity":"dura","kcal_netas":330,"hevy_volume_kg":9850,"description":"…",
  "exercises":[{"name":"Sentadilla (Barra)","kind":"peso","notes":"…",
    "sets":[{"type":"W","weight_kg":20,"reps":12},{"weight_kg":50,"reps":10},{"type":"F","weight_kg":50,"reps":8}]}]}
 ```
@@ -69,6 +69,7 @@ Transcribir fielmente lo que se ve (no inventar series ni pesos ilegibles; si al
 - `kind`: `peso`, `lastre` (peso añadido: dominadas/fondos lastrados), `corporal` (solo reps), `asistido`, `tiempo`/`cardio` (`seconds`, `distance_m`).
 - Serie: normal (omitir `type`), `W` calentamiento, `F` fallo, `D` drop; `rpe` si aparece.
 - Nombre del ejercicio: exactamente el de Hevy (enlaza el histórico y los récords).
+- Gasto: analiza el entreno (ejercicios, series al fallo, reps, cargas, volumen, RPE, distancias, duración, descansos, peso de la persona) y pasa tu estimación en `kcal_netas` (NETAS: sin el metabolismo basal; nunca las brutas de Hevy o del reloj) junto con `intensity`. Referencias netas para ~80 kg: fuerza con descansos largos 3–4 kcal/min, densa 5–6, circuito/Hyrox 8–11, carrera ≈ 1 kcal/kg/km. Dile en una línea cómo te sale.
 - El entreno crea su actividad para el gasto: no añadir además `act` de esa sesión. Día cerrado: preguntar antes de reabrir.
 
 Rangos de un ejercicio sin tabla: busca su página en strengthlevel.com (p. ej. `https://strengthlevel.com/strength-standards/hip-thrust/kg`) y guárdala: `S api PUT /api/exercise-settings '{"name":"<nombre exacto de Hevy>","sl_slug":"hip-thrust"}'`. El servidor la descarga una vez y la usa para el rango (para ejercicios de peso corporal usa la misma página: reps y lastre salen de ahí).
