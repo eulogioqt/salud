@@ -68,6 +68,10 @@ def print_day(conn, d):
                                             macro_line(e), "" if e["quality"] in ("etiqueta", "historico") else " [%s]" % e["quality"]))
     if t["missing"]:
         print("\n* = total mínimo: hay valores desconocidos")
+    pend = [x for x in st.get("sessions") or [] if not x["registrada"]]
+    if pend and st["status"] != "cerrado":
+        print("\nEntreno detectado por el móvil sin subir: " + "; ".join("%s · %s min%s" % (x["inicio"], x["minutos"], " · «%s»" % x["titulo"] if x.get("titulo") else "") for x in pend)
+              + ". Si tienes el conector de Hevy, súbelo ya con importar_hevy; si no, pídele las capturas.")
 
 
 def set_txt(kind, st):
