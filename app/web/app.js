@@ -531,7 +531,9 @@ async function weightSheet(st) {
         st.weight_next != null ? tip(h("div", { class: "wnext" }, h("i", { class: "wn-dot" }), "Previsto para mañana: ", h("b", { class: "num" }, fmt(st.weight_next, 1) + " kg")),
           "Lo que pesarías mañana al levantarte: el peso de hoy + (lo comido − lo que gastarás hoy) ÷ 7.700.\nMientras no llegues a tu objetivo de kcal, cuenta con que llegarás; si te pasas, sube.") : null),
       tiles.length ? h("div", { class: "btiles" }, tiles) : null,
-      others.length ? h("div", { class: "note" }, "Otros pesajes de ese día (no cuentan para la tendencia): ", others.map((b) => `${fmt(b.weight_kg, 1)} kg${b.time ? " a las " + b.time : ""}`).join(", ")) : null,
+      others.length ? h("div", { class: "oth-w" }, h("div", { class: "faint sm" }, "Otros pesajes de ese día (no cuentan para la tendencia)"),
+        others.map((b) => h("div", { class: "oth-r" }, h("span", { class: "num" }, `${fmt(b.weight_kg, 1)} kg`), h("span", { class: "faint" }, b.time ? " · " + b.time : ""), h("span", { class: "grow" }),
+          st.status !== "cerrado" ? h("button", { class: "btn ghost sm", onclick: async () => { await setDayWeight(b, true); sh.close(); weightSheet(S.day); } }, "Usar como peso del día") : null))) : null,
       h("div", { class: "row", style: { margin: "14px 0 6px" } }, h("b", null, "Evolución"), h("span", { class: "grow" }),
         h("div", { class: "seg" }, [[30, "30 d"], [90, "90 d"]].map(([d, l]) => h("button", { class: days === d ? "on" : "", onclick: () => { days = d; draw(); } }, l)))),
       h("div", { class: "card panel" }, weightChart(ws, P.body, st.date, st.weight_next))],
@@ -1661,8 +1663,17 @@ function resizeImage(file, max) {
 const BODY_ROWS = [["weight_kg", "Peso", "kg", 1], ["fat_pct", "Grasa", "%", 2], ["fat_kg", "Grasa", "kg", 1], ["muscle_kg", "Masa muscular", "kg", 1],
   ["skeletal_muscle_kg", "Músculo esquelético", "kg", 1], ["lean_kg", "Peso sin grasa", "kg", 1], ["water_pct", "Agua", "%", 1], ["protein_pct", "Proteína", "%", 1],
   ["bone_kg", "Hueso", "kg", 1], ["visceral_fat", "Grasa visceral", "", 1], ["bmr_kcal", "BMR báscula", "kcal", 0], ["bmi", "IMC", "", 1]];
-function bodyPanel(list) {
-  const latest = list[0];
+// Peso del día de cada fecha: el pesaje (el más temprano) que coincide con el peso guardado en el día
+function mainWeighing(list, dayW, date) {
+  const w = dayW[date]; if (w == null) return null;
+  return [...list].filter((b) => b.date === date && b.weight_kg != null && Math.abs(b.weight_kg - w) < 0.05).sort((a, b) => (a.time || "").localeCompare(b.time || ""))[0] || null;
+}
+const setDayWeight = (b, on) => act(() => api("PUT", "/api/days/" + b.date, on ? { weight_kg: b.weight_kg, weight_time: b.time || null } : { weight_kg: null }),
+  on ? "Ahora es el peso del día" : "Ya no cuenta como peso del día");
+function bodyPanel(list, weights = []) {
+  // Arriba, el último pesaje que cuenta como peso del día (los de después de comer, etc. no)
+  const dayW0 = Object.fromEntries(weights.filter((w) => w.weight_kg != null).map((w) => [w.date, w.weight_kg]));
+  const latest = list.find((b) => mainWeighing(list, dayW0, b.date) === b) || list[0];
   const ref = latest ? list.find((b) => b.date <= addDays(latest.date, -25)) : null;
   const head = h("div", { class: "row" }, h("h3", { style: { margin: 0 } }, "Báscula", h("span", { class: "faint", style: { fontWeight: 400 } }, " · composición por bioimpedancia: estimación, mira tendencias")),
     h("span", { class: "grow" }), h("button", { class: "btn sm", style: { whiteSpace: "nowrap" }, onclick: () => bodySheet() }, "+ Medición"));
@@ -1675,10 +1686,25 @@ function bodyPanel(list) {
   return h("div", { class: "card panel" }, head,
     h("div", { class: "faint", style: { fontSize: "12.5px", margin: "4px 0 10px" } }, "Última: " + dateLabel(latest.date, { weekday: "short", day: "numeric", month: "short" }) + (latest.time ? " · " + latest.time : "") + (latest.notes ? " · " + latest.notes : "")),
     h("div", { class: "btiles" }, tiles),
-    list.length > 1 ? h("details", { style: { marginTop: "10px" } }, h("summary", null, `Historial (${list.length})`),
-      h("div", { class: "tbl-wrap" }, h("table", { class: "t" }, h("tr", null, h("th", null, "Fecha"), ...["Peso", "Grasa %", "Músculo", "Agua %", "Visceral"].map((x) => h("th", { class: "r" }, x)), h("th", null, "")),
-        list.map((b) => h("tr", null, h("td", null, b.date + (b.time ? " " + b.time : "")), ...["weight_kg", "fat_pct", "muscle_kg", "water_pct", "visceral_fat"].map((k) => h("td", { class: "r num" }, b[k] == null ? "—" : fmt(b[k], 1))),
-          h("td", null, h("button", { class: "icon-btn", title: "Eliminar", onclick: async () => { await act(() => api("DELETE", "/api/body/" + b.id), "Medición eliminada"); } }, icon("x")))))))) : null);
+    list.length > 1 ? histBody(list, weights) : null);
+}
+// Historial de pesajes: «Peso del día» (los que cuentan para la tendencia) o «Todos»; cada uno se puede marcar como peso del día
+function histBody(list, weights) {
+  const dayW = Object.fromEntries(weights.filter((w) => w.weight_kg != null).map((w) => [w.date, w.weight_kg]));
+  const counts = (b) => mainWeighing(list, dayW, b.date) === b;
+  let all = false;
+  const tbl = h("div", { class: "tbl-wrap" }), seg = h("div", { class: "seg sm" });
+  const draw = () => {
+    seg.replaceChildren(...[[false, "Peso del día"], [true, "Todos los pesajes"]].map(([v, l]) => h("button", { class: all === v ? "on" : "", onclick: () => { all = v; draw(); } }, l)));
+    const rows = list.filter((b) => all || counts(b));
+    tbl.replaceChildren(h("table", { class: "t bhist" }, h("tr", null, h("th", null, "Fecha"), ...["Peso", "Grasa %", "Músculo", "Agua %", "Visceral"].map((x) => h("th", { class: "r" }, x)), h("th", { class: "c" }, "Cuenta"), h("th", null, "")),
+      rows.map((b) => { const on = counts(b);
+        return h("tr", { class: on ? "" : "nc" }, h("td", null, b.date + (b.time ? " " + b.time : "")), ...["weight_kg", "fat_pct", "muscle_kg", "water_pct", "visceral_fat"].map((k) => h("td", { class: "r num" }, b[k] == null ? "—" : fmt(b[k], 1))),
+          h("td", { class: "c" }, b.weight_kg == null ? null : tip(h("button", { class: "cnt-btn" + (on ? " on" : ""), onclick: () => setDayWeight(b, !on) }, icon("check")), on ? "Es el peso del día: cuenta para la media, la tendencia y los ajustes. Toca para quitarlo." : "No cuenta para la tendencia. Toca para usarlo como peso del día.")),
+          h("td", null, h("button", { class: "icon-btn", title: "Eliminar", onclick: async () => { await act(() => api("DELETE", "/api/body/" + b.id), "Medición eliminada"); } }, icon("x")))); })));
+  };
+  draw();
+  return h("details", { style: { marginTop: "10px" } }, h("summary", null, `Historial (${list.length})`), h("div", { class: "row", style: { margin: "8px 0" } }, seg), tbl);
 }
 function bodySheet() {
   const ins = {};
@@ -1722,7 +1748,7 @@ function viewProgress() {
     h("div", { class: "card panel" }, h("h3", null, "Peso", h("span", { class: "faint", style: { fontWeight: 400 } }, " · puntos: pesajes · gruesa: media de 7 días · discontinua: lo esperado")), h("div", { class: "faint", style: { fontSize: "12.5px", marginTop: "-4px" } }, "Pésate siempre igual: al levantarte, después de ir al baño, antes de comer o beber y con la misma ropa (o sin ella)"), weightChart(ws, P.body)),
     calPanel(cal),
     stepsPanel(P.history, P.steps_goal),
-    bodyPanel(P.body || []),
+    bodyPanel(P.body || [], P.weights || []),
     h("div", { class: "card panel" }, h("h3", null, "Semanas"), weeksTable(P.weeks)),
     h("div", { class: "card panel" }, h("h3", null, "Días"), daysTable(P.history)));
 }
@@ -1734,11 +1760,18 @@ function weightChart(ws, bodies, sel, next) {
   const pts = ws.filter((w) => w.weight_kg != null || w.avg7 != null);
   if (!pts.length) return h("div", { class: "muted", style: { padding: "30px 0", textAlign: "center" } }, "Aún no hay pesajes. Registra el peso cada mañana en Hoy.");
   const W = Math.max(300, Math.min(900, ($("#view") ? $("#view").clientWidth : 900) - 34)), H = 220, L = 40, R = 10, T = 10, B = 24;
-  const vals = pts.flatMap((p) => [p.weight_kg, p.avg7, p.interp]).concat(next != null ? [next] : []).filter((x) => x != null);
+  // Eje de tiempo real: cada día se sitúa a las 8:00 y cada pesaje a su hora (el peso del día, grande; los demás, pequeños y en gris)
+  const idx = Object.fromEntries(ws.map((w, i) => [w.date, i])), mins = (t) => t ? +t.slice(0, 2) * 60 + +t.slice(3, 5) : 480;
+  const byT = [...(bodies || [])].filter((b) => b.weight_kg != null).sort((a, b) => (a.date + (a.time || "")).localeCompare(b.date + (b.time || "")));
+  const mainOf = (w) => w.weight_kg == null ? null : byT.find((b) => b.date === w.date && Math.abs(b.weight_kg - w.weight_kg) < 0.05) || null;
+  const others = byT.filter((b) => idx[b.date] != null && b !== mainOf(ws[idx[b.date]]));
+  const vals = pts.flatMap((p) => [p.weight_kg, p.avg7, p.interp]).concat(next != null ? [next] : [], others.map((b) => b.weight_kg)).filter((x) => x != null);
   // Eje Y ajustado a los datos: la variación ocupa la mayor parte del alto (mínimo 0,6 kg de margen para no exagerar el ruido)
   let lo = Math.min(...vals), hi = Math.max(...vals); const span = Math.max(hi - lo, 0.6), pad = span * 0.25, mid = (hi + lo) / 2;
   lo = mid - span / 2 - pad; hi = mid + span / 2 + pad;
   const n = ws.length, x = (i) => L + (n === 1 ? (W - L - R) / 2 : (i * (W - L - R)) / (n - 1)), y = (val) => T + ((hi - val) * (H - T - B)) / (hi - lo);
+  const dayW = n > 1 ? (W - L - R) / (n - 1) : 0, xt = (i, t) => x(i) + dayW * ((mins(t) - 480) / 1440);
+  const xw = (i) => { const w = ws[i]; if (w.weight_kg == null) return x(i); const m = mainOf(w); return m ? xt(i, m.time) : x(i); };
   const NS = "http://www.w3.org/2000/svg", el = (t, a) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
   const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, class: "chart", preserveAspectRatio: "none" });
   const rg = hi - lo, step = rg > 12 ? 2 : rg > 6 ? 1 : rg > 2.5 ? 0.5 : 0.2, nd = step < 1 ? 1 : 0;
@@ -1748,7 +1781,7 @@ function weightChart(ws, bodies, sel, next) {
   }
   const ticks = Math.min(W < 500 ? 4 : 6, n); for (let k = 0; k < ticks; k++) { const i = Math.round((k * (n - 1)) / Math.max(1, ticks - 1)); const t = el("text", { x: x(i), y: H - 6, "text-anchor": k === 0 ? "start" : k === ticks - 1 ? "end" : "middle", class: "axis" }); t.textContent = dateLabel(ws[i].date, { day: "numeric", month: "short" }); svg.append(t); }
   // Curva de peso: pesajes unidos; los días sin pesaje entre dos pesajes se interpolan en línea recta.
-  let dc = ""; ws.forEach((w, i) => { const v = w.weight_kg ?? w.interp; if (v != null) dc += (dc ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1); else dc += ""; });
+  let dc = ""; ws.forEach((w, i) => { const v = w.weight_kg ?? w.interp; if (v != null) dc += (dc ? "L" : "M") + xw(i).toFixed(1) + " " + y(v).toFixed(1); });
   if (dc) svg.append(el("path", { d: dc, class: "wline", "vector-effect": "non-scaling-stroke" }));
   let d = ""; ws.forEach((w, i) => { if (w.avg7 != null) d += (d ? "L" : "M") + x(i).toFixed(1) + " " + y(w.avg7).toFixed(1); });
   if (d) svg.append(el("path", { d, class: "avg", "vector-effect": "non-scaling-stroke" }));
@@ -1757,16 +1790,17 @@ function weightChart(ws, bodies, sel, next) {
   if (de) svg.append(el("path", { d: de, class: "exp", "vector-effect": "non-scaling-stroke" }));
   ws.forEach((w, i) => {
     const v = w.weight_kg ?? w.interp; if (v == null) return;
-    svg.append(el("circle", { cx: x(i), cy: y(v), r: w.weight_kg != null ? 3.2 : 2, class: w.weight_kg != null ? "pt" : "ipt" }));
+    svg.append(el("circle", { cx: xw(i), cy: y(v), r: w.weight_kg != null ? 3.2 : 2, class: w.weight_kg != null ? "pt" : "ipt" }));
   });
+  for (const b of others) svg.append(el("circle", { cx: xt(idx[b.date], b.time), cy: y(b.weight_kg), r: 2.2, class: "opt" }));
   // Previsto de mañana: punto hueco unido con discontinua al último valor
   const ni = ws.findIndex((w) => w.next != null);
   if (ni > 0) { const pv = ws[ni - 1].weight_kg ?? ws[ni - 1].interp;
-    if (pv != null) svg.append(el("line", { x1: x(ni - 1), y1: y(pv), x2: x(ni), y2: y(ws[ni].next), class: "wnext-l", "vector-effect": "non-scaling-stroke" }));
+    if (pv != null) svg.append(el("line", { x1: xw(ni - 1), y1: y(pv), x2: x(ni), y2: y(ws[ni].next), class: "wnext-l", "vector-effect": "non-scaling-stroke" }));
     svg.append(el("circle", { cx: x(ni), cy: y(ws[ni].next), r: 4, class: "wnext-pt" })); }
   // El día que se está mirando: punto grande con aro
   const si = sel ? ws.findIndex((w) => w.date === sel) : -1, sv = si >= 0 ? ws[si].weight_kg ?? ws[si].interp : null;
-  if (sv != null) { svg.append(el("circle", { cx: x(si), cy: y(sv), r: 11, class: "sel-ring" })); svg.append(el("circle", { cx: x(si), cy: y(sv), r: 6, class: "sel-pt" + (ws[si].weight_kg == null ? " est" : "") })); }
+  if (sv != null) { svg.append(el("circle", { cx: xw(si), cy: y(sv), r: 11, class: "sel-ring" })); svg.append(el("circle", { cx: xw(si), cy: y(sv), r: 6, class: "sel-pt" + (ws[si].weight_kg == null ? " est" : "") })); }
   // Al pasar el ratón (o el dedo): línea vertical y los datos de ese día
   const vline = el("line", { y1: T, y2: H - B, class: "hov hidden" }); svg.append(vline);
   const box = h("div", { class: "wc" }, svg), tip_ = h("div", { class: "wc-tip hidden" }); box.append(tip_);
@@ -1785,7 +1819,7 @@ function weightChart(ws, bodies, sel, next) {
       w.avg7 != null ? h("div", null, "Media 7 días ", h("b", { class: "num" }, fmt(w.avg7, 2))) : null,
       w.expected != null ? h("div", null, "Esperado ", h("b", { class: "num" }, fmt(w.expected, 2))) : null,
       ...(bodies || []).filter((b) => b.date === w.date && b.weight_kg != null && (w.weight_kg == null || Math.abs(b.weight_kg - w.weight_kg) >= 0.05))
-        .map((b) => h("div", { class: "faint" }, `Otro pesaje ${fmt(b.weight_kg, 1)}${b.time ? " (" + b.time + ")" : ""} · no cuenta`)));
+        .map((b) => h("div", { class: "faint" }, `Otro pesaje ${fmt(b.weight_kg, 1)}${b.time ? " (" + b.time + ")" : ""} · no cuenta para la tendencia`)));
     tip_.classList.remove("hidden");
     const px = (x(i) / W) * r.width; tip_.style.left = Math.min(Math.max(px, 70), r.width - 70) + "px";
   };

@@ -1698,3 +1698,12 @@ img { -webkit-user-drag: none; user-select: none; }
 .qe-box { width: 18px; height: 18px; border-radius: 5px; border: 1.6px solid var(--line-2, #c9c5bd); display: inline-flex; align-items: center; justify-content: center; }
 .qe-box svg { width: 12px; height: 12px; stroke-width: 3; opacity: 0; color: #fff; }
 .qe-btn.on { color: var(--text); } .qe-btn.on .qe-box { background: var(--accent); border-color: var(--accent); } .qe-btn.on .qe-box svg { opacity: 1; }
+.chart .opt { fill: var(--faint); opacity: .85; }
+.t th.c, .t td.c { text-align: center; }
+.t tr.nc td { color: var(--faint); }
+.cnt-btn { width: 22px; height: 22px; border-radius: 6px; border: 1.5px solid var(--line-2, #c9c5bd); background: none; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+.cnt-btn svg { width: 13px; height: 13px; stroke-width: 3; opacity: 0; } .cnt-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; } .cnt-btn.on svg { opacity: 1; }
+.seg.sm button { font-size: 12.5px; padding: 4px 10px; }
+.oth-w { margin-top: 10px; display: flex; flex-direction: column; gap: 2px; }
+.oth-r { display: flex; align-items: center; gap: 4px; font-size: 13.5px; padding: 2px 0; }
+@media (max-width: 640px) { .bhist th:nth-child(4), .bhist td:nth-child(4), .bhist th:nth-child(5), .bhist td:nth-child(5), .bhist th:nth-child(6), .bhist td:nth-child(6) { display: none; } }
