@@ -266,12 +266,12 @@ function viewHoy() {
   const isToday = st.date === st.today;
   const head = h("div", { class: "dayhead" },
     h("button", { class: "icon-btn", onclick: () => goDay(addDays(S.date, -1)), title: "Día anterior" }, icon("left")),
-    h("div", { class: "dh-t" }, h("h1", null, isToday ? "Hoy" : dateLabel(st.date)),
+    h("div", { class: "dh-t" }, h("h1", null, isToday ? "Hoy" : [h("span", { class: "dl-l" }, dateLabel(st.date)), h("span", { class: "dl-s" }, dateLabel(st.date, { weekday: "short", day: "numeric", month: "short" }))]),
       isToday ? h("span", { class: "muted", style: { fontSize: "14px" } }, dateLabel(st.date, { weekday: "short", day: "numeric", month: "short" })) : null),
     h("button", { class: "icon-btn", onclick: () => goDay(addDays(S.date, 1)), title: "Día siguiente", disabled: S.date >= st.today }, icon("right")),
     h("span", { class: "spacer" }),
     !isToday ? h("button", { class: "btn ghost sm", onclick: () => goDay(st.today) }, "Ir a hoy") : null,
-    closed ? h("span", { class: "pill closed" }, icon("lock"), "Cerrado") : h("span", { class: "pill" }, "Abierto"));
+    closed ? h("span", { class: "pill closed", title: "Día cerrado" }, icon("lock"), h("span", { class: "pl-t" }, "Cerrado")) : h("span", { class: "pill" }, "Abierto"));
   // Días anteriores sin cerrar: aviso en el propio día (no al añadir, que suele hacerlo el agente)
   const prev = (st.open_days || []).filter((d) => d < st.date);
   const warn = prev.length ? h("div", { class: "openwarn" }, icon("lock"),

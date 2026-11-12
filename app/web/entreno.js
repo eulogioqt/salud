@@ -978,7 +978,7 @@ function workoutCard(w) {
   return h("div", { class: "card wcard v2", onclick: () => workoutSheet(w.id) },
     h("div", { class: "wdate" }, h("b", null, String(d)), h("span", null, dt.toLocaleDateString("es-ES", { weekday: "short" }))),
     h("div", { class: "wbody" },
-      h("div", { class: "wc-h" }, h("div", { class: "wc-tt" }, h("div", { class: "wc-t" }, w.title), chg(upsChip(w), w.prs_count ? tip(h("span", { class: "prc" }, icon("trophy"), tx(String(w.prs_count))), `${w.prs_count} récords en este entreno`) : null, kcChip(w.kcal))), h("span", { class: "grow" }), w.start_time ? h("span", { class: "faint" }, w.start_time) : null),
+      h("div", { class: "wc-h" }, h("div", { class: "wc-tt" }, h("div", { class: "wc-t" }, w.title), chg(upsChip(w), w.prs_count ? tip(h("span", { class: "prc" }, icon("trophy"), tx(String(w.prs_count))), `${w.prs_count} récords en este entreno`) : null, kcChip(w.kcal))), h("span", { class: "grow" }), h("span", { class: "faint wc-when" }, h("span", { class: "wc-dd" }, dt.toLocaleDateString("es-ES", { weekday: "short", day: "numeric" }) + (w.start_time ? " · " : "")), w.start_time || null)),
       w.notes ? h("div", { class: "wc-desc" }, w.notes) : null,
       h("div", { class: "wchips" }, w.duration_min ? h("span", null, fmt(w.duration_min) + " min") : null, w.volume_kg ? h("span", null, fmt(w.volume_kg) + " kg") : null, h("span", null, w.sets_count + " series")),
       h("div", { class: "wc-ex" }, w.exercises.map((ex) => { const b = ex.sets.length ? bestSetOf(ex) : null; return h("div", { class: "wc-exr" }, exIcon(ex.name, 22),

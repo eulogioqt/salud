@@ -1852,3 +1852,21 @@ img { -webkit-user-drag: none; user-select: none; }
 .acts .a.wk .wk-t b { flex: 0 1 auto; }
 .chg { display: inline-flex; align-items: center; gap: 6px; flex: none; }
 .wc-tt { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 8px; min-width: 0; }
+/* Día centrado entre las flechas */
+.dayhead .dh-t { justify-content: center; }
+/* Historial en el móvil: sin columna de fecha (la fecha va arriba a la derecha con la hora); chips siempre debajo del título */
+.wc-dd { display: none; }
+@media (max-width: 640px) {
+  .wcard.v2 .wdate { display: none; }
+  .wc-dd { display: inline; text-transform: capitalize; }
+  .wc-when { white-space: nowrap; align-self: flex-start; padding-top: 2px; }
+  .wc-tt, .lastw .lw-m, .acts .a.wk .wk-t { flex-direction: column; align-items: flex-start; }
+  .wc-tt .wc-t, .lastw .lw-m b { white-space: normal; }
+}
+.dayhead .btn { white-space: nowrap; }
+@media (max-width: 640px) {
+  .dayhead { gap: 2px; } .dayhead .dh-t { width: 9.6em; } .dayhead h1 { font-size: 18px; margin: 0; }
+  .dayhead .pill.closed .pl-t { display: none; } .dayhead .pill.closed { padding-left: 8px; padding-right: 8px; }
+}
+.dayhead .dl-s { display: none; }
+@media (max-width: 640px) { .dayhead .dl-l { display: none; } .dayhead .dl-s { display: inline; } }
