@@ -1852,6 +1852,21 @@ img { -webkit-user-drag: none; user-select: none; }
 .acts .a.wk .wk-t b { flex: 0 1 auto; }
 .chg { display: inline-flex; align-items: center; gap: 6px; flex: none; }
 .wc-tt { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 8px; min-width: 0; }
+/* Objetivo de hoy, paso a paso */
+.gp { display: flex; flex-direction: column; margin-top: 2px; }
+.gp-step { position: relative; display: grid; grid-template-columns: 26px 1fr; gap: 12px; padding-bottom: 18px; }
+.gp-step:not(.last)::before { content: ""; position: absolute; left: 12px; top: 30px; bottom: 4px; width: 2px; border-radius: 2px; background: var(--line); }
+.gp-n { width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 750; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; }
+.gp-c { min-width: 0; padding-top: 2px; }
+.gp-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.gp-t { font-size: 15px; font-weight: 650; display: inline-flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.gp-op { font-size: 12.5px; font-weight: 650; color: var(--muted); background: var(--surface-2); border-radius: 99px; padding: 2px 8px; }
+.gp-h > b { font-size: 18px; font-weight: 700; white-space: nowrap; }
+.gp-step.last .gp-h > b { font-size: 22px; color: var(--accent); }
+.gp-s { font-size: 13px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+.gs.mini { margin-top: 6px; padding: 2px 12px; background: var(--surface-2); border-radius: 12px; }
+.gs.mini .gs-r { padding: 7px 0; } .gs.mini .gs-r:last-child { border-bottom: 0; }
+.gs.mini .gs-r span { font-size: 13.5px; } .gs.mini .gs-r small { font-size: 12px; } .gs.mini .gs-r b { font-size: 14px; font-weight: 600; }
 /* Día centrado entre las flechas */
 .dayhead .dh-t { justify-content: center; }
 /* Historial en el móvil: sin columna de fecha (la fecha va arriba a la derecha con la hora); chips siempre debajo del título */
@@ -1870,3 +1885,12 @@ img { -webkit-user-drag: none; user-select: none; }
 }
 .dayhead .dl-s { display: none; }
 @media (max-width: 640px) { .dayhead .dl-l { display: none; } .dayhead .dl-s { display: inline; } }
+
+/* Móvil: más aire entre los chips (debajo del título) y la descripción */
+@media (max-width: 640px) {
+  .wc-tt .chg, .lastw .lw-m .chg, .acts .a.wk .wk-t .chg { margin-top: 2px; margin-bottom: 6px; }
+}
+.det-how q { font-weight: 600; color: var(--text); } .det-how q::before { content: "«"; } .det-how q::after { content: "»"; }
+.det-tip { margin-top: 8px; font-size: 12.5px; color: var(--faint); } .det-tip .lnk-btn { font-size: 12.5px; }
+.acts .a.wk.det .det-s { color: var(--warn); font-weight: 550; }
+.det-x { display: none; } @media (max-width: 640px) { .det-x { display: inline; } }

@@ -378,6 +378,15 @@ def main(argv=None):
     elif c == "contexto":
         n = call("GET", "/api/notes/" + a.clave)
         print(n["body"] or "(sin notas todavía: pregúntale al usuario sus objetivos y guárdalos con contexto-guardar)")
+        if a.clave == "claude":
+            hv = call("GET", "/api/hevy")
+            pend = hv.get("pendientes") or []
+            if pend:
+                print("\n---\n## Entrenos detectados sin subir (el móvil los ha visto por Health Connect)")
+                for x in pend:
+                    print("- %s %s · %s min%s%s" % (x["fecha"], x["inicio"], x["minutos"], " · «%s»" % x["titulo"] if x.get("titulo") else "", " · " + x["app"] if x.get("app") else ""))
+                print("Si tienes el conector de Hevy, tráelos de Hevy e impórtalos ya con importar_hevy (sin esperar a que te lo pida) y díselo en una línea. "
+                      "Si no lo tienes, recuérdale en una línea que te mande las capturas.")
     elif c == "contexto-guardar":
         raw = open(a.archivo, encoding="utf-8").read() if a.archivo else (a.contenido if a.contenido is not None else a.texto)
         if raw is None:

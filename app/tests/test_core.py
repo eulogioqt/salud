@@ -512,6 +512,27 @@ class TestHcSessions(unittest.TestCase):
         self.assertNotIn("entreno", {w["code"] for w in core.close_check(conn, d)["warnings"]})
 
 
+class TestHevyAgente(Base):
+    def test_solo_marca_con_datos_de_la_api_de_hevy(self):
+        from unittest import mock
+        from salud import hevy as H
+        d = "2026-11-11"
+        with mock.patch.object(core, "today", lambda: d):
+            core.ingest_health(self.conn, {"exercise": [{"type": "EXERCISE_TYPE_STRENGTH_TRAINING", "start_time": d + "T17:30:00Z",
+                                                        "end_time": d + "T18:45:00Z", "duration_seconds": 4500}]}, "movil")
+            self.assertEqual(len(core.pending_sessions(self.conn)), 1)
+            # JSON sin ids (p. ej. hecho a partir de capturas) o subido desde la web: no cuenta como «Hevy conectado al agente»
+            H.import_json(self.conn, {"workouts": [{"title": "A", "start_time": d + "T08:00:00Z", "end_time": d + "T09:00:00Z", "exercises": []}]}, "chat")
+            H.import_json(self.conn, {"workouts": [{"id": "w0", "title": "B", "start_time": d + "T10:00:00Z", "end_time": d + "T11:00:00Z",
+                                                    "exercises": [{"title": "X", "exercise_template_id": "T", "sets": [{"weight_kg": 10, "reps": 5}]}]}]}, "web")
+            self.assertIsNone(core.get_setting(self.conn, "hevy_agente"))
+            H.import_json(self.conn, {"workouts": [{"id": "w1", "title": "Pecho", "start_time": d + "T17:35:00Z", "end_time": d + "T18:40:00Z",
+                                                    "exercises": [{"title": "Press", "exercise_template_id": "T1", "sets": [{"weight_kg": 60, "reps": 8}]}]}]}, "chat")
+            self.assertIsNotNone(core.get_setting(self.conn, "hevy_agente"))
+            self.assertEqual(core.pending_sessions(self.conn), [])
+            self.assertTrue(H.status(self.conn)["agente"])
+
+
 class TestCalibration(unittest.TestCase):
     def test_descubre_el_error_del_gasto(self):
         import random

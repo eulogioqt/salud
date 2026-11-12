@@ -308,33 +308,40 @@ function ringSvg(size, r, w, p, cls, center, laps) {
 }
 // Objetivo de hoy: cómo sale y con qué cuenta (lo que aún no se sabe se supone)
 function goalSheet(st) {
-  const tg = st.target || {}, en = st.energy || {}, closed = st.status === "cerrado";
+  const tg = st.target || {}, closed = st.status === "cerrado";
   const change = async () => { sh.close(); const d = await api("GET", "/api/settings"); targetSheet(d.current_target, null); };
+  const sub = dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" });
   if (!tg.dynamic) {
-    const sh = sheet("Objetivo de hoy", [h("div", { class: "goal-hero" }, h("b", { class: "num" }, tg.kcal ? fmt(tg.kcal) : "—"), h("span", null, " kcal para comer")),
-      h("div", { class: "note" }, tg.mode ? "Objetivo fijo: no cambia con lo que te mueves." : "Aún no tienes objetivo.")],
-      [h("span", { class: "grow" }), h("button", { class: "btn", onclick: change }, "Cambiar objetivo")], { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }) });
+    const sh = sheet("Objetivo de hoy", [h("div", { class: "goal-hero" }, h("b", { class: "num" }, tg.kcal ? fmt(tg.kcal) : "—"), h("span", null, " kcal para comer hoy")),
+      h("div", { class: "note" }, tg.mode ? `Objetivo fijo: ${fmt(tg.kcal)} kcal todos los días, te muevas lo que te muevas.` : "Aún no tienes objetivo.")],
+      [h("span", { class: "grow" }), h("button", { class: "btn", onclick: change }, "Cambiar objetivo")], { sub });
     return;
   }
+  // Paso a paso: lo que gastarás → déficit/superávit (lo que debe llegarle al cuerpo) → ÷ 0,9 por la digestión (lo que comes)
   const P = tg.base_parts || {}, off = tg.kcal_offset || 0, tef = tg.tef_pct || 0.1;
-  const row = (l, sub, v, cls) => h("div", { class: "gs-r" + (cls ? " " + cls : "") }, h("div", null, h("span", null, l), sub ? h("small", null, sub) : null), h("b", { class: "num" }, v));
-  const neatNormal = st.day.neat_kcal == null;
+  const base = tg.base_kcal || 0, net = base + off, eat = tg.kcal, dig = eat - net;
+  const mrow = (l, sub_, v) => h("div", { class: "gs-r" }, h("div", null, h("span", null, l), sub_ ? h("small", null, sub_) : null), h("b", { class: "num" }, v));
+  const step = (n, title, op, val, desc, extra, last) => h("div", { class: "gp-step" + (last ? " last" : "") },
+    h("span", { class: "gp-n" }, String(n)),
+    h("div", { class: "gp-c" },
+      h("div", { class: "gp-h" }, h("span", { class: "gp-t" }, title, op ? h("span", { class: "gp-op num" }, op) : null), h("b", { class: "num" }, fmt(val))),
+      desc ? h("div", { class: "gp-s" }, desc) : null, extra || null));
+  let n = 0;
   const sh = sheet("Objetivo de hoy", [
-    h("div", { class: "goal-hero" }, h("b", { class: "num" }, fmt(tg.kcal)), h("span", null, " kcal para comer"),
-      h("div", { class: "faint" }, off ? `${fmt(Math.abs(off))} kcal ${off < 0 ? "menos" : "más"} de lo que gastarás hoy` : "lo mismo que gastarás hoy")),
-    h("div", { class: "bd-sub" }, "Cómo sale"),
-    h("div", { class: "gs" },
-      row("Metabolismo basal", "en reposo, con tu peso", fmt(P.bmr || 0)),
-      row("Día a día", neatNormal ? "uno normal hasta que elijas al cerrar" : "el que elegiste", fmt(P.neat || 0)),
-      row("Pasos", tg.steps_pending ? `${fmt(tg.projected_steps || 0)} previstos: tu media de los ${dateLabel(st.date, { weekday: "long" })}` : `${fmt(P.steps_n || 0)} reales`, fmt(P.steps || 0)),
-      row("Entrenos", P.exercise ? "los apuntados hoy" : "ninguno apuntado (no se prevén)", fmt(P.exercise || 0)),
-      P.ajuste ? row("Ajuste de calibración", "según cómo cambia tu peso", signed(P.ajuste, 0)) : null,
-      row("Gasto previsto", null, fmt(tg.base_kcal || 0), "sum"),
-      off ? row(off < 0 ? "Déficit" : "Superávit", "tu objetivo", signed(off, 0)) : null,
-      row("Digestión", `comer también gasta (${fmt(tef * 100)} % de lo que comes): ÷ ${fmt(1 - tef, 1)}`, "+" + fmt(tg.kcal - (tg.base_kcal + off))),
-      row("Para comer", null, fmt(tg.kcal), "tot")),
-    !closed ? h("div", { class: "note" }, "Los pasos y el día a día se suponen para que el objetivo no cambie a lo largo del día; al cerrar, se ajustan con lo real. Los entrenos solo cuentan cuando los apuntas.") : null],
-    [h("span", { class: "grow" }), h("button", { class: "btn", onclick: change }, "Cambiar objetivo")], { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }) });
+    h("div", { class: "goal-hero" }, h("b", { class: "num" }, fmt(eat)), h("span", null, " kcal para comer hoy")),
+    h("div", { class: "gp" },
+      step(++n, "Lo que gastarás hoy", null, base, null, h("div", { class: "gs mini" },
+        mrow("Metabolismo basal", "en reposo, con tu peso", fmt(P.bmr || 0)),
+        mrow("Día a día", st.day.neat_kcal == null ? "uno normal hasta que elijas al cerrar" : "el que elegiste", fmt(P.neat || 0)),
+        mrow("Pasos", tg.steps_pending ? `${fmt(tg.projected_steps || 0)} previstos: tu media de los ${dateLabel(st.date, { weekday: "long" })}` : `${fmt(P.steps_n || 0)} reales`, fmt(P.steps || 0)),
+        mrow("Entrenos", P.exercise ? "los apuntados hoy" : "ninguno apuntado (no se prevén)", fmt(P.exercise || 0)),
+        P.ajuste ? mrow("Ajuste de calibración", "según cómo cambia tu peso", signed(P.ajuste, 0)) : null)),
+      off ? step(++n, off < 0 ? "Quitas tu déficit" : "Sumas tu superávit", signed(off, 0), net,
+        off < 0 ? "Lo que debe llegarle a tu cuerpo para bajar poco a poco." : "Lo que debe llegarle a tu cuerpo para subir poco a poco.") : null,
+      step(++n, "Divides entre " + fmt(1 - tef, 1), "÷ " + fmt(1 - tef, 1), eat,
+        `Digerir la comida gasta ~${fmt(tef * 100)} % de lo que comes. Para que te lleguen ${fmt(net)}, hay que comer ${fmt(net)} ÷ ${fmt(1 - tef, 1)} = ${fmt(eat)} (${fmt(dig)} se van en digerir).`, null, true)),
+    !closed ? h("div", { class: "note" }, "Los pasos y el día a día se suponen para que el objetivo no cambie durante el día; al cerrar se ajustan con lo real. Los entrenos cuentan cuando los apuntas.") : null],
+    [h("span", { class: "grow" }), h("button", { class: "btn", onclick: change }, "Cambiar objetivo")], { sub });
 }
 // Qué cuenta el gasto de hoy y qué falta (lo que explica el *), y con qué cuenta el objetivo
 function gastoTip(st) {
@@ -517,7 +524,7 @@ function bodyStrip(st) {
   const kc = (id) => fmt((en.exercise.find((x) => x.id === id) || {}).kcal);
   const train = h("div", { class: "stat clickable", onclick: () => trainingDaySheet(st) },
     h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic e" }, "🏋"), "Entreno"),
-      ws.length ? h("span", { class: "lnk" }, "Ver") : pend.length ? h("span", { class: "det-badge", title: "Ha llegado del móvil y falta mandar el entreno" }, h("span", { class: "det-i" }, "!"), h("span", { class: "det-bt" }, "Falta mandarlo")) : S.me && !closed && !trainOn ? h("button", { class: "lnk-btn", title: "Que se sepa solo cuándo entrenas", onclick: (e) => { e.stopPropagation(); stepsConnectSheet("entreno"); } }, "🔗 Conectar") : null),
+      ws.length ? h("span", { class: "lnk" }, "Ver") : pend.length ? h("span", { class: "det-badge", title: "El móvil ha detectado un entreno y falta subirlo" }, h("span", { class: "det-i" }, "!"), h("span", { class: "det-bt" }, "Falta subirlo")) : S.me && !closed && !trainOn ? h("button", { class: "lnk-btn", title: "Que se sepa solo cuándo entrenas", onclick: (e) => { e.stopPropagation(); stepsConnectSheet("entreno"); } }, "🔗 Conectar") : null),
     h("div", { class: "acts" }, ws.length || other.length
       ? [...ws.map((w) => h("div", { class: "a wk" },
           h("div", { class: "wk-t" }, h("b", null, w.title), chg(upsChip(w), w.prs_count ? h("span", { class: "prc", title: "Récords batidos en este entreno" }, icon("trophy"), tx(String(w.prs_count))) : null,
@@ -527,7 +534,7 @@ function bodyStrip(st) {
          ...other.map((a) => h("div", { class: "a" }, h("b", null, (ACT_TYPES.find((x) => x[0] === a.type) || [0, a.type])[1]), ` ${a.minutes ? fmt(a.minutes) + "′" : ""}`, h("span", { class: "faint" }, " · " + kc(a.id) + " kcal")))]
       : pend.length ? h("div", { class: "acts" }, pend.map((x) => h("div", { class: "a wk det" },
           h("div", { class: "wk-t" }, h("b", null, x.titulo || "Entreno")),
-          h("div", { class: "wk-s" }, [x.inicio, fmt(x.minutos) + " min", x.app ? "de " + x.app : null].filter(Boolean).join(" · ")))))
+          h("div", { class: "wk-s det-s" }, `Detectado a las ${x.inicio}`, h("span", { class: "det-x" }, " · falta subirlo")))))
       : h("div", { class: "v none" }, h("small", null, day.rest_day === 1 ? "Descanso" : "Sin registrar"))));
   return h("div", { class: "strip" }, weight, steps, train);
 }
@@ -785,6 +792,19 @@ async function stepsConnectSheet(mode = "pasos") {
   draw();
   tm = setInterval(async () => { const r = await api("GET", "/api/movil").catch(() => null); if (r && (r.conectado !== info.conectado || r.bascula !== info.bascula || r.entreno_ultimo !== info.entreno_ultimo)) { info = r; draw(); refresh(); } }, 4000);
 }
+// Hevy a través del agente: Salud no puede conectarse a Hevy (solo acepta apps dadas de alta por ellos); tu agente sí.
+// Sale «Conectado» en cuanto el agente sube un entreno tal cual viene de Hevy (no con capturas).
+function hevyAgentSheet(ok) {
+  if (ok === undefined) ok = (S.pasos || {}).hevy_agente;
+  const step = (n, t, d, done) => h("div", { class: "ast" }, h("span", { class: "n" + (done ? " ok" : "") }, done ? "✓" : String(n)), h("div", null, h("b", null, t), d ? h("div", { class: "muted" }, d) : null));
+  sheet("Hevy en tu agente", [
+    h("p", { class: "muted wz-p" }, "Así tu agente sube cada entreno con todas sus series y pesos, sin capturas. Si además tienes los entrenos conectados por Health Connect, lo sube él solo cuando habléis."),
+    h("div", { class: "agent-steps simple" },
+      step(1, "Añade Hevy a tu agente", "En Claude: Ajustes → Conectores → busca Hevy. En ChatGPT: la app de Hevy."),
+      step(2, "Dile «sube el entreno»", "Lo trae de Hevy y lo sube aquí."),
+      step(3, "Listo", ok ? `Conectado · último entreno subido desde Hevy ${agoTxt(ok)}` : "Cuando suba el primero, aquí pondrá «Conectado».", !!ok)),
+  ], null);
+}
 // Conexiones (menú de tu nombre): agente, pasos, báscula y Hevy en un solo sitio.
 // Pasos «conectados» si el móvil ha mandado tramos en las últimas 48 h; báscula, si ya ha llegado algún pesaje del móvil.
 async function connectionsSheet() {
@@ -811,7 +831,9 @@ async function connectionsSheet() {
           h("button", { class: "btn sm ghost", onclick: () => connectAgent() }, agentConnected() ? "Gestionar" : "Conectar")) : null,
         S.me ? row_("👟", "Pasos del móvil", st_("pasos", pasosOk, info.pasos_ultimo), info.pasos_ultimo && !isOff("pasos") ? `Último envío ${agoTxt(info.pasos_ultimo)}` : "Que lleguen solos desde el móvil", btn_("pasos", info.pasos_ultimo)) : null,
         S.me ? row_("⚖", "Báscula", st_("bascula", !!info.bascula, info.bascula), info.bascula && !isOff("bascula") ? `Último pesaje ${whenTxt(info.bascula)}` : "Que cada pesaje llegue solo (peso, % de grasa…)", btn_("bascula", info.bascula)) : null,
-        S.me ? row_("🏋", "Entrenos", st_("entreno", !!info.entreno_ultimo, info.entreno_ultimo), info.entreno_ultimo && !isOff("entreno") ? `Último entreno detectado ${whenTxt(info.entreno_ultimo)}` : "Que se sepa solo cuándo entrenas (Hevy u otra app)", btn_("entreno", info.entreno_ultimo)) : null      ),
+        S.me ? row_("🏋", "Entrenos", st_("entreno", !!info.entreno_ultimo, info.entreno_ultimo), info.entreno_ultimo && !isOff("entreno") ? `Último entreno detectado ${whenTxt(info.entreno_ultimo)}` : "Que se sepa solo cuándo entrenas (Hevy u otra app)", btn_("entreno", info.entreno_ultimo)) : null,
+        S.me ? row_("📋", "Series de Hevy", info.hevy_agente ? "ok" : "man", info.hevy_agente ? `A través de tu agente · último ${agoTxt(info.hevy_agente)}` : "Capturas a tu agente, o conecta Hevy a tu agente y las sube él",
+          h("button", { class: "btn sm ghost", onclick: () => hevyAgentSheet(info.hevy_agente) }, info.hevy_agente ? "Ver" : "Cómo")) : null),
     ], S.me && info.configurado ? [h("button", { class: "btn sm ghost", onclick: () => mobileKeySheet(async () => { info = await api("GET", "/api/movil").catch(() => info); }) }, icon("key"), "Clave del móvil")] : null);
   };
   draw();
@@ -855,10 +877,13 @@ async function trainingDaySheet(st) {
     ws.length ? h("div", { class: "list" }, ws.map((w) => h("div", { class: "item", onclick: () => workoutSheet(w.id) },
       h("div", { class: "nm" }, w.title), h("div", { class: "kc num" }, fmt(w.duration_min) + "′"), h("div", { class: "sub" }, `${w.sets_count} series · ${fmt(w.volume_kg)} kg`), h("div"))))
       : pend.length ? h("div", { class: "det-card" },
-          h("div", { class: "det-src" }, h("span", { class: "det-i" }, "!"), `Ha llegado de ${pend[0].app || "tu móvil"} · falta mandar el entreno`),
+          h("div", { class: "det-src" }, h("span", { class: "det-i" }, "!"), `Detectado en ${pend[0].app || "tu móvil"} · falta subirlo`),
           pend.map((x) => h("div", { class: "det-w" }, h("div", { class: "det-t" }, x.titulo || "Entreno"),
             h("div", { class: "det-kv" }, [["Empieza", x.inicio], ["Duración", fmt(x.minutos) + " min"]].map(([k, v]) => h("div", null, h("span", null, k), h("b", { class: "num" }, v)))))),
-          h("p", { class: "det-how" }, "Para tener las series y los pesos, mándaselo a tu agente: dile «entreno hecho» o pásale las capturas de Hevy."))
+          hv.agente
+            ? h("div", { class: "det-how" }, h("b", null, "Tu agente lo subirá desde Hevy"), " la próxima vez que habléis. ¿Lo quieres ya? Dile ", h("q", null, "sube el entreno"), ".")
+            : h("div", { class: "det-how" }, "Dile a tu agente ", h("q", null, "sube el entreno"), " y pásale las capturas de Hevy.",
+                h("div", { class: "det-tip" }, "Si conectas Hevy a tu agente, lo subirá él solo. ", h("button", { class: "lnk-btn", onclick: () => hevyAgentSheet() }, "Cómo"))))
       : h("div", { class: "card empty flat" }, icon("dumbbell"), h("h3", null, rest ? "Día de descanso" : "Sin entreno"),
         h("p", { class: "muted" }, rest ? "Hoy no cuenta ningún entreno." : "Mándale el entreno a tu agente («entreno hecho» o la captura de Hevy), o márcalo como día de descanso."),
         !closed ? h("button", { class: "btn", onclick: async () => { await act(() => api("PUT", "/api/days/" + st.date, { rest_day: !rest }), rest ? "Descanso quitado" : "Marcado como descanso"); sh.close(); } }, rest ? "Quitar descanso" : "Día de descanso") : null),

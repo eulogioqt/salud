@@ -1782,6 +1782,18 @@ def hc_sessions(conn, d):
     return out
 
 
+def pending_sessions(conn, days=4):
+    """Entrenos que el móvil ha detectado en los últimos días (abiertos) y que aún no se han subido."""
+    out, t = [], today()
+    for i in range(days):
+        d = shift(t, -i)
+        r = conn.execute("SELECT status FROM days WHERE date=?", (d,)).fetchone()
+        if r and r["status"] == "cerrado":
+            continue
+        out += [dict(x, fecha=d) for x in hc_sessions(conn, d) if not x["registrada"]]
+    return sorted(out, key=lambda x: (x["fecha"], x["inicio"]))
+
+
 # Báscula por Health Connect: tipo del envío → (campo de body_metrics, clave del valor, conversión)
 _BODY_HC = {"weight": ("weight_kg", "kilograms", 1), "body_fat": ("fat_pct", "percentage", 1), "lean_body_mass": ("lean_kg", "kilograms", 1),
             "bone_mass": ("bone_kg", "kilograms", 1), "body_water_mass": ("water_kg", "kilograms", 1),

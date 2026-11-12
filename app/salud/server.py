@@ -257,7 +257,8 @@ class Handler(BaseHTTPRequestHandler):
                 stp = conn.execute("SELECT MAX(received_at) FROM step_buckets").fetchone()[0]
                 ent = conn.execute("SELECT substr(MAX(start),1,16) FROM hc_sessions").fetchone()[0]
                 off = [x for x in (core.get_setting(conn, "movil_off") or "").split(",") if x]
-            return self._send(200, {"configurado": bool(t), "conectado": bool(t and t.get("used")), "ultimo": t and t.get("used"),
+                hag = core.get_setting(conn, "hevy_agente")
+            return self._send(200, {"configurado": bool(t), "hevy_agente": hag, "conectado": bool(t and t.get("used")), "ultimo": t and t.get("used"),
                                     "clave_creada": t and t.get("created"), "off": off,
                                     "bascula": bas, "pasos_ultimo": stp, "entreno_ultimo": ent and ent.replace("T", " "),
                                     "url": self._base() + "/api/hooks/salud"})
