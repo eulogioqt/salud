@@ -1762,7 +1762,6 @@ function recipeEditor(r) {
   const sh = sheet(isNew ? "Nueva receta" : r.name, body, [
     !isNew ? h("button", { class: "btn ghost danger", onclick: (e) => confirmDel(e, () => act(() => api("POST", `/api/foods/${r.id}/deleted`, { value: true }), "Receta eliminada").then(sh.close)) }, "Eliminar") : null,
     h("span", { class: "grow" }), ...saveButtons(isNew, r, save)], { wide: true, sub: reviewSub(isNew, r) });
-  if (opt.off) applyOff(opt.off);
   if (isNew) setTimeout(() => name.focus(), 40);
 }
 
@@ -1801,7 +1800,6 @@ function templateEditor(t) {
     h("span", { class: "grow" }), ...saveButtons(isNew, t, save)], { wide: true, sub: reviewSub(isNew, t),
     titleExtra: isNew ? null : h("button", { class: "fav-btn" + (t.favorite ? " on" : ""), title: t.favorite ? "Quitar de favoritas" : "Añadir a favoritas (sale antes al añadir comida)",
       onclick: async (e) => { const b = e.currentTarget; await act(() => api("PUT", "/api/templates/" + t.id, { favorite: t.favorite ? 0 : 1 })); t.favorite = t.favorite ? 0 : 1; b.classList.toggle("on", !!t.favorite); b.textContent = t.favorite ? "★" : "☆"; await loadCatalog(); } }, t.favorite ? "★" : "☆") });
-  if (opt.off) applyOff(opt.off);
   if (isNew) setTimeout(() => name.focus(), 40);
 }
 
