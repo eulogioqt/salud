@@ -1644,3 +1644,10 @@ img { -webkit-user-drag: none; user-select: none; }
 .openwarn > svg { width: 15px; height: 15px; flex: none; }
 .openwarn .ow-d { height: 26px; padding: 0 10px; border-radius: 99px; border: 1px solid currentColor; background: transparent; color: inherit; font: inherit; font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; text-transform: capitalize; }
 .openwarn .ow-d:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+/* kcal al pasarse: verde, cada vuelta más oscuro */
+.ring.big { --ring-over1: #12543d; --ring-over3: #082a1e; }
+.ring.big .rg-x, .ring.big .rg-x.hi { fill: #12543d; }
+@media (prefers-color-scheme: dark) {
+  .ring.big { --ring-over1: #22795a; --ring-over3: #134a37; }
+  .ring.big .rg-x, .ring.big .rg-x.hi { fill: #6fd0a6; }
+}

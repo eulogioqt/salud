@@ -283,7 +283,7 @@ function ringSvg(size, r, w, p, cls, center, laps) {
   svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-bg" }));
   if (p > 0) svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${C * Math.min(1, p)} ${C}`, transform: "rotate(-90)" }));
   if (laps && p > 1) {
-    // Lo que te pasas: otra vuelta encima (kcal: amarillo oscuro y luego rojo; macros: su color más oscuro y aún más), con sombrita donde empieza
+    // Lo que te pasas: otra vuelta encima con su color más oscuro (y otra aún más oscura si pasas del doble), con sombrita donde empieza
     const id = Math.random().toString(36).slice(2, 7), defs = svgE("defs", {});
     const f = svgE("filter", { id: "rsh" + id, x: "-30%", y: "-30%", width: "160%", height: "160%" });
     f.append(svgE("feDropShadow", { dx: 0, dy: 0, stdDeviation: 2, "flood-opacity": 0.4 })); defs.append(f); svg.prepend(defs);
