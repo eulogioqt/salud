@@ -518,7 +518,7 @@ async function weightSheet(st) {
       h("div", { class: "row", style: { margin: "14px 0 6px" } }, h("b", null, "Evolución"), h("span", { class: "grow" }),
         h("div", { class: "seg" }, [[30, "30 d"], [90, "90 d"]].map(([d, l]) => h("button", { class: days === d ? "on" : "", onclick: () => { days = d; draw(); } }, l)))),
       h("div", { class: "card panel" }, weightChart(ws, P.body, st.date))],
-      [h("span", { class: "grow" }), h("button", { class: "btn", onclick: () => { sh.close(); location.hash = "#/progreso"; } }, "Ver todo en Progreso")], { sub });
+      scale ? sheetFoot(`Último envío de la báscula: ${agoTxt(S.pasos.bascula)}`) : sheetFoot(null, false), { sub });
   };
   draw();
 }
@@ -545,11 +545,15 @@ async function stepsData(st) {
   return Object.assign(d, { goal, byDate, streak: cur, bestStreak });
 }
 const agoTxt = (ts) => { if (!ts) return "—"; const m = Math.round((Date.now() - new Date(ts.replace(" ", "T"))) / 60000); return m < 1 ? "ahora" : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : dateLabel(ts.slice(0, 10), { day: "numeric", month: "short" }); };
-function stepsFooter(d, sh) {
-  return [h("span", { class: "faint sm" }, `Último envío del móvil: ${agoTxt(d.last_received)}`), h("span", { class: "grow" }),
-    h("button", { class: "btn ghost sm", onclick: () => connectionsSheet() }, "Conexiones"),
-    h("button", { class: "btn sm", onclick: () => { for (const c of [...OPEN_SHEETS]) c(); location.hash = "#/progreso"; } }, "Ver todo en Progreso")];
+// Pie común de las fichas que llegan del móvil: estado del último envío + Conexiones + Ver todo en Progreso
+function sheetFoot(status, conn = true) {
+  return [h("div", { class: "sfoot" },
+    status ? h("span", { class: "sf-st" }, h("i", { class: "sf-dot" }), status) : h("span", { class: "sf-st" }),
+    h("div", { class: "sf-b" },
+      conn ? h("button", { class: "btn sm", onclick: () => connectionsSheet() }, icon("plug"), "Conexiones") : null,
+      h("button", { class: "btn sm", onclick: () => { for (const c of [...OPEN_SHEETS]) c(); location.hash = "#/progreso"; } }, "Ver todo en Progreso")))];
 }
+function stepsFooter(d) { return sheetFoot(`Último envío del móvil: ${agoTxt(d.last_received)}`); }
 // Ficha de pasos del día (desde Hoy): objetivo, gasto, distancia, racha y el día por horas frente a tu media
 async function stepsStatsSheet(st) {
   const sub = dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" });
@@ -589,8 +593,8 @@ async function stepsStatsSheet(st) {
         h("div", { class: "sh2-msg" + (steps >= goal ? " ok" : "") }, steps >= goal ? [icon("check"), "Objetivo cumplido"] : `Te faltan ${fmt(goal - steps)} pasos`),
         kv("bolt", "Gasto", en.steps_kcal != null ? `≈ ${fmt(en.steps_kcal)} kcal` : "—"),
         kv("route", "Distancia", km != null ? `${fmt(km, 1)} km` : "—"),
-        kv("flame", "Racha", d.streak ? `${d.streak} ${d.streak === 1 ? "día" : "días"}` : "—"),
-        h("button", { class: "more-lnk", onclick: () => stepsMoreSheet(st) }, icon("cal"), "Semana, rachas y récords", h("span", { class: "grow" }), "›"))),
+        kv("flame", "Racha", d.streak ? `${d.streak} ${d.streak === 1 ? "día" : "días"}` : "—")),
+      h("button", { class: "more-lnk", onclick: () => stepsMoreSheet(st) }, icon("cal"), "Semana, rachas y récords", h("span", { class: "grow" }), "›")),
     h("div", { class: "card panel flat" }, h("h3", { style: { margin: 0 } }, "Por horas"), hchart,
       h("div", { class: "sch-x" }, [0, 6, 12, 18, 24].map((x) => h("span", null, x + " h"))),
       hrs[peak] ? h("div", { class: "faint sm", style: { marginTop: "6px" } }, `Hora más activa: ${peak}:00 · ${fmt(hrs[peak])} pasos`) : null),

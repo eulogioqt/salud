@@ -1651,3 +1651,28 @@ img { -webkit-user-drag: none; user-select: none; }
   .ring.big { --ring-over1: #22795a; --ring-over3: #134a37; }
   .ring.big .rg-x, .ring.big .rg-x.hi { fill: #6fd0a6; }
 }
+/* Ficha de pasos: anillo a la izquierda y datos a la derecha; en móvil, todo en una pantalla */
+.sh2 { display: grid; grid-template-columns: 180px minmax(210px, 250px); justify-content: center; align-items: center; column-gap: 28px; row-gap: 8px; }
+.sh2-ring { grid-row: 1 / span 2; } .sh2-ring > svg { width: 100%; height: 100%; display: block; } .sh2 .sgoal { white-space: nowrap; }
+.sh2 > .more-lnk { grid-column: 2; margin-top: 0; align-self: start; }
+@media (max-width: 640px) {
+  .sh2 { grid-template-columns: 128px minmax(0, 1fr); column-gap: 16px; row-gap: 14px; padding: 2px 0 14px; }
+  .sh2-ring { grid-row: auto; width: 128px; height: 128px; } .sh2-in b { font-size: 24px; }
+  .sh2-side { min-width: 0; gap: 5px; } .sh2-msg { font-size: 14.5px; } .sh2-kv { gap: 10px; font-size: 13px; }
+  .sh2 > .more-lnk { grid-column: 1 / -1; }
+  .sch { height: 130px; }
+}
+/* Pie de fichas: estado a la izquierda y botones a la derecha; en móvil, estado arriba y dos botones iguales */
+.sheet-f:has(> .sfoot) { justify-content: stretch; }
+.sfoot { display: flex; align-items: center; gap: 10px; width: 100%; }
+.sf-st { flex: 1; display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--faint); min-width: 0; }
+.sf-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; }
+.sf-st:empty { display: none; }
+.sf-b { display: flex; gap: 8px; margin-left: auto; }
+.sf-b .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.sf-b .btn svg { width: 15px; height: 15px; }
+@media (max-width: 640px) {
+  .sfoot { flex-direction: column; align-items: stretch; gap: 8px; }
+  .sf-st { justify-content: center; }
+  .sf-b { margin-left: 0; } .sf-b .btn { flex: 1; padding: 9px 10px; font-size: 14px; }
+}
