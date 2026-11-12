@@ -1771,3 +1771,40 @@ img { -webkit-user-drag: none; user-select: none; }
 .bd-assume { display: flex; flex-direction: column; gap: 8px; }
 .bd-assume > div { display: flex; flex-direction: column; gap: 1px; padding: 8px 12px; background: var(--surface-2); border-radius: 12px; }
 .bd-assume b { font-size: 14px; } .bd-assume span { font-size: 12.5px; color: var(--muted); }
+/* Listas de ejercicios: el escudo nunca se encoge; el nombre se corta con «…» */
+.exr-n .lvsh { flex: none; }
+.exr-n > span:not(.lvsh) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+/* Entreno: último entreno junto al título */
+.last-w { display: inline-flex !important; grid-template-columns: none; align-items: center; gap: 6px; width: auto !important; margin: 0 0 0 10px !important; padding: 5px 10px 5px 12px !important; border-radius: 99px !important; font-size: 13px; max-width: 100%; min-width: 0; }
+.last-w .lw-l { font-size: 11px; } .last-w b { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; } .last-w .lw-s { font-size: 12.5px; white-space: nowrap; }
+.last-w .chev { font-size: 16px; line-height: 1; }
+@media (max-width: 640px) { .last-w { margin: 6px 0 0 0 !important; order: 3; flex-basis: 100%; justify-content: flex-start; } }
+/* «Ver todos» como enlace, alineado con el título */
+.lnk-more { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.lnk-more:hover { text-decoration: underline; }
+/* Gasto del entreno: chip neutro como los demás, con el rayo en verde */
+.wchips .kcalc, .wk-hd .kcalc, .kcalc { background: var(--surface-2); color: var(--text); }
+.kcalc svg { color: var(--accent); }
+@media (prefers-color-scheme: dark) { .wchips .kcalc, .wk-hd .kcalc, .kcalc { background: var(--surface-2); color: var(--text); } }
+/* Peso, Pasos y Entreno en Hoy: los tres del mismo ancho */
+@media (min-width: 641px) { .strip { grid-template-columns: 1fr 1fr 1fr; } }
+.item .nm .estb { margin-left: 2px; } .item .nm .ell { min-width: 0; }
+.offc .input, .off-row .input { border: 1.5px solid var(--line-2, #cfcac0); background: var(--surface); }
+.offc .input:focus { border-color: var(--accent); }
+.off-nf { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } .off-nf span { flex: 1; min-width: 180px; }
+.off-photo { display: flex; align-items: center; gap: 10px; margin-top: 8px; padding: 8px; border-radius: 12px; background: var(--surface-2); color: var(--text); }
+.off-photo img { width: 44px; height: 44px; object-fit: contain; border-radius: 8px; background: #fff; } .off-photo span { flex: 1; font-size: 13px; }
+.sheet-f .btn.ghost svg { width: 16px; height: 16px; }
+/* Comida habitual: flecha de abrir/cerrar centrada con el nombre */
+.item.tpl .nm .chev { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; font-size: 0; margin-left: 0; flex: none; }
+.item.tpl .nm .chev svg { width: 14px; height: 14px; stroke-width: 2.4; color: var(--faint); }
+/* Ficha «Objetivo de hoy» */
+.sum-goal { display: inline-flex; align-items: center; gap: 6px; }
+.sg-i { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--surface-2); color: var(--muted); font-size: 11px; font-weight: 700; }
+.goal-hero { padding: 4px 0 14px; } .goal-hero > b { font-size: 34px; font-weight: 750; letter-spacing: -.02em; } .goal-hero > span { color: var(--muted); }
+.gs { display: flex; flex-direction: column; }
+.gs-r { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 2px; border-bottom: 1px dashed var(--line); }
+.gs-r > div { display: flex; flex-direction: column; } .gs-r span { font-size: 14px; } .gs-r small { font-size: 12px; color: var(--muted); } .gs-r b { font-size: 15px; }
+.gs-r.sum { border-bottom: 1px solid var(--line-2, #cfcac0); } .gs-r.sum span, .gs-r.sum b { font-weight: 700; }
+.gs-r.tot { border-bottom: 0; } .gs-r.tot span { font-weight: 700; } .gs-r.tot b { font-size: 18px; color: var(--accent); }
+@media (max-width: 640px) { .src-grid { grid-template-columns: 1fr 1fr !important; } .src-grid > div:nth-child(3) { grid-column: 1 / -1; } }

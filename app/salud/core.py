@@ -270,6 +270,9 @@ def resolve_dynamic(conn, d, t):
     kcal = round((base + (t["kcal_offset"] or 0)) / (1 - tef))
     kg = en["weight_used_kg"]
     t.update({"kcal": kcal, "base_kcal": round(base), "weight_kg": kg, "projected_steps": proj if no_steps else None, "steps_pending": no_steps,
+              "base_parts": {"bmr": en["bmr"], "neat": en["neat"], "steps": en["steps_kcal"] or 0, "steps_n": en["steps"], "exercise": en["exercise_kcal"],
+                             "ajuste": en["calibration"]["ajuste_kcal"]},
+              "tef_pct": tef,
               "protein_g": round((t["protein_per_kg"] or 2.0) * kg) if kg else None,
               "fat_min_g": round(kcal * (t["fat_min_pct"] or 25) / 100 / 9), "fat_max_g": round(kcal * (t["fat_max_pct"] or 35) / 100 / 9)})
     return _carbs(t)

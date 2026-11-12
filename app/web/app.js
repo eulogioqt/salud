@@ -306,6 +306,36 @@ function ringSvg(size, r, w, p, cls, center, laps) {
   for (const [y, txt, c] of center) { const t = svgE("text", { y, "text-anchor": "middle", class: c }); t.textContent = txt; svg.append(t); }
   return svg;
 }
+// Objetivo de hoy: cómo sale y con qué cuenta (lo que aún no se sabe se supone)
+function goalSheet(st) {
+  const tg = st.target || {}, en = st.energy || {}, closed = st.status === "cerrado";
+  const change = async () => { sh.close(); const d = await api("GET", "/api/settings"); targetSheet(d.current_target, null); };
+  if (!tg.dynamic) {
+    const sh = sheet("Objetivo de hoy", [h("div", { class: "goal-hero" }, h("b", { class: "num" }, tg.kcal ? fmt(tg.kcal) : "—"), h("span", null, " kcal para comer")),
+      h("div", { class: "note" }, tg.mode ? "Objetivo fijo: no cambia con lo que te mueves." : "Aún no tienes objetivo.")],
+      [h("span", { class: "grow" }), h("button", { class: "btn", onclick: change }, "Cambiar objetivo")], { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }) });
+    return;
+  }
+  const P = tg.base_parts || {}, off = tg.kcal_offset || 0, tef = tg.tef_pct || 0.1;
+  const row = (l, sub, v, cls) => h("div", { class: "gs-r" + (cls ? " " + cls : "") }, h("div", null, h("span", null, l), sub ? h("small", null, sub) : null), h("b", { class: "num" }, v));
+  const neatNormal = st.day.neat_kcal == null;
+  const sh = sheet("Objetivo de hoy", [
+    h("div", { class: "goal-hero" }, h("b", { class: "num" }, fmt(tg.kcal)), h("span", null, " kcal para comer"),
+      h("div", { class: "faint" }, off ? `con un ${off < 0 ? "déficit" : "superávit"} de ${fmt(Math.abs(off))} kcal` : "para mantener tu peso")),
+    h("div", { class: "bd-sub" }, "Cómo sale"),
+    h("div", { class: "gs" },
+      row("Metabolismo basal", "en reposo, con tu peso", fmt(P.bmr || 0)),
+      row("Día a día", neatNormal ? "uno normal hasta que elijas al cerrar" : "el que elegiste", fmt(P.neat || 0)),
+      row("Pasos", tg.steps_pending ? `${fmt(tg.projected_steps || 0)} previstos: tu media de los ${dateLabel(st.date, { weekday: "long" })}` : `${fmt(P.steps_n || 0)} reales`, fmt(P.steps || 0)),
+      row("Entrenos", P.exercise ? "los apuntados hoy" : "ninguno apuntado (no se prevén)", fmt(P.exercise || 0)),
+      P.ajuste ? row("Ajuste de calibración", "según cómo cambia tu peso", signed(P.ajuste, 0)) : null,
+      row("Gasto previsto", null, fmt(tg.base_kcal || 0), "sum"),
+      off ? row(off < 0 ? "Déficit" : "Superávit", "tu objetivo", signed(off, 0)) : null,
+      row("Digestión", `comer también gasta (${fmt(tef * 100)} % de lo que comes): ÷ ${fmt(1 - tef, 1)}`, "+" + fmt(tg.kcal - (tg.base_kcal + off))),
+      row("Para comer", null, fmt(tg.kcal), "tot")),
+    !closed ? h("div", { class: "note" }, "Los pasos y el día a día se suponen para que el objetivo no cambie a lo largo del día; al cerrar, se ajustan con lo real. Los entrenos solo cuentan cuando los apuntas.") : null],
+    [h("span", { class: "grow" }), h("button", { class: "btn", onclick: change }, "Cambiar objetivo")], { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }) });
+}
 // Qué cuenta el gasto de hoy y qué falta (lo que explica el *), y con qué cuenta el objetivo
 function gastoTip(st) {
   const en = st.energy, tg = st.target || {}, falta = [];
@@ -348,7 +378,7 @@ function summaryCard(st) {
   };
   const goalTxt = !tg.mode ? "Sin objetivo" : tg.dynamic ? (tg.kcal_offset ? `Objetivo: ${tg.kcal_offset < 0 ? "déficit" : "superávit"} de ${fmt(Math.abs(tg.kcal_offset))} kcal` : "Objetivo: comer lo que gastas") : "Objetivo fijo";
   return h("div", { class: "card summary b" },
-    h("button", { class: "sum-goal", title: "Cambiar el objetivo", onclick: async () => { const d = await api("GET", "/api/settings"); targetSheet(d.current_target, null); } }, goalTxt),
+    h("button", { class: "sum-goal", title: "Cómo sale tu objetivo de hoy", onclick: () => goalSheet(st) }, goalTxt, tg.dynamic ? h("span", { class: "sg-i" }, "?") : null),
     h("button", { class: "sum-des", onclick: open }, "Desglose ›"),
     tip(h("button", { class: "ring-btn", onclick: open, "aria-label": "Ver desglose" }, big), ringTip(st)),
     h("div", { class: "mrings" },
@@ -425,18 +455,9 @@ function energySheet(st) {
   const closedNote = closed && c ? h("span", { class: "bd-closed-x", title: c.forced ? "Cerrado con datos incompletos" : "" }, icon("lock"),
     h("span", { class: "cx-l" }, tx(`Cerrado el ${dateLabel(c.closed_at.slice(0, 10), { day: "numeric", month: "short" })} a las ${c.closed_at.slice(11, 16)}` + (c.version > 1 ? ` · v${c.version}` : ""))),
     h("span", { class: "cx-s" }, tx(`${+c.closed_at.slice(8, 10)}/${+c.closed_at.slice(5, 7)} · ${c.closed_at.slice(11, 16)}` + (c.version > 1 ? ` · v${c.version}` : "")))) : null;
-  // Con qué cuenta el objetivo de hoy (lo que aún no se sabe se supone)
-  const tgt = st.target || {};
-  const goalNote = !closed && tgt.dynamic ? h("div", { class: "bd-sec" }, h("div", { class: "bd-st" }, "Tu objetivo de hoy cuenta con"),
-    h("div", { class: "bd-assume" },
-      h("div", null, h("b", null, tgt.steps_pending ? `${fmt(tgt.projected_steps || 0)} pasos` : `${fmt(st.day.steps || 0)} pasos`),
-        h("span", null, tgt.steps_pending ? `previstos: tu media de los ${dateLabel(st.date, { weekday: "long" })}. Si das más, cuentan los reales` : "los que llevas (ya pasas de tu media)")),
-      h("div", null, h("b", null, st.day.neat_kcal == null ? "Día a día normal" : "Día a día elegido"),
-        h("span", null, st.day.neat_kcal == null ? `≈ ${fmt(Math.round(150 * (en.neat_factor || 1)))} kcal de moverte por casa, de pie… Al cerrar eliges cómo fue` : "el que elegiste")),
-      h("div", null, h("b", null, "Solo los entrenos apuntados"), h("span", null, "no se prevé si vas a entrenar: al apuntarlo, el objetivo sube")))) : null;
   const obs = closed && c && c.summary && (c.summary.observations || []).length
     ? h("div", { class: "bd-sec" }, h("div", { class: "bd-st" }, "Observaciones del cierre"), h("ul", { class: "bd-obs" }, c.summary.observations.map((o) => h("li", null, o)))) : null;
-  sheet(closed ? "Resumen del día" : "Desglose del día", [hero, eaten, burned, goalNote, obs,
+  sheet(closed ? "Resumen del día" : "Desglose del día", [hero, eaten, burned, obs,
     h("div", { class: "faint bd-foot" }, "El gasto es una estimación: tu metabolismo en reposo (según peso, altura, edad y sexo) + la digestión (10 % de lo que comes) + lo que te mueves en el día + tus pasos + tus entrenos.")], null, { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }), titleExtra: closedNote });
 }
 function energyTable(en, balance) {
@@ -540,7 +561,7 @@ async function weightSheet(st) {
         others.map((b) => h("div", { class: "oth-r" }, h("span", { class: "num" }, `${fmt(b.weight_kg, 1)} kg`), h("span", { class: "faint" }, b.time ? " · " + b.time : ""), h("span", { class: "grow" }),
           st.status !== "cerrado" ? h("button", { class: "btn ghost sm", onclick: async () => { await setDayWeight(b, true); sh.close(); weightSheet(S.day); } }, "Usar como peso del día") : null))) : null,
       h("div", { class: "row", style: { margin: "14px 0 6px" } }, h("b", null, "Evolución"), h("span", { class: "grow" }),
-        h("div", { class: "seg" }, [[30, "30 d"], [90, "90 d"]].map(([d, l]) => h("button", { class: days === d ? "on" : "", onclick: () => { days = d; draw(); } }, l)))),
+        h("div", { class: "seg" }, [[7, "7 d"], [30, "30 d"], [90, "90 d"]].map(([d, l]) => h("button", { class: days === d ? "on" : "", onclick: () => { days = d; draw(); } }, l)))),
       h("div", { class: "card panel" }, weightChart(ws, P.body, st.date))],
       scale ? sheetFoot(`Último envío de la báscula: ${agoTxt(S.pasos.bascula)}`) : sheetFoot(null, "bascula"), { sub });
   };
@@ -934,7 +955,7 @@ function mealBlock(st, meal, closed) {
     const kids = h("div", { class: "tpl-kids" + (S.openTpl[key] ? "" : " hidden") }, grp.map((x) => itemEl(x, true)));
     const row = h("div", { class: "item b tpl" + (S.openTpl[key] ? " open" : ""), onclick: () => { S.openTpl[key] = !S.openTpl[key]; kids.classList.toggle("hidden"); row.classList.toggle("open"); } },
       mono(tpl ? tpl.name : "Comida habitual", "comida", tpl && tpl.image),
-      h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, tpl ? tpl.name : "Comida habitual"), estTag(grp), h("span", { class: "chev" }, "›")),
+      h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, tpl ? tpl.name : "Comida habitual"), estTag(grp), h("span", { class: "chev" }, icon("right"))),
         h("div", { class: "sub" }, estTag(grp), [e.time, `comida habitual · ${grp.length} ${grp.length === 1 ? "alimento" : "alimentos"}`].filter(Boolean).join(" · ")), chips(tot)),
       h("div", { class: "kc num" }, v(tot, "kcal"), h("small", null, "kcal")));
     list.append(h("div", { class: "tpl-grp" }, row, kids));
@@ -1442,7 +1463,17 @@ function foodEditor(f, opt = {}) {
   const dl = h("datalist", { id: "cats" }, cats.map((c) => h("option", { value: c })));
   const brand = h("input", { class: "input", value: f.brand || "", placeholder: "Marca (opcional)" });
   const status = h("select", { class: "input" }, Object.entries(QUAL).map(([k, l]) => h("option", { value: k, selected: k === f.status }, l)));
-  const source = h("input", { class: "input", value: f.source || "", placeholder: "Fuente: etiqueta, web del fabricante…" });
+  // Fuente: de dónde salen los valores (y con ella, el estado del dato)
+  const SRC = [["etiqueta", "Etiqueta del envase", "etiqueta"], ["off", "Open Food Facts (código de barras)", "etiqueta"], ["generica", "Tabla genérica (sin marca)", "provisional"],
+    ["estimacion", "Estimación", "estimacion"], ["otra", "Otra", null]];
+  const src0 = f.source || "", srcKind0 = !src0 ? (isNew ? "etiqueta" : "otra") : /^open food facts/i.test(src0) ? "off" : /^etiqueta/i.test(src0) ? "etiqueta"
+    : /^(tabla genérica|genérica|usda|bedca)/i.test(src0) ? "generica" : /^estimaci/i.test(src0) ? "estimacion" : "otra";
+  let offCode = (src0.match(/(\d{8,14})/) || [])[1] || null;
+  const srcSel = h("select", { class: "input" }, SRC.map(([k, l]) => h("option", { value: k, selected: k === srcKind0 }, l)));
+  const srcOther = h("input", { class: "input" + (srcKind0 === "otra" ? "" : " hidden"), value: srcKind0 === "otra" ? src0 : "", placeholder: "¿De dónde salen los valores?", style: { marginTop: "6px" } });
+  const source = h("div", null, srcSel, srcOther);
+  srcSel.addEventListener("change", () => { srcOther.classList.toggle("hidden", srcSel.value !== "otra"); const st_ = (SRC.find((x) => x[0] === srcSel.value) || [])[2]; if (st_) status.value = st_; });
+  const sourceText = () => ({ etiqueta: "Etiqueta del envase", off: "Open Food Facts" + (offCode ? " · " + offCode : ""), generica: "Tabla genérica (sin marca)", estimacion: "Estimación", otra: srcOther.value.trim() || null })[srcSel.value];
   const notes = h("textarea", { class: "input", rows: 2, placeholder: "Notas" }, f.notes || "");
   const duSel = h("select", { class: "input" }, h("option", { value: "" }, "Automático (por peso si se puede)"),
     (f.units || []).filter((u) => u.key !== "x").map((u) => h("option", { value: u.key, selected: u.key === f.default_unit }, u.key === "g" ? "Por peso (g)" : u.key === "ml" ? "Por volumen (ml)" : "Por unidad: " + u.label)));
@@ -1498,7 +1529,7 @@ function foodEditor(f, opt = {}) {
   const applyOff = (o) => {
     if (!name.value.trim() || isNew) name.value = o.name || name.value;
     if (!brand.value.trim() && o.brand) brand.value = o.brand;
-    source.value = "Open Food Facts · " + o.code;
+    offCode = o.code; srcSel.value = "off"; srcOther.classList.add("hidden");
     const q = o.complete ? "etiqueta" : "provisional";
     status.value = q;
     const setRow = (r, v, label, amount, unit) => { r.label.value = label; r.amount.value = String(amount).replace(".", ","); r.unit.value = unit;
@@ -1512,10 +1543,13 @@ function foodEditor(f, opt = {}) {
     if (o.serving && !live.some((r) => r !== r100 && parseNum(r.amount.value) === o.serving.amount)) {
       const rs = prow({ quality: q }); prows.push(rs); tbody.append(rs.el); setRow(rs, o.serving, o.serving.label, o.serving.amount, o.serving.unit);
     }
-    if (o.image_url && !f.image && !pendingImg) { offImg = o.image_url; pendingImg = o.image_url; drawPhoto(); }
+    const hadPhoto = !!(f.image || pendingImg);
+    if (o.image_url && !hadPhoto) { offImg = o.image_url; pendingImg = o.image_url; drawPhoto(); }
     offNote.className = "note off-found" + (o.complete ? "" : " warn");
-    offNote.textContent = `De Open Food Facts: ${o.name || "sin nombre"}${o.brand ? " (" + o.brand + ")" : ""} · ${o.per100.kcal == null ? "?" : fmt(o.per100.kcal)} kcal por 100 ${o.unit}` +
-      (o.complete ? " · revísalo y guarda" : " · le faltan valores: complétalos con la etiqueta") + (offImg ? " · con su foto" : "");
+    offNote.replaceChildren(`De Open Food Facts: ${o.name || "sin nombre"}${o.brand ? " (" + o.brand + ")" : ""} · ${o.per100.kcal == null ? "?" : fmt(o.per100.kcal)} kcal por 100 ${o.unit}` +
+      (o.complete ? " · revísalo y guarda" : " · le faltan valores: complétalos con la etiqueta") + (offImg ? " · con su foto" : ""));
+    if (o.image_url && hadPhoto) offNote.append(h("div", { class: "off-photo" }, h("img", { src: o.image_url, alt: "" }), h("span", null, "Ya tiene foto. ¿Usar la de Open Food Facts?"),
+      h("button", { type: "button", class: "btn sm", onclick: (e) => { offImg = o.image_url; pendingImg = o.image_url; drawPhoto(); e.currentTarget.parentNode.remove(); toast("Se cambiará al guardar"); } }, "Usar esta foto")));
   };
   completeBtn = !isNew ? h("button", { type: "button", class: "btn sm", onclick: () => {
     const m = sheet("Completar producto", offChooser((o) => { m.close(); applyOff(o); }), null, { sub: "Con el código de barras o el enlace de Open Food Facts: valores, ración y foto" });
@@ -1524,7 +1558,7 @@ function foodEditor(f, opt = {}) {
   const credit = f.image_source ? h("div", { class: "note", style: { marginTop: "-8px", marginBottom: "10px" } }, "Foto: ", f.image_source.startsWith("http") ? h("a", { href: f.image_source, target: "_blank", rel: "noopener" }, "Open Food Facts (CC BY-SA)") : f.image_source, " · cámbiala por la tuya cuando quieras") : null;
   const body = [dl, fileIn, offNote, photoBox, credit,
     h("div", { class: "grid2" }, h("div", null, h("label", { class: "f" }, "Nombre", h("i", { class: "req" }, " *")), name), h("div", null, h("label", { class: "f" }, "Estado del dato"), status)),
-    h("div", { class: "grid3", style: { marginTop: "10px" } }, h("div", null, h("label", { class: "f" }, "Categoría"), cat), h("div", null, h("label", { class: "f" }, "Marca"), brand), h("div", null, h("label", { class: "f" }, "Fuente"), source)),
+    h("div", { class: "grid3 src-grid", style: { marginTop: "10px" } }, h("div", null, h("label", { class: "f" }, "Categoría"), cat), h("div", null, h("label", { class: "f" }, "Marca"), brand), h("div", null, h("label", { class: "f" }, "Fuente"), source)),
     !isNew ? h("div", { class: "gap-top" }, field("Se registra por", duSel), h("div", { class: "note" }, "Las cosas que van por unidad (una lata, una bolsa, un yogur) se añaden por unidad y su resumen muestra la unidad, no los 100 g.")) : null,
     h("div", { class: "sec-t" }, "Raciones y valores"),
     ptable,
@@ -1541,7 +1575,7 @@ function foodEditor(f, opt = {}) {
       if (Object.values(vals).some(Number.isNaN)) return toast("Hay un número no válido", { error: true });
       portions.push({ id: r.id, label: r.label.value.trim(), unit: r.unit.value || null, quality: r.q.value, is_default: r.def.checked, ...vals });
     }
-    const data = { name: name.value.trim(), category: cat.value.trim() || null, brand: brand.value.trim() || null, status: status.value, source: source.value.trim() || null, notes: notes.value.trim() || null, portions, ...(accept === true ? { reviewed: true } : {}), ...(!isNew ? { default_unit: duSel.value || null } : {}) };
+    const data = { name: name.value.trim(), category: cat.value.trim() || null, brand: brand.value.trim() || null, status: status.value, source: sourceText(), notes: notes.value.trim() || null, portions, ...(accept === true ? { reviewed: true } : {}), ...(!isNew ? { default_unit: duSel.value || null } : {}) };
     if (isNew) {
       const created = await act(() => api("POST", "/api/foods", data), "Producto creado");
       if (pendingImg && created) await act(() => offImg && pendingImg === offImg ? api("POST", `/api/foods/${created.id}/image-url`, { url: offImg, image_source: offImg })
@@ -1556,12 +1590,13 @@ function foodEditor(f, opt = {}) {
   const formFoot = () => [h("span", { class: "grow" }), ...saveButtons(isNew, f, save)];
   if (isNew && !opt.supp && !opt.manual) {
     // Nuevo producto: primero el código de barras (cámara, código o enlace); a mano, con un botón
-    const sh = sheet("Nuevo producto", [offChooser((o) => { sh.close(); foodEditor(null, { ...opt, manual: true, off: o }); }, true)],
+    const sh = sheet("Nuevo producto", [offChooser((o) => { sh.close(); foodEditor(null, { ...opt, manual: true, off: o }); }, true, () => { sh.close(); foodEditor(null, { ...opt, manual: true }); })],
       [h("span", { class: "grow" }), h("button", { class: "btn", onclick: () => { sh.close(); foodEditor(null, { ...opt, manual: true }); } }, "Rellenar a mano")],
       { sub: "Escanea el código de barras o pega el enlace de Open Food Facts" });
     return;
   }
   const sh = sheet(isNew ? "Nuevo producto" : f.name, body, [
+    isNew && !opt.supp && opt.manual ? h("button", { class: "btn ghost", onclick: () => { sh.close(); foodEditor(null, { ...opt, manual: false, off: null }); } }, icon("barcode"), "Usar código de barras") : null,
     !isNew ? h("button", { class: "btn ghost danger", onclick: (e) => confirmDel(e, () => act(() => api("POST", `/api/foods/${f.id}/deleted`, { value: true }), "Eliminado (recuperable desde la base de datos)").then(sh.close)) }, "Eliminar") : null,
     h("span", { class: "grow" }), ...saveButtons(isNew, f, save)], { wide: true, sub: reviewSub(isNew, f),
     titleExtra: isNew ? null : h("button", { class: "fav-btn" + (f.favorite ? " on" : ""), title: f.favorite ? "Quitar de favoritos" : "Añadir a favoritos (sale antes al buscar)",
@@ -1571,13 +1606,15 @@ function foodEditor(f, opt = {}) {
 }
 
 // Elegir cómo traer un producto de Open Food Facts: cámara o código/enlace escrito
-function offChooser(onFound, big) {
+function offChooser(onFound, big, onManual) {
   const inp = h("input", { class: "input", placeholder: "Código de barras o enlace de Open Food Facts", inputMode: "text" });
   const note = h("div", { class: "note hidden" });
   const find = async (q) => {
     q = (q || inp.value).trim(); if (!q) { inp.focus(); return; }
     note.className = "note"; note.textContent = "Buscando en Open Food Facts…";
-    try { onFound(await api("GET", "/api/off?q=" + encodeURIComponent(q))); } catch (e) { note.className = "note warn"; note.textContent = e.message; }
+    try { onFound(await api("GET", "/api/off?q=" + encodeURIComponent(q))); }
+    catch (e) { note.className = "note warn off-nf"; note.replaceChildren(h("span", null, e.message + (onManual ? ". Puedes crearlo tú con la etiqueta." : "")),
+      onManual ? h("button", { type: "button", class: "btn sm", onclick: onManual }, "Rellenar a mano") : null); }
   };
   inp.addEventListener("keydown", (e) => { if (e.key === "Enter") find(); });
   return h("div", { class: "offc" + (big ? " big" : "") },
@@ -1856,7 +1893,7 @@ function viewProgress() {
   const avgP = logged7.length ? logged7.reduce((a, d) => a + (d.protein_g || 0), 0) / logged7.length : null;
   const cal = P.calibration;
   const kpi = (l, val, s) => h("div", { class: "kpi" }, h("div", { class: "l" }, kpiLbl(l)), h("div", { class: "v num" }, val), h("div", { class: "s" }, s || ""));
-  const range = h("div", { class: "seg" }, [[30, "30 d"], [90, "90 d"], [365, "1 año"]].map(([d, l]) => h("button", { class: S.progDays === d ? "on" : "", onclick: async () => { S.progDays = d; await refresh(); } }, l)));
+  const range = h("div", { class: "seg" }, [[7, "7 d"], [30, "30 d"], [90, "90 d"], [365, "1 año"]].map(([d, l]) => h("button", { class: S.progDays === d ? "on" : "", onclick: async () => { S.progDays = d; await refresh(); } }, l)));
   return h("div", null,
     h("div", { class: "row", style: { marginBottom: "12px" } }, h("h2", { class: "vt" }, "Progreso"), h("span", { class: "grow" }), range),
     h("div", { class: "kpis" },

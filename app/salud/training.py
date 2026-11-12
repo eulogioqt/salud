@@ -394,6 +394,9 @@ def _recs(kind, sets):
     return r
 
 
+SESSION_PRS = ("vol", "sreps")  # como Hevy: récord en la ficha del ejercicio, pero sin trofeo en el entreno
+
+
 def pr_map(conn):
     """{exercise_id: [tipos de récord batidos en esa sesión]} recorriendo todo el historial en orden."""
     best, out = {}, {}
@@ -416,6 +419,7 @@ def pr_map(conn):
                 hit.append(t)
             if v > b.get(t, 0):
                 b[t] = v
+        hit = [t for t in hit if t not in SESSION_PRS]
         if hit:
             out[e["id"]] = hit
     return out

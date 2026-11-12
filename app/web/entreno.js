@@ -566,7 +566,8 @@ const REC_LABEL = { w: "Peso máximo", e1: "Mejor 1RM", sv: "Mejor volumen (seri
 // peso y reps: peso máximo, mejor 1RM, mejor volumen de serie y de sesión · con lastre: peso máximo y mejor volumen de serie ·
 // peso corporal: mejor serie (reps) y más reps en la sesión · asistido: más reps en la sesión y en una serie ·
 // tiempo: mejor tiempo (y peso máximo si lleva peso) · distancia: mayor distancia y mayor tiempo (o peso máximo si se lleva peso, p. ej. paseo del granjero)
-const TROPHY = ["e1", "w", "sv", "vol", "reps", "sreps", "secs", "dist"];
+// Como en Hevy, los récords de sesión (volumen de la sesión, reps de la sesión) salen en la ficha del ejercicio, pero no dan trofeo ni chip
+const TROPHY = ["e1", "w", "sv", "reps", "secs", "dist"];
 const REC_KINDS = { peso: ["w", "e1", "sv", "vol"], lastre: ["w", "sv"], corporal: ["reps", "sreps"], asistido: ["sreps", "reps"],
   tiempo: ["secs", "w"], cardio: ["dist", "secs", "w"] };
 function recsOf(kind, sets, name, date) {
@@ -800,7 +801,13 @@ function viewTraining() {
   const T = S.training; if (!T) return h("div");
   S.tTab = S.tTab || "resumen"; S.tGran = S.tGran || "mes"; S.tOff = S.tOff || 0;
   const ws = T.workouts;
-  const head = h("div", { class: "row wrap", style: { marginBottom: "12px" } }, h("h2", { class: "vt" }, "Entreno"), h("span", { class: "grow" }),
+  // Último entreno junto al título, en todas las pestañas
+  const lastW = [...(ws || [])].sort((a, b) => (b.date + (b.start_time || "")).localeCompare(a.date + (a.start_time || "")))[0];
+  const ago = lastW ? Math.round((new Date(todayISO()) - new Date(lastW.date)) / 864e5) : null;
+  const lastLink = lastW ? tip(h("button", { class: "last-w", onclick: () => workoutSheet(lastW.id) },
+    h("span", { class: "lw-l" }, "Último"), h("b", null, lastW.title), h("span", { class: "lw-s" }, ago === 0 ? "hoy" : ago === 1 ? "ayer" : `hace ${ago} días`), h("span", { class: "chev" }, "›")),
+    `Último entreno: ${lastW.title}\n${dateLabel(lastW.date, { weekday: "long", day: "numeric", month: "long" })}${lastW.duration_min ? " · " + fmt(lastW.duration_min) + " min" : ""} · ${lastW.sets_count} series`) : null;
+  const head = h("div", { class: "row wrap", style: { marginBottom: "12px" } }, h("h2", { class: "vt" }, "Entreno"), lastLink, h("span", { class: "grow" }),
     tip(h("button", { class: "btn sm ghost", onclick: () => importCsv() }, "Subir CSV de Hevy"), "Subir CSV de Hevy\nTrae de golpe los entrenos que falten: no duplica\n## Cómo sacarlo\nHevy → Perfil → ⚙ Ajustes → Exportar e importar datos → Exportar entrenos"));
   if (!ws.length) return h("div", { class: "training" }, head, h("div", { class: "card empty" }, icon("dumbbell"), h("h3", null, "Aún no hay entrenos"),
     h("p", { class: "muted" }, "Dime «entreno hecho» por el chat y lo traigo de Hevy, o importa el CSV de Hevy.")));
@@ -850,17 +857,7 @@ function tResumen(st, ws) {
   ];
   const showBars = P.buckets.length > 1;
   const yr = (b) => (P.gran === "day" ? "" : "");
-  // Último entreno, siempre arriba
-  const lastW = [...(ws || [])].sort((a, b) => (b.date + (b.start_time || "")).localeCompare(a.date + (a.start_time || "")))[0];
-  const ago = lastW ? Math.round((new Date(todayISO()) - new Date(lastW.date)) / 864e5) : null;
-  const lastCard = lastW ? h("button", { class: "last-w", onclick: () => workoutSheet(lastW.id) },
-    h("span", { class: "lw-l" }, "Último entreno"),
-    h("div", { class: "lw-m" }, h("b", null, lastW.title), upsChip(lastW), lastW.prs_count ? h("span", { class: "prc" }, icon("trophy"), tx(String(lastW.prs_count))) : null),
-    h("span", { class: "lw-s" }, [ago === 0 ? "hoy" : ago === 1 ? "ayer" : `hace ${ago} días`, dateLabel(lastW.date, { weekday: "short", day: "numeric", month: "short" }),
-      lastW.duration_min ? fmt(lastW.duration_min) + " min" : null, lastW.sets_count + " series"].filter(Boolean).join(" · ")),
-    h("span", { class: "chev" }, "›")) : null;
   return h("div", null,
-    lastCard,
     sel,
     h("div", { class: "prow" }, h("div", { class: "faint" }, `${dateLabel(R.from, { day: "numeric", month: "short", year: R.all || R.gran === "año" ? "numeric" : undefined })} – ${R.to === todayISO() ? "hoy" : dateLabel(R.to, { day: "numeric", month: "short" })} · ${fmt(days)} ${days === 1 ? "día entrenado" : "días entrenados"}`)),
     h("div", { class: "kpis five" },
@@ -880,7 +877,7 @@ function tResumen(st, ws) {
         bars(P.buckets.map((b) => ({ v: b.vol, label: `${P.bLabel(b)}\n${fmt(b.vol)} kg · ${fmt(b.sets)} series` })), { h: 90 }),
         h("div", { class: "axis-row" }, h("span", null, P.bLabel(P.buckets[0]).replace("Semana del ", "")), h("span", null, R.to === todayISO() ? "hoy" : P.bLabel(P.buckets[P.buckets.length - 1]).replace("Semana del ", ""))))) : null,
     h("div", { class: "grid2 gap-big" },
-      h("div", { class: "card panel" }, h("h3", null, "Series por semana y grupo", h("span", { class: "faint", style: { fontWeight: 400 } }, " · zona verde = 10–20 recomendadas")),
+      h("div", { class: "card panel" }, h("h3", { style: { marginBottom: "2px" } }, "Series por semana y grupo"), h("div", { class: "faint sm", style: { marginBottom: "10px" } }, "En verde, lo recomendado: 10–20 series por semana"),
         h("div", { class: "gbars wk" }, groups.map(([g, n]) => { const pw = n / Math.max(1, R.days / 7), max = 26; const zone = pw < 10 ? "low" : pw > 20 ? "high" : "ok";
           return tip(h("div", { class: "gb" }, h("span", { class: "gl" }, g),
             h("span", { class: "gt" }, h("span", { class: "zone", style: { left: (100 * 10 / max) + "%", width: (100 * 10 / max) + "%" } }), h("i", { style: { width: Math.min(100, 100 * pw / max) + "%", "--h": GROUP_HUE[g] } })),
@@ -888,11 +885,11 @@ function tResumen(st, ws) {
             `${g}: ${fmt(pw, 1)} series efectivas por semana (${n} en el periodo)\n${zone === "low" ? "Por debajo de 10/semana: poco estímulo para crecer" : zone === "high" ? "Más de 20/semana: mucho volumen, vigila la recuperación" : "Dentro de lo recomendado (10–20)"}`); }))),
       h("div", { class: "card panel" }, h("h3", null, "Lo que más has hecho"),
         P.top.length ? h("div", { class: "exlist" }, P.top.slice(0, 6).map(({ e, n }) => exRow(e, null, `${n} ${n === 1 ? "sesión" : "sesiones"} en el periodo`))) : h("div", { class: "muted" }, "Nada en este periodo."))),
-    P.prs.length ? h("div", { class: "card panel" }, h("div", { class: "row", style: { marginBottom: "6px" } }, h("h3", { style: { margin: 0 } }, "Récords del periodo", h("span", { class: "faint", style: { fontWeight: 400 } }, ` · ${P.prs.length} · los más recientes`)), h("span", { class: "grow" }),
-      P.prs.length > 6 ? h("button", { class: "btn sm ghost", onclick: () => sheet(`Récords · ${R.label}`, h("div", { class: "exlist" }, P.prs.map((p) => prRow(p))), null, { sub: `${P.prs.length} récords, del más reciente al más antiguo` }) }, `Ver todos (${P.prs.length})`) : null),
+    P.prs.length ? h("div", { class: "card panel" }, h("div", { class: "row", style: { marginBottom: "6px" } }, h("h3", { style: { margin: 0 } }, "Récords del periodo"), h("span", { class: "grow" }),
+      P.prs.length > 6 ? h("button", { class: "lnk-more", onclick: () => sheet(`Récords · ${R.label}`, h("div", { class: "exlist" }, P.prs.map((p) => prRow(p))), null, { sub: `${P.prs.length} récords, del más reciente al más antiguo` }) }, `Ver todos (${P.prs.length})`) : null),
       h("div", { class: "exlist" }, P.prs.slice(0, 6).map((p) => prRow(p)))) : null,
-    P.ups.length ? h("div", { class: "card panel" }, h("div", { class: "row", style: { marginBottom: "6px" } }, h("h3", { style: { margin: 0 } }, "Nuevos rangos", h("span", { class: "faint", style: { fontWeight: 400 } }, ` · ${P.ups.length}`)), h("span", { class: "grow" }),
-      P.ups.length > 6 ? h("button", { class: "btn sm ghost", onclick: () => sheet(`Nuevos rangos · ${R.label}`, h("div", { class: "exlist" }, P.ups.map((u) => upRow(u))), null, { sub: `${P.ups.length} rangos nuevos, del más reciente al más antiguo` }) }, `Ver todos (${P.ups.length})`) : null),
+    P.ups.length ? h("div", { class: "card panel" }, h("div", { class: "row", style: { marginBottom: "6px" } }, h("h3", { style: { margin: 0 } }, "Nuevos rangos"), h("span", { class: "grow" }),
+      P.ups.length > 6 ? h("button", { class: "lnk-more", onclick: () => sheet(`Nuevos rangos · ${R.label}`, h("div", { class: "exlist" }, P.ups.map((u) => upRow(u))), null, { sub: `${P.ups.length} rangos nuevos, del más reciente al más antiguo` }) }, `Ver todos (${P.ups.length})`) : null),
       h("div", { class: "exlist" }, P.ups.slice(0, 6).map((u) => upRow(u)))) : null);
 }
 // Una subida de rango: de qué rango a cuál, con el escudo nuevo
