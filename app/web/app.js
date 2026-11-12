@@ -833,7 +833,7 @@ async function connectionsSheet() {
         S.me ? row_("⚖", "Báscula", st_("bascula", !!info.bascula, info.bascula), info.bascula && !isOff("bascula") ? `Último pesaje ${whenTxt(info.bascula)}` : "Que cada pesaje llegue solo (peso, % de grasa…)", btn_("bascula", info.bascula)) : null,
         S.me ? row_("🏋", "Entrenos", st_("entreno", !!info.entreno_ultimo, info.entreno_ultimo), info.entreno_ultimo && !isOff("entreno") ? `Último entreno detectado ${whenTxt(info.entreno_ultimo)}` : "Que se sepa solo cuándo entrenas (Hevy u otra app)", btn_("entreno", info.entreno_ultimo)) : null,
         S.me ? row_("📋", "Series de Hevy", info.hevy_agente ? "ok" : "man", info.hevy_agente ? `A través de tu agente · último ${agoTxt(info.hevy_agente)}` : "Capturas a tu agente, o conecta Hevy a tu agente y las sube él",
-          h("button", { class: "btn sm ghost", onclick: () => hevyAgentSheet(info.hevy_agente) }, info.hevy_agente ? "Ver" : "Cómo")) : null),
+          h("button", { class: "btn sm ghost", onclick: () => hevyAgentSheet(info.hevy_agente) }, info.hevy_agente ? "Ver" : "Conectar")) : null),
     ], S.me && info.configurado ? [h("button", { class: "btn sm ghost", onclick: () => mobileKeySheet(async () => { info = await api("GET", "/api/movil").catch(() => info); }) }, icon("key"), "Clave del móvil")] : null);
   };
   draw();

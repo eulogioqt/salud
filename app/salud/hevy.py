@@ -194,14 +194,17 @@ def import_json(conn, data, source="chat"):
             for ex in sorted(w.get("exercises") or [], key=lambda e: e.get("index", 0)):
                 sets = sorted(ex.get("sets") or [], key=lambda s: s.get("index", 0))
                 ttype = ex.get("exercise_type")
-                if not ttype:
+                known = None if ttype else conn.execute(  # el conector de Hevy no trae el tipo: el que ya tenía ese ejercicio
+                    "SELECT e.kind FROM workout_exercises e JOIN workouts w ON w.id=e.workout_id WHERE e.name=? AND w.deleted_at IS NULL "
+                    "ORDER BY w.date DESC, e.id DESC LIMIT 1", (ex.get("title") or "",)).fetchone()
+                if not ttype and not known:
                     if any(s.get("distance_meters") or s.get("duration_seconds") for s in sets) and not any(s.get("reps") for s in sets):
                         ttype = "distance_duration"
                     elif any((s.get("weight_kg") or 0) > 0 for s in sets):
                         ttype = "bodyweight_reps" if any(h in core._norm(ex.get("title") or "") for h in T.LASTRE_HINTS) else "weight_reps"
                     else:
                         ttype = "reps_only"
-                kind = _kind(ttype, sets)
+                kind = known[0] if known else _kind(ttype, sets)
                 exercises.append({
                     "name": ex.get("title") or "Ejercicio", "kind": kind, "notes": ex.get("notes") or None,
                     "superset": ex.get("superset_id"),

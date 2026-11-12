@@ -531,6 +531,13 @@ class TestHevyAgente(Base):
             self.assertIsNotNone(core.get_setting(self.conn, "hevy_agente"))
             self.assertEqual(core.pending_sessions(self.conn), [])
             self.assertTrue(H.status(self.conn)["agente"])
+            # sin exercise_type (el conector no lo trae): usa el tipo que ya tenía el ejercicio
+            from salud import training as T
+            T.create_workout(self.conn, {"date": "2026-11-01", "title": "Calis", "exercises": [{"name": "Dominada Asistida", "kind": "asistido", "sets": [{"weight_kg": -20, "reps": 8}]}]})
+            H.import_json(self.conn, {"workouts": [{"id": "w2", "title": "Calis", "start_time": d + "T07:00:00Z", "end_time": d + "T07:30:00Z",
+                                                    "exercises": [{"title": "Dominada Asistida", "exercise_template_id": "T9", "sets": [{"weight_kg": 15, "reps": 9}]}]}]}, "chat")
+            w2 = [w for w in T.list_workouts(self.conn) if w["hevy_id"] == "w2"][0]
+            self.assertEqual(w2["exercises"][0]["kind"], "asistido")
 
 
 class TestCalibration(unittest.TestCase):
