@@ -342,6 +342,10 @@ class TestTraining(Base):
         self.assertEqual(len(b), 1); self.assertEqual(b[0]["fat_pct"], 18.2); self.assertAlmostEqual(b[0]["bmr_kcal"], 1755.26, 1)
         core.ingest_health(self.conn, p)  # reenviado: no duplica
         self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM body_metrics WHERE date=?", (D1,)).fetchone()[0], 1)
+        # otro pesaje con el mismo peso minutos después: se guarda aparte, sin cambiar el peso del día
+        core.ingest_health(self.conn, {"weight": [{"kilograms": 81.6, "time": D1 + "T08:05:00+01:00"}], "body_fat": [{"percentage": 17.9, "time": D1 + "T08:05:00+01:00"}]})
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM body_metrics WHERE date=?", (D1,)).fetchone()[0], 2)
+        self.assertEqual(core.get_day_row(self.conn, D1)["weight_time"], "08:01")
 
     def test_note_variant(self):
         from salud import training as T

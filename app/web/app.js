@@ -518,7 +518,7 @@ async function weightSheet(st) {
       h("div", { class: "row", style: { margin: "14px 0 6px" } }, h("b", null, "Evolución"), h("span", { class: "grow" }),
         h("div", { class: "seg" }, [[30, "30 d"], [90, "90 d"]].map(([d, l]) => h("button", { class: days === d ? "on" : "", onclick: () => { days = d; draw(); } }, l)))),
       h("div", { class: "card panel" }, weightChart(ws, P.body, st.date))],
-      scale ? sheetFoot(`Último envío de la báscula: ${agoTxt(S.pasos.bascula)}`) : sheetFoot(null, !!S.me), { sub });
+      scale ? sheetFoot(`Último envío de la báscula: ${agoTxt(S.pasos.bascula)}`) : sheetFoot(null, "bascula"), { sub });
   };
   draw();
 }
@@ -546,12 +546,15 @@ async function stepsData(st) {
 }
 const agoTxt = (ts) => { if (!ts) return "—"; const m = Math.round((Date.now() - new Date(ts.replace(" ", "T"))) / 60000); return m < 1 ? "ahora" : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : dateLabel(ts.slice(0, 10), { day: "numeric", month: "short" }); };
 // Pie común de las fichas que llegan del móvil: estado del último envío + Conexiones + Ver todo en Progreso
-function sheetFoot(status, conn = true, label = "Ver todo en Progreso", hash = "#/progreso") {
+// Conectado: estado del último envío + Conexiones + Ver todo. Sin conectar: «Sin conectar» + Conectar (verde) + Ver todo.
+function sheetFoot(status, mode = null, label = "Ver todo en Progreso", hash = "#/progreso") {
+  const off = !!mode, go = () => { for (const c of [...OPEN_SHEETS]) c(); location.hash = hash; };
   return [h("div", { class: "sfoot" },
-    status ? h("span", { class: "sf-st" }, h("i", { class: "sf-dot" }), status) : h("span", { class: "sf-st" }),
+    h("span", { class: "sf-st" + (off ? " off" : "") }, h("i", { class: "sf-dot" }), off ? "Sin conectar" : status),
     h("div", { class: "sf-b" },
-      conn ? h("button", { class: "btn sm", onclick: () => connectionsSheet() }, icon("plug"), "Conexiones") : null,
-      h("button", { class: "btn sm", onclick: () => { for (const c of [...OPEN_SHEETS]) c(); location.hash = hash; } }, label)))];
+      !S.me ? null : off ? h("button", { class: "btn sm primary", onclick: () => stepsConnectSheet(mode) }, icon("plug"), "Conectar")
+        : h("button", { class: "btn sm", onclick: () => connectionsSheet() }, icon("plug"), "Conexiones"),
+      label ? h("button", { class: "btn sm", onclick: go }, label) : null))];
 }
 function stepsFooter(d) { return sheetFoot(`Último envío del móvil: ${agoTxt(d.last_received)}`); }
 // Ficha de pasos del día (desde Hoy): objetivo, gasto, distancia, racha y el día por horas frente a tu media
@@ -790,9 +793,9 @@ function stepsSheet(st) {
   inp.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); });
   draw();
   const sh = sheet("Pasos", [h("div", { class: "steps-box" }, inp, h("div", { class: "faint" }, "pasos del día"), kcalEl),
+    h("button", { class: "btn primary lg steps-save", onclick: save }, "Guardar"),
     h("div", { class: "note" }, `Zancada ${fmt(en.stride_m, 2)} m · ${fmt(en.weight_used_kg, 1)} kg · ${String(en.kcal_per_kg_km).replace(".", ",")} kcal/kg/km. Si una sesión de carrera ya está en el contador, se descuenta para no contarla dos veces.`)],
-    [S.me ? h("button", { class: "btn ghost sm", onclick: () => stepsConnectSheet() }, (S.pasos || {}).conectado ? "Pasos automáticos" : "🔗 Que lleguen solos") : null,
-      h("span", { class: "grow" }), h("button", { class: "btn primary lg", onclick: save }, "Guardar")], { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }) });
+    sheetFoot(null, "pasos"), { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }) });
   setTimeout(() => { inp.focus(); inp.select(); }, 60);
 }
 
@@ -814,7 +817,7 @@ async function trainingDaySheet(st) {
       : h("div", { class: "card empty flat" }, icon("dumbbell"), h("h3", null, rest ? "Día de descanso" : "Sin entreno"),
         h("p", { class: "muted" }, rest ? "Hoy no cuenta ningún entreno." : "Mándale el entreno a tu agente («entreno hecho» o la captura de Hevy), o márcalo como día de descanso."),
         !closed ? h("button", { class: "btn", onclick: async () => { await act(() => api("PUT", "/api/days/" + st.date, { rest_day: !rest }), rest ? "Descanso quitado" : "Marcado como descanso"); sh.close(); } }, rest ? "Quitar descanso" : "Día de descanso") : null),
-  ], trainOn ? sheetFoot(`Último entreno detectado: ${agoTxt(S.pasos.entreno_ultimo)}`, true, "Ir a Entreno", "#/entreno") : sheetFoot(null, !!S.me, "Ir a Entreno", "#/entreno"),
+  ], trainOn ? sheetFoot(`Último entreno detectado: ${agoTxt(S.pasos.entreno_ultimo)}`, null, "Ir a Entreno", "#/entreno") : sheetFoot(null, "entreno", "Ir a Entreno", "#/entreno"),
   { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }) });
 }
 

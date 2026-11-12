@@ -1677,3 +1677,9 @@ img { -webkit-user-drag: none; user-select: none; }
   .sf-b { margin-left: 0; } .sf-b .btn { flex: 1; padding: 9px 10px; font-size: 14px; }
 }
 .card.empty > .btn { margin-top: 14px; }
+.sf-st.off { color: var(--muted); } .sf-st.off .sf-dot { background: var(--faint); }
+.sf-b .btn.primary { color: #fff; }
+.steps-save { width: 100%; margin: 12px 0 4px; }
+.wk-orig { display: flex; align-items: center; gap: 10px; }
+.lnk-del { border: 0; background: none; color: var(--danger, #b3261e); font: inherit; font-size: 12.5px; cursor: pointer; padding: 2px 4px; opacity: .8; }
+.lnk-del:hover { opacity: 1; text-decoration: underline; }

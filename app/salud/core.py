@@ -1738,7 +1738,9 @@ def _ingest_body(conn, payload, source):
         if conn.execute("SELECT 1 FROM body_metrics WHERE date=? AND time=? AND source='movil' AND deleted_at IS NOT NULL", (d, t)).fetchone():
             out.append({"fecha": d, "hora": t, "nuevo": False, "motivo": "borrado"})
             continue
-        same = conn.execute("SELECT * FROM body_metrics WHERE date=? AND deleted_at IS NULL AND (time=? OR (weight_kg IS NOT NULL AND ABS(weight_kg-?)<0.06))",
+        # Repetido: mismo momento; o el mismo pesaje apuntado antes desde una captura (otra fuente, mismo peso).
+        # Dos pesajes del móvil con el mismo peso a horas distintas son pesajes distintos (te pesas varias veces seguidas).
+        same = conn.execute("SELECT * FROM body_metrics WHERE date=? AND deleted_at IS NULL AND (time=? OR (source<>'movil' AND weight_kg IS NOT NULL AND ABS(weight_kg-?)<0.06))",
                             (d, t, vals.get("weight_kg", -99))).fetchone()
         if same:
             new = {f: v for f, v in vals.items() if same[f] is None}
