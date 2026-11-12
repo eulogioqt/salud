@@ -333,15 +333,28 @@ function goalSheet(st) {
       step(++n, "Lo que gastarás hoy", null, base, null, h("div", { class: "gs mini" },
         mrow("Metabolismo basal", "en reposo, con tu peso", fmt(P.bmr || 0)),
         mrow("Día a día", st.day.neat_kcal == null ? "uno normal hasta que elijas al cerrar" : "el que elegiste", fmt(P.neat || 0)),
-        mrow("Pasos", tg.steps_pending ? `${fmt(tg.projected_steps || 0)} previstos: tu media de los ${dateLabel(st.date, { weekday: "long" })}` : `${fmt(P.steps_n || 0)} reales`, fmt(P.steps || 0)),
+        mrow("Pasos", stepsPlanTxt(st), fmt(P.steps || 0)),
         mrow("Entrenos", P.exercise ? "los apuntados hoy" : "ninguno apuntado (no se prevén)", fmt(P.exercise || 0)),
         P.ajuste ? mrow("Ajuste de calibración", "según cómo cambia tu peso", signed(P.ajuste, 0)) : null)),
       off ? step(++n, off < 0 ? "Quitas tu déficit" : "Sumas tu superávit", signed(off, 0), net,
         off < 0 ? "Lo que debe llegarle a tu cuerpo para bajar poco a poco." : "Lo que debe llegarle a tu cuerpo para subir poco a poco.") : null,
       step(++n, "Divides entre " + fmt(1 - tef, 1), "÷ " + fmt(1 - tef, 1), eat,
         `Digerir la comida gasta ~${fmt(tef * 100)} % de lo que comes. Para que te lleguen ${fmt(net)}, hay que comer ${fmt(net)} ÷ ${fmt(1 - tef, 1)} = ${fmt(eat)} (${fmt(dig)} se van en digerir).`, null, true)),
-    !closed ? h("div", { class: "note" }, "Los pasos y el día a día se suponen para que el objetivo no cambie durante el día; al cerrar se ajustan con lo real. Los entrenos cuentan cuando los apuntas.") : null],
+    !closed ? h("div", { class: "note" }, (tg.steps_pending ? "Los pasos y el día a día se prevén" : "El día a día se supone") + " para que el objetivo no baje durante el día; al cerrar se ajusta con lo real. Los entrenos cuentan cuando los apuntas.") : null],
     [h("span", { class: "grow" }), h("button", { class: "btn", onclick: change }, "Cambiar objetivo")], { sub });
+}
+// Con qué pasos cuenta el objetivo y por qué (ver step_projection en el servidor)
+function stepsPlanTxt(st) {
+  const tg = st.target || {}, sp = tg.steps_plan, P = tg.base_parts || {};
+  if (!sp) return tg.steps_pending ? `${fmt(tg.projected_steps || 0)} previstos` : `${fmt(P.steps_n || 0)} reales`;
+  const n = fmt(sp.steps || 0), isToday = st.date === st.today;
+  if (sp.mode === "manual") return `${n} apuntados a mano`;
+  if (sp.mode === "ritmo") {
+    const src = sp.rest_label === "un día normal" ? "en un día normal (aún no hay tu historial por horas)" : sp.rest_label === "tus últimos días" ? "según tus últimos días" : sp.rest_label;
+    return `${n} previstos: llevas ${fmt(sp.now)} + ~${fmt(sp.rest)} que sueles andar desde las ${sp.from} ${src}`;
+  }
+  if (sp.mode === "media") return `${n} previstos: ${sp.mean_label || "tu media"}` + (sp.now == null ? (isToday ? " (aún sin pasos de hoy)" : " (sin pasos apuntados)") : ` (llevas ${fmt(sp.now)}: vas por debajo de tu ritmo)`);
+  return `${n} reales`;
 }
 // Qué cuenta el gasto de hoy y qué falta (lo que explica el *), y con qué cuenta el objetivo
 function gastoTip(st) {
@@ -352,7 +365,7 @@ function gastoTip(st) {
   if (falta.length) lines.push("## * Falta", ...falta.map((f) => "· " + f));
   lines.push("## Día a día", `Lo que te mueves sin contar pasos ni entrenos (de pie, tareas de casa…). Al cerrar eliges cómo fue; «normal» ≈ ${fmt(Math.round(150 * (en.neat_factor || 1)))} kcal para tu peso (150 para 75 kg, proporcional al peso).`);
   if (tg.dynamic) lines.push("## Cómo sale tu objetivo de comida", "(metabolismo + día a día + pasos + entrenos " + (tg.kcal_offset < 0 ? "− " : "+ ") + fmt(Math.abs(tg.kcal_offset || 0)) + ") ÷ 0,9", "El ÷ 0,9 es la digestión: comer gasta un 10 % de lo que comes.");
-  if (tg.dynamic) lines.push("## Ya cuenta con", tg.steps_pending ? `tus pasos previstos: ${fmt(tg.projected_steps || 0)} (media de los ${dateLabel(st.date, { weekday: "long" })}; si llevas menos, cuenta con estos)` : "tus pasos de hoy", "un día a día normal", "los entrenos que ya estén apuntados");
+  if (tg.dynamic) lines.push("## Ya cuenta con", "pasos: " + stepsPlanTxt(st), "un día a día normal", "los entrenos que ya estén apuntados");
   return lines.join("\n");
 }
 // El anillo compara lo comido con lo que «toca» comer; el balance, lo comido con lo gastado.
@@ -2284,7 +2297,7 @@ function targetSheet(tg, onSaved) {
         h("div", { class: "tg-big num" }, fmt(r.kcal), h("small", null, " kcal")),
         h("div", { class: "mchips num" }, h("i", { class: "p" }, fmt(r.protein_g) + " g"), h("i", { class: "c" }, fmt(r.carbs_g) + " g"), h("i", { class: "g" }, fmt(r.fat_mid_g) + " g")),
         mode === "gasto" ? h("div", { class: "faint tg-why" }, `Gasto estimado ${fmt(r.base_kcal)} kcal sin contar la digestión → comer ${fmt(r.kcal)} kcal para quedar en ${signed(r.kcal_offset || 0)} kcal de balance.`,
-          r.steps_pending ? ` Aún no hay pasos de hoy: cuento ${r.projected_steps != null ? "tu media (" + fmt(r.projected_steps) + ")" : "0"} y se ajusta al apuntarlos.` : "", ` Proteína con ${fmt(r.weight_kg, 1)} kg.`) : null].filter(Boolean));
+          r.steps_pending ? ` Pasos: ${r.steps_plan ? stepsPlanTxt({ target: r, date: todayISO(), today: todayISO() }) : fmt(r.projected_steps || 0) + " previstos"}.` : "", ` Proteína con ${fmt(r.weight_kg, 1)} kg.`) : null].filter(Boolean));
     } catch (e) { prev.className = "tg-prev err"; prev.replaceChildren(e.message); }
   }, 250); };
   [off, ppk, fpct, kc, p, fg].forEach((x) => x.addEventListener("input", () => { drawPills(); upd(); }));

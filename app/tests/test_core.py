@@ -553,6 +553,38 @@ class TestKcalAgente(Base):
         self.assertEqual(w["kcal"], 380)
 
 
+class TestStepProjection(Base):
+    def _day(self, d, per_hour, upto=24):
+        """Pasos por horas de un día (dict hora → pasos) hasta la hora `upto`, como los manda el móvil."""
+        tot = 0
+        for hh in range(upto):
+            n = per_hour.get(hh, 0)
+            self.conn.execute("INSERT INTO step_buckets(start,end,steps,received_at) VALUES(?,?,?,?)",
+                              ("%sT%02d:00:00" % (d, hh), "%sT%02d:00:00" % (d, hh + 1) if hh < 23 else "%sT23:59:59" % d, n, "x"))
+            tot += n
+        core._ensure_day(self.conn, d)
+        self.conn.execute("UPDATE days SET steps=?, steps_auto=1 WHERE date=?", (tot, d))
+        return tot
+
+    def test_media_ritmo_y_a_mano(self):
+        from unittest import mock
+        d = "2026-11-12"  # jueves
+        usual = {9: 1000, 13: 2000, 18: 3000}  # 6.000 al día: 1.000 antes de las 10, 5.000 después
+        for k in (1, 2):
+            self._day(core.shift(d, -7 * k), usual)
+        with mock.patch.object(core, "today", lambda: d):
+            self._day(d, {8: 300}, upto=10)  # a las 10:00 lleva 300: por detrás → su media
+            sp = core.step_projection(self.conn, d)
+            self.assertEqual((sp["mode"], sp["steps"]), ("media", 6000))
+            self.conn.execute("DELETE FROM step_buckets WHERE substr(start,1,10)=?", (d,))
+            self._day(d, {8: 4000}, upto=10)  # lleva 4.000 a las 10:00: 4.000 + 5.000 que suele andar después
+            sp = core.step_projection(self.conn, d)
+            self.assertEqual((sp["mode"], sp["steps"], sp["rest"], sp["from"], sp["rest_label"]), ("ritmo", 9000, 5000, "10:00", "los jueves"))
+            core.update_day(self.conn, d, {"steps": 7500}, "test")  # a mano: ese número y ya
+            sp = core.step_projection(self.conn, d)
+            self.assertEqual((sp["mode"], sp["steps"]), ("manual", 7500))
+
+
 class TestCalibration(unittest.TestCase):
     def test_descubre_el_error_del_gasto(self):
         import random

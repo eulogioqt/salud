@@ -46,6 +46,11 @@ def print_day(conn, d):
               f(tg["fat_min_g"]), f(tg["fat_max_g"]), " (provisional)" if tg["provisional"] else ""))
         if t["kcal"] is not None and tg["kcal"]:
             print("Restante:  %s kcal · P %s g" % (f(tg["kcal"] - t["kcal"]), f((tg["protein_g"] or 0) - (t["protein_g"] or 0), 1)))
+        sp = tg.get("steps_plan") or {}
+        if tg.get("steps_pending") and sp:
+            why = ("llevas %s + ~%s que suele andar desde las %s (%s)" % (f(sp["now"]), f(sp["rest"]), sp["from"], sp["rest_label"]) if sp["mode"] == "ritmo"
+                   else "%s%s" % (sp.get("mean_label") or "media", "" if sp["now"] is None else ", lleva %s" % f(sp["now"])))
+            print("Pasos con los que cuenta el objetivo: %s (%s)" % (f(sp["steps"]), why))
     print("Gasto est.: %s kcal (BMR %s, TEF %s, NEAT %s, pasos %s, ejercicio %s)%s · Balance est.: %s" % (
         f(en["total"]), f(en["bmr"]), f(en["tef"]), f(en["neat"]), f(en["steps_kcal"]), f(en["exercise_kcal"]),
         "" if en["complete"] else " INCOMPLETO", f(st["balance"])))

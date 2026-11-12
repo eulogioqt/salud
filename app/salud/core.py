@@ -239,28 +239,111 @@ def _weekday_steps(conn, d, weeks=6):
     return round(sum(vals) / len(vals)) if len(vals) >= 2 else None
 
 
+# Reparto típico de los pasos a lo largo del día (% por hora, 0–23 h): solo mientras no haya historial propio por horas
+_GENERIC_HOURS = [0, 0, 0, 0, 0, 0, 1, 3, 6, 6, 5, 6, 7, 7, 6, 5, 6, 7, 7, 6, 5, 4, 2, 1]
+_WD_PL = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábados", "domingos"]
+
+
+def _hourly_days(conn, days):
+    """De esos días, los que tienen pasos por tramos cortos (no solo el total del día)."""
+    if not days:
+        return []
+    q = ("SELECT substr(start,1,10) d FROM step_buckets WHERE substr(start,1,10) IN (%s) AND (julianday(end)-julianday(start))*24 <= 3 "
+         "GROUP BY 1 HAVING COUNT(*) >= 4" % ",".join("?" * len(days)))
+    return [r[0] for r in conn.execute(q, days)]
+
+
+def _steps_after(conn, d, t):
+    """Pasos de ese día a partir de la hora t (horas con decimales); un tramo partido cuenta la parte proporcional."""
+    n = 0.0
+    for r in conn.execute("SELECT start, end, steps FROM step_buckets WHERE substr(start,1,10)=?", (d,)):
+        a = int(r["start"][11:13]) + int(r["start"][14:16]) / 60
+        b = (int(r["end"][11:13]) + int(r["end"][14:16]) / 60) if r["end"] and r["end"][:10] == d else 24.0
+        if b <= t:
+            continue
+        n += r["steps"] if a >= t or b <= a else r["steps"] * (b - t) / (b - a)
+    return n
+
+
+def step_projection(conn, d):
+    """Pasos con los que cuenta el gasto previsto (y el objetivo) del día.
+    · Días pasados y de hoy apuntados a mano: los que hay. Día pasado sin pasos: la media.
+    · Hoy, con los pasos llegando del móvil: el mayor entre (A) tu media de ese día de la semana y (B) lo que llevas +
+      lo que sueles andar desde la hora del último dato hasta acabar el día (media de esos mismos días de la semana; si aún
+      no hay, de tus últimos días; si tampoco, el reparto típico de un día aplicado a tu media). Se suma, no se multiplica
+      por tu ritmo, para que una mañana muy activa no dispare la previsión.
+    Devuelve {mode: real|manual|media|ritmo, steps, now, mean, mean_label, rest, from, rest_label}."""
+    day = get_day_row(conn, d)
+    wd = _weekday_steps(conn, d)
+    mean = wd or _avg_steps(conn, d)
+    wdn = _WD_PL[parse_date(d).weekday()]
+    res = {"mode": "real", "steps": day["steps"], "now": day["steps"], "mean": mean,
+           "mean_label": ("tu media de los %s" % wdn) if wd else ("tu media de los últimos 7 días" if mean is not None else None)}
+    steps = day["steps"]
+    if d != today():
+        if steps is None:
+            res.update(mode="media", steps=mean)
+        return res
+    if steps is not None and not day["steps_auto"]:
+        res["mode"] = "manual"
+        return res
+    if steps is None:
+        res.update(mode="media", steps=mean)
+        return res
+    last = conn.execute("SELECT MAX(end) FROM step_buckets WHERE substr(start,1,10)=? AND (julianday(end)-julianday(start))*24 <= 3", (d,)).fetchone()[0]
+    if last and last[:10] == d:
+        t = int(last[11:13]) + int(last[14:16]) / 60
+    else:
+        nl = now_local()
+        t = nl.hour + nl.minute / 60
+    dd = parse_date(d)
+    prof = _hourly_days(conn, [(dd - timedelta(weeks=k)).isoformat() for k in range(1, 7)])
+    lbl = "los %s" % wdn
+    if len(prof) < 2:
+        prof = _hourly_days(conn, [(dd - timedelta(days=k)).isoformat() for k in range(1, 15)])
+        lbl = "tus últimos días"
+        if len(prof) < 3:
+            prof, lbl = [], None
+    if prof:
+        rest = sum(_steps_after(conn, x, t) for x in prof) / len(prof)
+    elif mean is not None:
+        h0 = int(t)
+        rest = mean * (sum(_GENERIC_HOURS[h0 + 1:]) + _GENERIC_HOURS[h0] * (1 - (t - h0))) / sum(_GENERIC_HOURS)
+        lbl = "un día normal"
+    else:
+        rest = None
+    rest = round(rest) if rest is not None else None
+    b = steps + rest if rest is not None else None
+    if b is not None and (mean is None or b > mean):
+        res.update(mode="ritmo", steps=b, rest=rest, rest_label=lbl, **{"from": "%02d:%02d" % (int(t), round((t - int(t)) * 60) % 60)})
+    elif mean is not None and mean > steps:
+        res.update(mode="media", steps=mean)
+    return res
+
+
 def projected_base(conn, d):
     """Gasto previsto del día entero sin la digestión (metabolismo + día a día normal + pasos previstos + entrenos).
-    Devuelve (base, energía, pasos_previstos o None)."""
+    Devuelve (base, energía, previsión de pasos o None si cuenta con los reales)."""
     day = get_day_row(conn, d)
     acts = day_activities(conn, d)
-    proj = _weekday_steps(conn, d) or _avg_steps(conn, d)
-    no_steps = day["steps"] is None or (d == today() and proj is not None and day["steps"] < proj)
-    if no_steps:
-        day = dict(day, steps=proj if proj is not None else (day["steps"] or 0))
+    sp = step_projection(conn, d)
+    pending = sp["mode"] in ("media", "ritmo")
+    if pending:
+        day = dict(day, steps=sp["steps"] if sp["steps"] is not None else (day["steps"] or 0))
     if day["neat_kcal"] is None:  # cuenta con un día «normal» hasta que se elija al cerrar
         day = dict(day, neat_kcal=float(settings(conn)["neat_base_kcal"]))
     en = energy(conn, d, 0, day, acts)
-    return en["total"], en, (proj if no_steps else None)
+    return en["total"], en, sp
 
 
 def resolve_dynamic(conn, d, t):
     """Objetivo «según tu gasto»: kcal = (metabolismo + día a día + pasos + entrenos + diferencia) / (1 − TEF),
     así lo comido menos el gasto (que incluye la digestión de lo comido) queda en la diferencia.
-    Pasos: los previstos (media del mismo día de la semana; si no hay, de los últimos 7 días). Hoy, mientras los
-    pasos que llevas sean menos que los previstos, cuenta con los previstos (el objetivo no baja por la mañana)."""
-    base_, en, proj = projected_base(conn, d)
-    no_steps = proj is not None
+    Pasos: los de step_projection (hoy, el mayor entre tu media de ese día y lo que llevas + lo que sueles andar
+    el resto del día; así el objetivo no baja por la mañana y sube en cuanto vas por delante de tu ritmo)."""
+    base_, en, sp = projected_base(conn, d)
+    no_steps = sp["mode"] in ("media", "ritmo")
+    proj = sp["steps"]
     tef = float(settings(conn)["tef_pct"])
     t = dict(t)
     if en["bmr"] is None or en["total"] is None:
@@ -269,7 +352,7 @@ def resolve_dynamic(conn, d, t):
     base = en["total"]  # sin TEF: se calculó con 0 kcal ingeridas
     kcal = round((base + (t["kcal_offset"] or 0)) / (1 - tef))
     kg = en["weight_used_kg"]
-    t.update({"kcal": kcal, "base_kcal": round(base), "weight_kg": kg, "projected_steps": proj if no_steps else None, "steps_pending": no_steps,
+    t.update({"kcal": kcal, "base_kcal": round(base), "weight_kg": kg, "projected_steps": proj if no_steps else None, "steps_pending": no_steps, "steps_plan": sp,
               "base_parts": {"bmr": en["bmr"], "neat": en["neat"], "steps": en["steps_kcal"] or 0, "steps_n": en["steps"], "exercise": en["exercise_kcal"],
                              "ajuste": en["calibration"]["ajuste_kcal"]},
               "tef_pct": tef,
