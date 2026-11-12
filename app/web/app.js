@@ -390,7 +390,8 @@ function summaryCard(st) {
   const open = () => energySheet(st);
   const big = ringSvg(232, 98, 16, kcalT ? (t.kcal || 0) / kcalT : 0, "big" + (over ? " over" : ""), over ? [
     [-34, "Consumido", "rg-l"], [14, v(t, "kcal"), "rg-v"], [40, "/ " + fmt(kcalT) + " kcal", "rg-o"], [64, "+" + fmt(-rest) + " de más", "rg-x" + (-rest / kcalT > 1 ? " hi" : "")]] : [
-    [-26, "Consumido", "rg-l"], [22, v(t, "kcal"), "rg-v"], [50, kcalT ? "/ " + fmt(kcalT) + " kcal" : "kcal · sin objetivo", "rg-o"]], true);
+    ...(rest != null ? [[-34, "Consumido", "rg-l"], [14, v(t, "kcal"), "rg-v"], [40, "/ " + fmt(kcalT) + " kcal", "rg-o"], [64, "quedan " + fmt(rest), "rg-r"]]
+      : [[-26, "Consumido", "rg-l"], [22, v(t, "kcal"), "rg-v"], [50, kcalT ? "/ " + fmt(kcalT) + " kcal" : "kcal · sin objetivo", "rg-o"]])], true);
   const macro = (cls, label, f, target, unitT) => {
     const miss = (t.missing || []).includes(f);
     return h("div", { class: "mring " + cls }, ringSvg(96, 38, 9, target ? (t[f] || 0) / target : 0, cls, [[3, v(t, f) + (miss ? "+" : ""), "rg-mv"], [20, "/ " + unitT + " g", "rg-mo"]], true),
@@ -445,7 +446,8 @@ function energySheet(st) {
       h("div", { class: "bd-apx2-s" }, `${fmt(st.approx_kcal)} kcal de comidas fuera o productos sin etiqueta. Al ponerles la etiqueta se corrige en todos los días.`))) : null;
   const eaten = h("div", { class: "bd-sec" },
     h("div", { class: "bd-st" }, h("span", { class: "grow" }, "Lo que has comido"),
-      h("span", { class: "num bd-tot" }, h("b", null, v(t, "kcal")), tg.kcal ? h("span", { class: "faint" }, " / " + fmt(tg.kcal) + " kcal") : " kcal")),
+      h("span", { class: "num bd-tot" }, h("b", null, v(t, "kcal")), tg.kcal ? h("span", { class: "faint" }, " / " + fmt(tg.kcal) + " kcal") : " kcal",
+        tg.kcal ? h("span", { class: "bd-left" + (kc > tg.kcal ? " over" : "") }, kc > tg.kcal ? `+${fmt(kc - tg.kcal)} de más` : `quedan ${fmt(tg.kcal - kc)}`) : null)),
     h("div", { class: "bd-macros" },
       macroRow("p", "Proteína", "protein_g", tg.protein_g), macroRow("c", "Carbohidratos", "carbs_g", tg.carbs_g), macroRow("g", "Grasas", "fat_g", tg.fat_mid_g)),
     (t.missing || []).length ? h("div", { class: "note warn" }, "Hay valores desconocidos: los totales son un mínimo.") : null,
