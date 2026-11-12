@@ -1627,3 +1627,20 @@ img { -webkit-user-drag: none; user-select: none; }
 .ring .rg-x { fill: #8a6300; } .ring .rg-x.hi { fill: #a3261b; }
 @media (prefers-color-scheme: dark) { :root { --ring-over1: #d4a72c; --ring-over3: #d9473f; } .ring .rg-x { fill: #e6bd4f; } .ring .rg-x.hi { fill: #f06a62; } }
 .q.estimacion, .q.provisional, .q.pendiente { background: var(--warn-soft); color: var(--warn); }  /* todo lo «Aprox.» igual */
+/* Macros al pasarse: la vuelta extra es su mismo color más oscuro, y la tercera aún más */
+.ring.p { --ring-over1: #2a4f9e; --ring-over3: #17306a; }
+.ring.c { --ring-over1: #9c6a12; --ring-over3: #5e3f08; }
+.ring.g { --ring-over1: #923a25; --ring-over3: #571d12; }
+@media (prefers-color-scheme: dark) {
+  .ring.p { --ring-over1: #4a6fcf; --ring-over3: #2c4a96; }
+  .ring.c { --ring-over1: #b07d22; --ring-over3: #7a5412; }
+  .ring.g { --ring-over1: #b8563f; --ring-over3: #82372a; }
+}
+/* Chip «Cerrado el …» del resumen: en móvil, formato corto */
+.bd-closed-x .cx-s { display: none; }
+@media (max-width: 640px) { .bd-closed-x .cx-l { display: none; } .bd-closed-x .cx-s { display: inline; } }
+/* Aviso de días anteriores sin cerrar */
+.openwarn { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin: 0 0 12px; padding: 8px 12px; border-radius: 12px; background: var(--warn-soft); color: var(--warn); font-size: 13.5px; font-weight: 600; }
+.openwarn > svg { width: 15px; height: 15px; flex: none; }
+.openwarn .ow-d { height: 26px; padding: 0 10px; border-radius: 99px; border: 1px solid currentColor; background: transparent; color: inherit; font: inherit; font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; text-transform: capitalize; }
+.openwarn .ow-d:hover { background: color-mix(in srgb, currentColor 12%, transparent); }

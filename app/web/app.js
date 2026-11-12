@@ -75,7 +75,16 @@ async function act(fn, okMsg) {
 const S = { view: "hoy", date: todayISO(), day: null, catalog: null, rev: null, progress: null, libFilter: null, libQuery: "", progDays: 90, energyOpen: false, sheetOpen: 0, pendingRefresh: false };
 
 async function loadCatalog() { S.catalog = await api("GET", "/api/catalog?all=1"); }
-async function loadDay() { S.day = await api("GET", "/api/state?date=" + S.date); S.rev = S.day.rev; }
+async function loadDay() {
+  let st = await api("GET", "/api/state?date=" + S.date);
+  // Al entrar sin fecha: si hoy aún no tiene nada y queda un día anterior sin cerrar, se abre ese (el de anoche, normalmente)
+  if (S.autoDay) {
+    const od = st.open_days || [], want = od.length && !st.today_entry_count ? od[od.length - 1] : st.today;
+    if (want !== st.date) { S.date = want; st = await api("GET", "/api/state?date=" + want); }
+  }
+  if (S.autoDay) st.autoDate = st.date;
+  S.day = st; S.rev = st.rev;
+}
 async function refresh() {
   if (S.view === "hoy") await Promise.all([loadDay(), loadCatalog()]);
   else if (S.view === "biblioteca") await loadCatalog();
@@ -101,7 +110,10 @@ function route() {
   [...OPEN_SHEETS].forEach((c) => c());
   const parts = location.hash.replace(/^#\/?/, "").split("/");
   S.view = ["hoy", "entreno", "biblioteca", "progreso"].includes(parts[0]) ? parts[0] : "hoy";
-  if (S.view === "hoy") S.date = /^\d{4}-\d{2}-\d{2}$/.test(parts[1] || "") ? parts[1] : todayISO();
+  if (S.view === "hoy") {
+    S.autoDay = !/^\d{4}-\d{2}-\d{2}$/.test(parts[1] || "");
+    S.date = !S.autoDay ? parts[1] : S.day && S.day.autoDate ? S.day.autoDate : todayISO();
+  }
   document.querySelectorAll("#tabs a").forEach((a) => a.classList.toggle("on", a.dataset.v === S.view));
   $("#view").classList.toggle("wide", S.view !== "hoy");
   // Cambio de pestaña al instante: lo que ya tenemos (y se actualiza detrás) o un esqueleto de carga, nunca la pestaña anterior
@@ -249,7 +261,12 @@ function viewHoy() {
     h("span", { class: "spacer" }),
     !isToday ? h("button", { class: "btn ghost sm", onclick: () => goDay(st.today) }, "Ir a hoy") : null,
     closed ? h("span", { class: "pill closed" }, icon("lock"), "Cerrado") : h("span", { class: "pill" }, "Abierto"));
-  const wrap = h("div", { class: closed ? "locked" : "" }, head, summaryCard(st), bodyStrip(st));
+  // Días anteriores sin cerrar: aviso en el propio día (no al añadir, que suele hacerlo el agente)
+  const prev = (st.open_days || []).filter((d) => d < st.date);
+  const warn = prev.length ? h("div", { class: "openwarn" }, icon("lock"),
+    h("span", null, prev.length === 1 ? "Sin cerrar:" : `${prev.length} días sin cerrar:`),
+    prev.map((d) => h("button", { class: "ow-d", onclick: () => goDay(d) }, tx(dateLabel(d, { weekday: "short", day: "numeric", month: "short" }))))) : null;
+  const wrap = h("div", { class: closed ? "locked" : "" }, head, warn, summaryCard(st), bodyStrip(st));
   for (const [m] of MEALS) { const mb = mealBlock(st, m, closed); if (mb) wrap.append(mb); }
   const sb = suppBlock(st, closed); if (sb) wrap.append(sb);
   wrap.append(h("div", { class: "closebar" }, closed
@@ -266,7 +283,7 @@ function ringSvg(size, r, w, p, cls, center, laps) {
   svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-bg" }));
   if (p > 0) svg.append(svgE("circle", { r, fill: "none", "stroke-width": w, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${C * Math.min(1, p)} ${C}`, transform: "rotate(-90)" }));
   if (laps && p > 1) {
-    // Lo que te pasas: otra vuelta encima en amarillo oscuro; si pasas del doble, otra en rojo oscuro (con sombrita donde empieza)
+    // Lo que te pasas: otra vuelta encima (kcal: amarillo oscuro y luego rojo; macros: su color más oscuro y aún más), con sombrita donde empieza
     const id = Math.random().toString(36).slice(2, 7), defs = svgE("defs", {});
     const f = svgE("filter", { id: "rsh" + id, x: "-30%", y: "-30%", width: "160%", height: "160%" });
     f.append(svgE("feDropShadow", { dx: 0, dy: 0, stdDeviation: 2, "flood-opacity": 0.4 })); defs.append(f); svg.prepend(defs);
@@ -315,7 +332,7 @@ function summaryCard(st) {
     [-26, "Consumido", "rg-l"], [22, v(t, "kcal"), "rg-v"], [50, kcalT ? "/ " + fmt(kcalT) + " kcal" : "kcal · sin objetivo", "rg-o"]], true);
   const macro = (cls, label, f, target, unitT) => {
     const miss = (t.missing || []).includes(f);
-    return h("div", { class: "mring " + cls }, ringSvg(96, 38, 9, target ? (t[f] || 0) / target : 0, cls, [[3, v(t, f) + (miss ? "+" : ""), "rg-mv"], [20, "/ " + unitT + " g", "rg-mo"]]),
+    return h("div", { class: "mring " + cls }, ringSvg(96, 38, 9, target ? (t[f] || 0) / target : 0, cls, [[3, v(t, f) + (miss ? "+" : ""), "rg-mv"], [20, "/ " + unitT + " g", "rg-mo"]], true),
       h("div", { class: "mr-l" }, label, miss ? h("span", { class: "miss", title: "Hay valores desconocidos: el total es un mínimo" }, " *") : null));
   };
   const goalTxt = !tg.mode ? "Sin objetivo" : tg.dynamic ? (tg.kcal_offset ? `Objetivo: ${tg.kcal_offset < 0 ? "déficit" : "superávit"} de ${fmt(Math.abs(tg.kcal_offset))} kcal` : "Objetivo: comer lo que gastas") : "Objetivo fijo";
@@ -394,7 +411,9 @@ function energySheet(st) {
       h("div", { class: "bd-pl" }, h("span", null, l), h("small", null, sub)),
       val == null ? (k === "steps" && !closed ? h("button", { class: "btn sm", onclick: () => stepsSheet(st) }, "Añadir") : k === "neat" ? h("span", { class: "faint", style: { fontSize: "12.5px" } }, "por definir") : h("span", { class: "miss" }, "falta"))
         : h("div", { class: "bd-pv num" }, h("b", null, fmt(val)))))));
-  const closedNote = closed && c ? h("span", { class: "bd-closed-x", title: c.forced ? "Cerrado con datos incompletos" : "" }, icon("lock"), tx(`Cerrado el ${dateLabel(c.closed_at.slice(0, 10), { day: "numeric", month: "short" })} a las ${c.closed_at.slice(11, 16)}` + (c.version > 1 ? ` · v${c.version}` : ""))) : null;
+  const closedNote = closed && c ? h("span", { class: "bd-closed-x", title: c.forced ? "Cerrado con datos incompletos" : "" }, icon("lock"),
+    h("span", { class: "cx-l" }, tx(`Cerrado el ${dateLabel(c.closed_at.slice(0, 10), { day: "numeric", month: "short" })} a las ${c.closed_at.slice(11, 16)}` + (c.version > 1 ? ` · v${c.version}` : ""))),
+    h("span", { class: "cx-s" }, tx(`${+c.closed_at.slice(8, 10)}/${+c.closed_at.slice(5, 7)} · ${c.closed_at.slice(11, 16)}` + (c.version > 1 ? ` · v${c.version}` : "")))) : null;
   const obs = closed && c && c.summary && (c.summary.observations || []).length
     ? h("div", { class: "bd-sec" }, h("div", { class: "bd-st" }, "Observaciones del cierre"), h("ul", { class: "bd-obs" }, c.summary.observations.map((o) => h("li", null, o)))) : null;
   sheet(closed ? "Resumen del día" : "Desglose del día", [hero, eaten, burned, obs,

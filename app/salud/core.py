@@ -1048,6 +1048,14 @@ def energy(conn, d, intake_kcal=None, day=None, acts=None, raw=False):
 
 # --------------------------------------------------------------- resumen día ---
 
+def open_days(conn):
+    """Días anteriores a hoy (desde el inicio del seguimiento) con algo apuntado y sin cerrar."""
+    return [r[0] for r in conn.execute(
+        "SELECT DISTINCT e.date FROM entries e LEFT JOIN days dd ON dd.date = e.date "
+        "WHERE e.deleted_at IS NULL AND e.date >= ? AND e.date < ? AND COALESCE(dd.status, 'abierto') = 'abierto' "
+        "ORDER BY e.date", (tracking_start(conn), today()))]
+
+
 def day_state(conn, d=None):
     d = _date(d)
     day = get_day_row(conn, d)
@@ -1076,7 +1084,7 @@ def day_state(conn, d=None):
         "activities": acts, "avg7": None if a7 is None else round(a7, 2), "avg7_n": n7,
         "weight_interp": None if day["weight_kg"] is not None else (lambda v: None if v is None else round(v, 1))(weight_at(weights_between(conn, shift(d, -30), shift(d, 30)), d)),
         "approx_kcal": round(sum(e["kcal"] or 0 for e in entries if e["quality"] not in ("etiqueta", "historico"))),
-        "entry_count": len(entries), "closure": closure, "closure_count": n_closures, "rev": rev(conn),
+        "entry_count": len(entries), "open_days": open_days(conn), "today_entry_count": len(entries) if d == today() else conn.execute("SELECT COUNT(*) FROM entries WHERE date=? AND deleted_at IS NULL", (today(),)).fetchone()[0], "closure": closure, "closure_count": n_closures, "rev": rev(conn),
         "steps_hours": steps_hours(conn, d), "supplements": supplements(conn), "supplements_taken": supplements_taken(conn, d), "sessions": hc_sessions(conn, d), "neat_levels": [{"key": k, "label": l, "kcal": v, "kcal_adj": round(v * (en.get("neat_factor") or 1))} for k, l, v in NEAT_LEVELS],
     }
 
