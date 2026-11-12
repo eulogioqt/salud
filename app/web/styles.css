@@ -1808,3 +1808,31 @@ img { -webkit-user-drag: none; user-select: none; }
 .gs-r.sum { border-bottom: 1px solid var(--line-2, #cfcac0); } .gs-r.sum span, .gs-r.sum b { font-weight: 700; }
 .gs-r.tot { border-bottom: 0; } .gs-r.tot span { font-weight: 700; } .gs-r.tot b { font-size: 18px; color: var(--accent); }
 @media (max-width: 640px) { .src-grid { grid-template-columns: 1fr 1fr !important; } .src-grid > div:nth-child(3) { grid-column: 1 / -1; } }
+/* Ficha del producto: quitar foto con una × sobre la foto; «Completar con código de barras» como fila propia */
+.pf-wrap { position: relative; display: inline-block; }
+.pf-x { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 50%; border: 0; background: rgba(0,0,0,.55); color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+.pf-x svg { width: 14px; height: 14px; stroke-width: 2.4; } .pf-x:hover { background: rgba(0,0,0,.75); }
+.off-cta { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 10px 12px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); color: var(--text); font: inherit; cursor: pointer; }
+.off-cta:hover { border-color: var(--accent); }
+.off-cta > span:nth-child(2) { flex: 1; display: flex; flex-direction: column; } .off-cta b { font-size: 14px; } .off-cta small { font-size: 12px; color: var(--muted); }
+.off-cta .chev { display: inline-flex; color: var(--faint); } .off-cta .chev svg { width: 16px; height: 16px; }
+/* Descripciones en letra normal (no cursiva) */
+.sheet-desc, .wc-desc, .wk-d { font-style: normal; }
+/* Gráfica de peso: muestras de color en el tooltip y leyenda */
+.sw { display: inline-block; vertical-align: middle; margin-right: 6px; flex: none; }
+.sw.pt { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); opacity: .7; }
+.sw.ipt { width: 8px; height: 8px; border-radius: 50%; border: 1.2px solid var(--muted); box-sizing: border-box; }
+.sw.opt { width: 5px; height: 5px; border-radius: 50%; background: var(--faint); }
+.sw.avg { width: 14px; height: 0; border-top: 2.5px solid var(--accent); }
+.sw.exp { width: 14px; height: 0; border-top: 2px dashed var(--warn); }
+.wc-leg { display: flex; flex-wrap: wrap; gap: 4px 14px; justify-content: center; font-size: 11.5px; color: var(--muted); padding: 6px 4px 0; }
+.wc-leg span { display: inline-flex; align-items: center; }
+/* Entreno → Resumen: tarjeta del último entreno (encima de Actividad) */
+.card.lastw { position: relative; display: flex; flex-direction: column; gap: 3px; width: 100%; text-align: left; padding: 14px 40px 14px 16px; margin-bottom: 14px; cursor: pointer; font: inherit; color: inherit; border: 1px solid var(--line); background: var(--surface); }
+.card.lastw:hover { border-color: var(--line-2, #cfcac0); }
+.lw-top { display: flex; align-items: center; gap: 8px; } .lastw .lw-l { font-size: 11.5px; font-weight: 650; color: var(--faint); text-transform: uppercase; letter-spacing: .04em; }
+.lastw .lw-ago { font-size: 12px; color: var(--accent); font-weight: 600; }
+.lastw .lw-m { display: flex; align-items: center; gap: 8px; } .lastw .lw-m b { font-size: 17px; }
+.lastw .lw-d { font-size: 13px; color: var(--muted); }
+.lastw .lw-s { font-size: 13px; color: var(--muted); }
+.lastw .chev { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); display: inline-flex; color: var(--faint); } .lastw .chev svg { width: 18px; height: 18px; }

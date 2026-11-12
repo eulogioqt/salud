@@ -321,7 +321,7 @@ function goalSheet(st) {
   const neatNormal = st.day.neat_kcal == null;
   const sh = sheet("Objetivo de hoy", [
     h("div", { class: "goal-hero" }, h("b", { class: "num" }, fmt(tg.kcal)), h("span", null, " kcal para comer"),
-      h("div", { class: "faint" }, off ? `con un ${off < 0 ? "déficit" : "superávit"} de ${fmt(Math.abs(off))} kcal` : "para mantener tu peso")),
+      h("div", { class: "faint" }, off ? `${fmt(Math.abs(off))} kcal ${off < 0 ? "menos" : "más"} de lo que gastarás hoy` : "lo mismo que gastarás hoy")),
     h("div", { class: "bd-sub" }, "Cómo sale"),
     h("div", { class: "gs" },
       row("Metabolismo basal", "en reposo, con tu peso", fmt(P.bmr || 0)),
@@ -1464,16 +1464,15 @@ function foodEditor(f, opt = {}) {
   const brand = h("input", { class: "input", value: f.brand || "", placeholder: "Marca (opcional)" });
   const status = h("select", { class: "input" }, Object.entries(QUAL).map(([k, l]) => h("option", { value: k, selected: k === f.status }, l)));
   // Fuente: de dónde salen los valores (y con ella, el estado del dato)
-  const SRC = [["etiqueta", "Etiqueta del envase", "etiqueta"], ["off", "Open Food Facts (código de barras)", "etiqueta"], ["generica", "Tabla genérica (sin marca)", "provisional"],
-    ["estimacion", "Estimación", "estimacion"], ["otra", "Otra", null]];
+  const SRC = [["etiqueta", "Etiqueta (a mano)", "etiqueta"], ["off", "Código de barras (Open Food Facts)", "etiqueta"], ["estimacion", "Estimación", "estimacion"], ["otra", "Otra", null]];
   const src0 = f.source || "", srcKind0 = !src0 ? (isNew ? "etiqueta" : "otra") : /^open food facts/i.test(src0) ? "off" : /^etiqueta/i.test(src0) ? "etiqueta"
-    : /^(tabla genérica|genérica|usda|bedca)/i.test(src0) ? "generica" : /^estimaci/i.test(src0) ? "estimacion" : "otra";
+    : /^estimaci/i.test(src0) ? "estimacion" : "otra";
   let offCode = (src0.match(/(\d{8,14})/) || [])[1] || null;
   const srcSel = h("select", { class: "input" }, SRC.map(([k, l]) => h("option", { value: k, selected: k === srcKind0 }, l)));
   const srcOther = h("input", { class: "input" + (srcKind0 === "otra" ? "" : " hidden"), value: srcKind0 === "otra" ? src0 : "", placeholder: "¿De dónde salen los valores?", style: { marginTop: "6px" } });
   const source = h("div", null, srcSel, srcOther);
   srcSel.addEventListener("change", () => { srcOther.classList.toggle("hidden", srcSel.value !== "otra"); const st_ = (SRC.find((x) => x[0] === srcSel.value) || [])[2]; if (st_) status.value = st_; });
-  const sourceText = () => ({ etiqueta: "Etiqueta del envase", off: "Open Food Facts" + (offCode ? " · " + offCode : ""), generica: "Tabla genérica (sin marca)", estimacion: "Estimación", otra: srcOther.value.trim() || null })[srcSel.value];
+  const sourceText = () => ({ etiqueta: "Etiqueta", off: "Open Food Facts" + (offCode ? " · " + offCode : ""), estimacion: "Estimación", otra: srcOther.value.trim() || null })[srcSel.value];
   const notes = h("textarea", { class: "input", rows: 2, placeholder: "Notas" }, f.notes || "");
   const duSel = h("select", { class: "input" }, h("option", { value: "" }, "Automático (por peso si se puede)"),
     (f.units || []).filter((u) => u.key !== "x").map((u) => h("option", { value: u.key, selected: u.key === f.default_unit }, u.key === "g" ? "Por peso (g)" : u.key === "ml" ? "Por volumen (ml)" : "Por unidad: " + u.label)));
@@ -1503,14 +1502,14 @@ function foodEditor(f, opt = {}) {
   const fileIn = h("input", { type: "file", accept: "image/*", class: "hidden" });
   const drawPhoto = () => {
     const src = pendingImg || f.image;
-    photoBox.replaceChildren(photoFrame(name.value || f.name || "?", f.category, src),
+    const rm = async () => {
+      if (pendingImg) { pendingImg = null; offImg = null; drawPhoto(); return; }
+      await act(() => api("DELETE", `/api/foods/${f.id}/image`), "Foto quitada"); f.image = null; drawPhoto();
+    };
+    photoBox.replaceChildren(h("div", { class: "pf-wrap" }, photoFrame(name.value || f.name || "?", f.category, src),
+      src ? h("button", { type: "button", class: "pf-x", title: "Quitar foto", onclick: rm }, icon("x")) : null),
       h("div", { class: "pb-actions" },
-        h("button", { type: "button", class: "btn sm", onclick: () => fileIn.click() }, icon("camera"), src ? "Cambiar foto" : "Añadir foto"),
-        completeBtn,
-        src ? h("button", { type: "button", class: "btn sm ghost danger", onclick: async () => {
-          if (pendingImg) { pendingImg = null; drawPhoto(); return; }
-          await act(() => api("DELETE", `/api/foods/${f.id}/image`), "Foto quitada"); f.image = null; drawPhoto();
-        } }, "Quitar") : null));
+        h("button", { type: "button", class: "btn sm", onclick: () => fileIn.click() }, icon("camera"), src ? "Cambiar foto" : "Añadir foto")));
   };
   fileIn.addEventListener("change", async () => {
     const file = fileIn.files[0]; if (!file) return;
@@ -1551,12 +1550,11 @@ function foodEditor(f, opt = {}) {
     if (o.image_url && hadPhoto) offNote.append(h("div", { class: "off-photo" }, h("img", { src: o.image_url, alt: "" }), h("span", null, "Ya tiene foto. ¿Usar la de Open Food Facts?"),
       h("button", { type: "button", class: "btn sm", onclick: (e) => { offImg = o.image_url; pendingImg = o.image_url; drawPhoto(); e.currentTarget.parentNode.remove(); toast("Se cambiará al guardar"); } }, "Usar esta foto")));
   };
-  completeBtn = !isNew ? h("button", { type: "button", class: "btn sm", onclick: () => {
+  completeBtn = !isNew ? h("button", { type: "button", class: "off-cta", onclick: () => {
     const m = sheet("Completar producto", offChooser((o) => { m.close(); applyOff(o); }), null, { sub: "Con el código de barras o el enlace de Open Food Facts: valores, ración y foto" });
-  } }, icon("barcode"), "Completar con código de barras") : null;
-  drawPhoto();
+  } }, h("span", { class: "off-ic" }, icon("barcode")), h("span", null, h("b", null, "Completar con código de barras"), h("small", null, "Valores, ración y foto de Open Food Facts")), h("span", { class: "chev" }, icon("right"))) : null;
   const credit = f.image_source ? h("div", { class: "note", style: { marginTop: "-8px", marginBottom: "10px" } }, "Foto: ", f.image_source.startsWith("http") ? h("a", { href: f.image_source, target: "_blank", rel: "noopener" }, "Open Food Facts (CC BY-SA)") : f.image_source, " · cámbiala por la tuya cuando quieras") : null;
-  const body = [dl, fileIn, offNote, photoBox, credit,
+  const body = [dl, fileIn, completeBtn, offNote, photoBox, credit,
     h("div", { class: "grid2" }, h("div", null, h("label", { class: "f" }, "Nombre", h("i", { class: "req" }, " *")), name), h("div", null, h("label", { class: "f" }, "Estado del dato"), status)),
     h("div", { class: "grid3 src-grid", style: { marginTop: "10px" } }, h("div", null, h("label", { class: "f" }, "Categoría"), cat), h("div", null, h("label", { class: "f" }, "Marca"), brand), h("div", null, h("label", { class: "f" }, "Fuente"), source)),
     !isNew ? h("div", { class: "gap-top" }, field("Se registra por", duSel), h("div", { class: "note" }, "Las cosas que van por unidad (una lata, una bolsa, un yogur) se añaden por unidad y su resumen muestra la unidad, no los 100 g.")) : null,
@@ -1613,8 +1611,7 @@ function offChooser(onFound, big, onManual) {
     q = (q || inp.value).trim(); if (!q) { inp.focus(); return; }
     note.className = "note"; note.textContent = "Buscando en Open Food Facts…";
     try { onFound(await api("GET", "/api/off?q=" + encodeURIComponent(q))); }
-    catch (e) { note.className = "note warn off-nf"; note.replaceChildren(h("span", null, e.message + (onManual ? ". Puedes crearlo tú con la etiqueta." : "")),
-      onManual ? h("button", { type: "button", class: "btn sm", onclick: onManual }, "Rellenar a mano") : null); }
+    catch (e) { note.className = "note warn"; note.textContent = e.message + (onManual ? ". Puedes rellenarlo a mano con la etiqueta (botón de abajo)." : "."); }
   };
   inp.addEventListener("keydown", (e) => { if (e.key === "Enter") find(); });
   return h("div", { class: "offc" + (big ? " big" : "") },
@@ -1962,6 +1959,8 @@ function weightChart(ws, bodies, sel, next) {
   const vline = el("line", { y1: T, y2: H - B, class: "hov hidden" }); svg.append(vline);
   const hov = el("circle", { r: 5.5, class: "hov-pt hidden" }); svg.append(hov);
   const box = h("div", { class: "wc" }, svg), tip_ = h("div", { class: "wc-tip hidden" }); box.append(tip_);
+  box.append(h("div", { class: "wc-leg" }, h("span", null, h("i", { class: "sw pt" }), "Pesaje"), h("span", null, h("i", { class: "sw ipt" }), "Estimado"),
+    others.length ? h("span", null, h("i", { class: "sw opt" }), "No cuenta") : null, h("span", null, h("i", { class: "sw avg" }), "Media 7 días"), h("span", null, h("i", { class: "sw exp" }), "Esperado")));
   let hideT = null;
   // Puntos de la gráfica (cada uno a su hora): al pasar el ratón o el dedo se elige el más cercano
   const P = [];
@@ -1978,10 +1977,10 @@ function weightChart(ws, bodies, sel, next) {
     vline.setAttribute("x1", p.px); vline.setAttribute("x2", p.px); vline.classList.remove("hidden");
     hov.setAttribute("cx", p.px); hov.setAttribute("cy", y(p.v)); hov.classList.remove("hidden");
     tip_.replaceChildren(...[h("b", null, dateLabel(w.date, { weekday: "short", day: "numeric", month: "short" }) + (p.t ? " · " + p.t : "")),
-      h("div", null, { main: "Peso del día ", est: "Estimado (sin pesaje) ", other: "Otro pesaje " }[p.k], h("b", { class: "num" }, fmt(p.v, 1) + " kg")),
+      h("div", null, h("i", { class: "sw " + { main: "pt", est: "ipt", other: "opt" }[p.k] }), { main: "Peso del día ", est: "Estimado (sin pesaje) ", other: "Otro pesaje " }[p.k], h("b", { class: "num" }, fmt(p.v, 1) + " kg")),
       p.k === "other" ? h("div", { class: "faint" }, "No cuenta para la tendencia") : null,
-      p.k !== "other" && w.avg7 != null ? h("div", null, "Media 7 días ", h("b", { class: "num" }, fmt(w.avg7, 2))) : null,
-      p.k !== "other" && w.expected != null ? h("div", null, "Esperado ", h("b", { class: "num" }, fmt(w.expected, 2))) : null].filter(Boolean));
+      p.k !== "other" && w.avg7 != null ? h("div", null, h("i", { class: "sw avg" }), "Media 7 días ", h("b", { class: "num" }, fmt(w.avg7, 2))) : null,
+      p.k !== "other" && w.expected != null ? h("div", null, h("i", { class: "sw exp" }), "Esperado ", h("b", { class: "num" }, fmt(w.expected, 2))) : null].filter(Boolean));
     tip_.classList.remove("hidden");
     const px = (p.px / W) * r.width; tip_.style.left = Math.min(Math.max(px, 70), r.width - 70) + "px";
   };

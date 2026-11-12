@@ -801,13 +801,7 @@ function viewTraining() {
   const T = S.training; if (!T) return h("div");
   S.tTab = S.tTab || "resumen"; S.tGran = S.tGran || "mes"; S.tOff = S.tOff || 0;
   const ws = T.workouts;
-  // Último entreno junto al título, en todas las pestañas
-  const lastW = [...(ws || [])].sort((a, b) => (b.date + (b.start_time || "")).localeCompare(a.date + (a.start_time || "")))[0];
-  const ago = lastW ? Math.round((new Date(todayISO()) - new Date(lastW.date)) / 864e5) : null;
-  const lastLink = lastW ? tip(h("button", { class: "last-w", onclick: () => workoutSheet(lastW.id) },
-    h("span", { class: "lw-l" }, "Último"), h("b", null, lastW.title), h("span", { class: "lw-s" }, ago === 0 ? "hoy" : ago === 1 ? "ayer" : `hace ${ago} días`), h("span", { class: "chev" }, "›")),
-    `Último entreno: ${lastW.title}\n${dateLabel(lastW.date, { weekday: "long", day: "numeric", month: "long" })}${lastW.duration_min ? " · " + fmt(lastW.duration_min) + " min" : ""} · ${lastW.sets_count} series`) : null;
-  const head = h("div", { class: "row wrap", style: { marginBottom: "12px" } }, h("h2", { class: "vt" }, "Entreno"), lastLink, h("span", { class: "grow" }),
+  const head = h("div", { class: "row wrap", style: { marginBottom: "12px" } }, h("h2", { class: "vt" }, "Entreno"), h("span", { class: "grow" }),
     tip(h("button", { class: "btn sm ghost", onclick: () => importCsv() }, "Subir CSV de Hevy"), "Subir CSV de Hevy\nTrae de golpe los entrenos que falten: no duplica\n## Cómo sacarlo\nHevy → Perfil → ⚙ Ajustes → Exportar e importar datos → Exportar entrenos"));
   if (!ws.length) return h("div", { class: "training" }, head, h("div", { class: "card empty" }, icon("dumbbell"), h("h3", null, "Aún no hay entrenos"),
     h("p", { class: "muted" }, "Dime «entreno hecho» por el chat y lo traigo de Hevy, o importa el CSV de Hevy.")));
@@ -835,6 +829,19 @@ function deltaOf(cur, prev, f = (x) => fmt(x)) {
   return { v: dv, t: (dv > 0 ? "▲ " : dv < 0 ? "▼ " : "= ") + (dv ? f(Math.abs(dv)) : "") };
 }
 
+// Último entreno (en Resumen, encima de «Actividad»)
+function lastCard(ws) {
+  const w = [...(ws || [])].sort((a, b) => (b.date + (b.start_time || "")).localeCompare(a.date + (a.start_time || "")))[0];
+  if (!w) return null;
+  const ago = Math.round((new Date(todayISO()) - new Date(w.date)) / 864e5);
+  return h("button", { class: "card lastw", onclick: () => workoutSheet(w.id) },
+    h("div", { class: "lw-top" }, h("span", { class: "lw-l" }, "Último entreno"), h("span", { class: "lw-ago" }, ago === 0 ? "hoy" : ago === 1 ? "ayer" : `hace ${ago} días`)),
+    h("div", { class: "lw-m" }, h("b", null, w.title), upsChip(w), w.prs_count ? h("span", { class: "prc" }, icon("trophy"), tx(String(w.prs_count))) : null),
+    w.notes ? h("div", { class: "lw-d" }, w.notes) : null,
+    h("div", { class: "lw-s" }, [dateLabel(w.date, { weekday: "long", day: "numeric", month: "long" }) + (w.start_time ? " · " + w.start_time : ""), w.duration_min ? fmt(w.duration_min) + " min" : null,
+      w.sets_count + " series", fmt(w.volume_kg) + " kg"].filter(Boolean).join(" · ")),
+    h("span", { class: "chev" }, icon("right")));
+}
 function tResumen(st, ws) {
   const R = periodRange(S.tGran, S.tOff, st), P = periodStats(st, ws, R);
   const nav = (d) => { S.tOff += d; render(); };
@@ -867,6 +874,7 @@ function tResumen(st, ws) {
       kpi("Series", fmt(c.sets), c.n ? fmt(c.sets / c.n, 1) + "/entreno" : "", deltaOf(c.sets, pv && pv.sets), pv ? `${fmt(pv.sets)} series ${vs}` : null),
       kpi("Racha", st.streak + " sem.", "seguidas", null, "Semanas seguidas con al menos un entreno")),
     h("div", { class: "hl" }, hl.map(([l, v, s_, fn]) => h(fn ? "button" : "div", { class: "hli" + (fn ? " click" : ""), onclick: fn || undefined }, h("span", { class: "l" }, kpiLbl(l)), h("b", null, v), h("span", { class: "s" }, s_)))),
+    lastCard(ws),
     R.gran === "semana" ? null : h("div", { class: "card panel" }, h("h3", null, "Actividad", h("span", { class: "faint", style: { fontWeight: 400 } }, " · más oscuro = más volumen")),
       R.gran === "mes" ? monthCal(st.byDate, R.from, R.end) : heatmap(st.byDate, R.from, R.to)),
     showBars ? h("div", { class: "grid2 gap-big" },
