@@ -1895,3 +1895,6 @@ img { -webkit-user-drag: none; user-select: none; }
 .acts .a.wk.det .det-s { color: var(--warn); font-weight: 550; }
 .det-x { display: none; } @media (max-width: 640px) { .det-x { display: inline; } }
 .stat .v .kcc { margin-left: 6px; align-self: center; }
+/* Chip del rayo: número centrado como en los demás chips; en Pasos, a la altura de las cifras */
+.kcc { padding-top: 0; height: 20px; } .kcc svg { margin-top: 0; width: 13px; height: 13px; }
+.stat .v .kcc { position: relative; top: -1.5px; }
