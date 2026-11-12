@@ -1836,3 +1836,10 @@ img { -webkit-user-drag: none; user-select: none; }
 .lastw .lw-d { font-size: 13px; color: var(--muted); }
 .lastw .lw-s { font-size: 13px; color: var(--muted); }
 .lastw .chev { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); display: inline-flex; color: var(--faint); } .lastw .chev svg { width: 18px; height: 18px; }
+/* Gasto del entreno (opción E): mismo tamaño que los demás chips, amarillo pálido con el rayo ámbar */
+.datec.kcalchip { gap: 4px; background: #fdf7dc; color: #5c5442; font-weight: 600; }
+.datec.kcalchip svg { width: 13px; height: 13px; flex: none; color: #d49a00; fill: currentColor; stroke: none; }
+@media (prefers-color-scheme: dark) { .datec.kcalchip { background: #3a3420; color: #e8dfc2; } .datec.kcalchip svg { color: #f0c040; } }
+/* Móvil: más aire entre la descripción del entreno y sus chips */
+@media (max-width: 640px) { .wchips { margin-top: 10px !important; } }
+.datec.kcalchip .tx { background: none !important; padding: 0 !important; color: inherit !important; }
