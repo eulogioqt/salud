@@ -128,8 +128,11 @@ class Handler(BaseHTTPRequestHandler):
             return CONN, LOCK, None
         user = auth.session_user(MULTI, self._cookie_token())
         bearer = (self.headers.get("Authorization") or "")
+        self._src = "web"
         if not user and bearer.startswith("Bearer "):
-            user = auth.token_user(MULTI, bearer[7:].strip(), self.headers.get("X-Salud-Agent"))
+            info = {}
+            user = auth.token_user(MULTI, bearer[7:].strip(), self.headers.get("X-Salud-Agent"), info=info)
+            self._src = "agente:" + info.get("agent", "otro")  # lo que hace un agente queda firmado con su nombre
         if not user:
             return None
         conn, lock = user_ctx(user)
@@ -162,7 +165,7 @@ class Handler(BaseHTTPRequestHandler):
     CLI_BLOCKED = {"niveles-descargar", "usuario-crear", "usuario-password", "usuario-token", "usuarios", "foto", "init", "importar-hevy"}
 
     @classmethod
-    def run_cli(cls, args, lock, user):
+    def run_cli(cls, args, lock, user, source="chat"):
         """Ejecuta un comando de la CLI sobre la BD del usuario (lo usan /api/cli y el MCP). → (código, stdout, stderr)"""
         import contextlib
         import io
@@ -173,6 +176,7 @@ class Handler(BaseHTTPRequestHandler):
         out, err = io.StringIO(), io.StringIO()
         code = 0
         with CLI_LOCK, lock, contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            cli.SRC = source  # quién lo hace (agente:claude, agente:chatgpt…), para la Actividad
             try:
                 cli.main((["--db", db] if db else []) + args)
             except SystemExit as e:
@@ -182,6 +186,8 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:  # pragma: no cover
                 code = 1
                 err.write("Error: %s" % e)
+            finally:
+                cli.SRC = "chat"
         return code, out.getvalue(), err.getvalue()
 
     def _cli(self, body, lock, user):
@@ -189,7 +195,7 @@ class Handler(BaseHTTPRequestHandler):
         args = body.get("args")
         if not isinstance(args, list) or not args or not all(isinstance(x, str) for x in args):
             return self._send(400, {"error": "Formato: {\"args\": [\"hoy\"]}"})
-        code, out, err = self.run_cli(args, lock, user)
+        code, out, err = self.run_cli(args, lock, user, getattr(self, "_src", "web"))
         if code == 2 and err == "Comando no permitido por HTTP":
             return self._send(403, {"error": err})
         return self._send(200, {"code": code, "stdout": out, "stderr": err})
@@ -258,7 +264,8 @@ class Handler(BaseHTTPRequestHandler):
                 ent = conn.execute("SELECT substr(MAX(start),1,16) FROM hc_sessions").fetchone()[0]
                 off = [x for x in (core.get_setting(conn, "movil_off") or "").split(",") if x]
                 hag = core.get_setting(conn, "hevy_agente")
-            return self._send(200, {"configurado": bool(t), "hevy_agente": hag, "conectado": bool(t and t.get("used")), "ultimo": t and t.get("used"),
+                hby = core.get_setting(conn, "hevy_agente_por")
+            return self._send(200, {"configurado": bool(t), "hevy_agente": hag, "hevy_agente_por": hby and hby.split(":")[-1], "conectado": bool(t and t.get("used")), "ultimo": t and t.get("used"),
                                     "clave_creada": t and t.get("created"), "off": off,
                                     "bascula": bas, "pasos_ultimo": stp, "entreno_ultimo": ent and ent.replace("T", " "),
                                     "url": self._base() + "/api/hooks/salud"})
@@ -332,7 +339,7 @@ class Handler(BaseHTTPRequestHandler):
             with lock:
                 if method != "GET":
                     _auto_backup("auto", conn)
-                res = dispatch(conn, method, u.path, q, body, "web")
+                res = dispatch(conn, method, u.path, q, body, getattr(self, "_src", "web"))
             self._send(200, res)
         except ApiError as e:
             self._send(e.status, dict({"error": e.message}, **e.extra))
@@ -490,7 +497,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _mcp(self, method):
         bearer = self.headers.get("Authorization") or ""
-        user = auth.token_user(MULTI, bearer[7:].strip(), self.headers.get("X-Salud-Agent")) if bearer.startswith("Bearer ") else None
+        tinfo = {}
+        user = auth.token_user(MULTI, bearer[7:].strip(), self.headers.get("X-Salud-Agent"), info=tinfo) if bearer.startswith("Bearer ") else None
         if not user:
             return self._json(401, {"error": "invalid_token", "error_description": "Conecta el agente: inicia sesión en Salud"},
                               {"WWW-Authenticate": 'Bearer realm="salud", resource_metadata="%s/.well-known/oauth-protected-resource"' % self._base()})
@@ -510,7 +518,7 @@ class Handler(BaseHTTPRequestHandler):
                 return 0, ("Enlace para subir la foto (30 min, un solo uso):\n%s\n\n"
                            "Con terminal: curl -sS -X POST --data-binary @foto.jpg -H 'Content-Type: image/jpeg' '%s'\n"
                            "Sin terminal: pásale el enlace a la persona; lo abre en el móvil, elige la foto y se guarda sola.") % (url, url), ""
-            return self.run_cli(argv, lock, user)
+            return self.run_cli(argv, lock, user, "agente:" + tinfo.get("agent", "otro"))
         # Sesión sin estado: el id lleva la versión de las herramientas con la que empezó el chat (para avisar si cambian).
         sid = self.headers.get("Mcp-Session-Id") or ""
         ver = sid[1:9] if sid.startswith("v") and "." in sid else None

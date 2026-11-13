@@ -35,7 +35,7 @@ def status(conn):
     return {"configured": bool(k), "key_hint": ("…" + k[-4:]) if k else None,
             "last_sync": core.get_setting(conn, "hevy_last_sync_local"),
             "last_result": json.loads(res) if res else None,
-            "agente": core.get_setting(conn, "hevy_agente"), "pendientes": core.pending_sessions(conn)}
+            "agente": core.get_setting(conn, "hevy_agente"), "agente_por": core.get_setting(conn, "hevy_agente_por"), "pendientes": core.pending_sessions(conn)}
 
 
 def set_key(conn, key, source="web"):
@@ -229,7 +229,9 @@ def import_json(conn, data, source="chat"):
             res["errors"].append("%s %s: %s" % (w.get("title"), w.get("start_time"), e))
     # Su agente tiene el conector de Hevy: lo sabemos porque manda entrenos tal cual salen de la API de Hevy
     # (con el id del entreno y el exercise_template_id de cada ejercicio). Las capturas van por registrar_entreno y el CSV no trae ids.
-    if source == "chat" and (res["created"] or res["updated"]) and any(
+    if (source == "chat" or source.startswith("agente")) and (res["created"] or res["updated"]) and any(
             w.get("id") and any(ex.get("exercise_template_id") for ex in (w.get("exercises") or [])) for w in data):
         core.set_setting(conn, "hevy_agente", ts(), source)
+        if source.startswith("agente:"):
+            core.set_setting(conn, "hevy_agente_por", source, source)
     return res

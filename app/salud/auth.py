@@ -182,8 +182,17 @@ def revoke_api_token(base, username, token_id=None):
             _write(users_path(base), users)
 
 
-def token_user(base, token, agent=None, kinds=None):
-    """Usuario del token. `kinds`: tipos admitidos (None = cualquiera salvo «pasos», que solo vale para enviar pasos)."""
+def agent_key(tok):
+    """Qué agente es un token (claude, chatgpt, codex…), para firmar lo que hace y poner su logo."""
+    k = tok.get("kind")
+    if k and k not in ("otro", "pasos"):
+        return k
+    return kind_of(tok.get("agent")) if tok.get("agent") else "otro"
+
+
+def token_user(base, token, agent=None, kinds=None, info=None):
+    """Usuario del token. `kinds`: tipos admitidos (None = cualquiera salvo «pasos», que solo vale para enviar pasos).
+    `info` (dict): se rellena con el agente del token (`agent`)."""
     if not token or not token.startswith("sal_"):
         return None
     h = hashlib.sha256(token.encode()).hexdigest()
@@ -195,6 +204,8 @@ def token_user(base, token, agent=None, kinds=None):
                 if t.get("exp_ts") and t["exp_ts"] < time.time():
                     return None  # token OAuth caducado: el agente lo renueva con su refresh_token
                 _touch_token(base, k, t, agent if t.get("via") != "mcp" else None)
+                if info is not None:
+                    info["agent"] = agent_key(dict(t, agent=t.get("agent") or agent))
                 return k
     return None
 

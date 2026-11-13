@@ -404,10 +404,22 @@ def _hevy_key(c, q, b, s):
     return H.set_key(c, b.get("api_key"), s)
 
 
+@route("GET", r"/api/activity")
+def _activity(c, q, b, s):
+    from . import activity as A
+    return A.feed(c, q.get("before"), min(int(q.get("limit") or 60), 200), q.get("who"))
+
+
 @route("POST", r"/api/hevy/agente")
 def _hevy_agente(c, q, b, s):
-    """El agente dice si tiene el conector de Hevy (lo comprueba él leyendo un entreno)."""
-    core.set_setting(c, "hevy_agente", core.ts() if b.get("conectado") else None, s)
+    """El agente dice si tiene el conector de Hevy. Un «no» de un agente no borra el «sí» de otro (Claude sí, ChatGPT no)."""
+    by = s if (s or "").startswith("agente:") else None
+    if b.get("conectado"):
+        core.set_setting(c, "hevy_agente", core.ts(), s)
+        core.set_setting(c, "hevy_agente_por", by, s)
+    elif not by or core.get_setting(c, "hevy_agente_por") in (None, "", by):
+        core.set_setting(c, "hevy_agente", None, s)
+        core.set_setting(c, "hevy_agente_por", None, s)
     return H.status(c)
 
 

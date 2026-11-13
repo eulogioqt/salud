@@ -37,7 +37,7 @@ Reglas:
 - «Cierra el día»: `revisar_dia`, di solo lo que falta de verdad (los pasos deben estar siempre, aunque sean 0; cómo fue el día es obligatorio para cerrar: si no lo ha dicho, pregúntalo en la misma frase y guárdalo con `como_fue_el_dia`), pregunta si cierra igualmente y, tras `cerrar_dia`, da un resumen compacto. Los días cerrados no se tocan salvo que pida `reabrir_dia`.
 - Historial de Hevy: que exporte el CSV (Hevy → Perfil → Ajustes → Exportar e importar datos → Exportar entrenos) y lo suba en la web (menú → Primeros pasos, o Entreno → Importar) o te lo adjunte para `importar_hevy`.
 - Si también tienes el conector de Hevy («entreno hecho», «sube el entreno»): pide a Hevy los entrenos de ese día y pásalos tal cual a `importar_hevy` como JSON {"workouts": [...]} con los campos de Hevy (id, title, start_time, end_time, description, exercises[title, exercise_template_id, notes, sets[type, weight_kg, reps, distance_meters, duration_seconds, rpe]]); el id y el exercise_template_id son los que le dicen a la web que tienes Hevy conectado. No duplica. Sin conector: capturas.
-- Conector de Hevy: `leer_contexto` dice si la web cree que lo tienes. Si no coincide con lo que ves (lo tienes y funciona, o ya no lo tienes), díselo con `api` POST /api/hevy/agente {"conectado": true|false}.
+- Conector de Hevy: al empezar cada chat llama a `hevy_en_el_agente` (conectado=true si ves herramientas de Hevy, false si no). Así la web lo muestra conectado.
 - Entrenos detectados: si `leer_contexto` o `revisar_dia` dicen que el móvil ha detectado un entreno sin subir y tienes el conector de Hevy, súbelo tú en ese momento sin que te lo pida; si no lo tienes, pídele las capturas.
 - Entrenos desde capturas de Hevy: transcribe fielmente (no inventes series; si algo no se lee, pregunta) y usa `registrar_entreno`. El entreno ya cuenta en el gasto: no añadas además `registrar_actividad`.
 - GASTO DE CADA ENTRENO (capturas o conector de Hevy): estímalo TÚ analizando el entreno de verdad, no pongas «normal» y ya. Mira los ejercicios (compuestos grandes como sentadilla, peso muerto, press o remo frente a aislamiento; cardio, Hyrox o circuitos), las series de trabajo y cuántas al fallo, reps, cargas y volumen, RPE, distancias y tiempos, la duración real y la densidad (descansos, superseries) y el peso de la persona. Con eso calcula las kcal NETAS (lo que gasta por encima de estar en reposo, sin el metabolismo basal; nunca las brutas de Hevy, el reloj u otra app) y pásalas en `kcal_netas` junto con `intensity` (suave|normal|dura|muy dura). Referencias netas para ~80 kg (escala por su peso): fuerza con descansos largos 3–4 kcal/min, fuerza densa o superseries 5–6, circuito/Hyrox 8–11, carrera ≈ 1 kcal por kg y km. Cuenta todo lo que se movió en la sesión (también lo que anduvo o corrió): los pasos que el móvil cuente durante el entreno se descuentan solos de los del día. Dile en una línea cómo te sale (p. ej. «≈ 320 kcal netas: 18 series de empujes pesados en 94 min con descansos largos»). Si después la persona corrige algo del entreno, vuelve a estimarlo con `editar_entreno`.
@@ -173,8 +173,14 @@ def _objetivo(a):
 
 
 TOOLS = [
-    ("leer_contexto", "Notas personales de la persona: objetivos, perfil, cómo quiere usarlo y estilo de respuesta. Llámala al empezar.",
+    ("leer_contexto", "Notas personales de la persona: objetivos, perfil, cómo quiere usarlo y estilo de respuesta. Llámala al empezar "
+     "(y si tienes herramientas de Hevy, llama también a `hevy_en_el_agente`).",
      _o({}), lambda a: ["contexto"], True),
+    ("hevy_en_el_agente", "Dile a la web si TÚ tienes acceso a Hevy (el conector o la app de Hevy: herramientas como get_user_workouts o @Hevy). "
+     "Llámala al empezar cada chat, junto a leer_contexto: conectado=true si ves herramientas de Hevy, false si no. "
+     "Así la web sabe que tus entrenos pueden llegar solos y lo muestra como conectado.",
+     _o({"conectado": {"type": "boolean"}}, ["conectado"]),
+     lambda a: ["api", "POST", "/api/hevy/agente", json.dumps({"conectado": bool(a["conectado"])})], False),
     ("guardar_contexto", "Sustituye las notas personales enteras (lee antes las actuales, edítalas y guarda el texto completo, en Markdown).",
      _o({"contenido": U}, ["contenido"]), lambda a: ["contexto-guardar", "--contenido=" + a["contenido"]], False),
     ("ver_dia", "Resumen del día: comidas con ids de entrada, kcal y macros frente al objetivo, gasto estimado, balance, peso, pasos y avisos.",

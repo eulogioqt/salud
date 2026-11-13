@@ -82,8 +82,8 @@ async function loadDay() {
     const od = st.open_days || [], want = od.length && !st.today_entry_count ? od[od.length - 1] : st.today;
     if (want !== st.date) { S.date = want; st = await api("GET", "/api/state?date=" + want); }
     st.autoDate = st.date;
-    // Se abre otro día: queda en la URL (#/dia/…) y ya no salta solo a hoy después
-    if (st.date !== st.today) { S.autoDay = false; if (/^#\/hoy\b/.test(location.hash) || !location.hash) history.replaceState(null, "", "#/dia/" + st.date); }
+    // Se abre otro día: queda en la URL (#/day/…) y ya no salta solo a hoy después
+    if (st.date !== st.today) { S.autoDay = false; if (/^#\/(today|hoy)\b/.test(location.hash) || !location.hash) history.replaceState(null, "", "#/day/" + st.date); }
   }
   S.day = st; S.rev = st.rev;
 }
@@ -108,18 +108,22 @@ setInterval(async () => {
 document.addEventListener("visibilitychange", () => { if (!document.hidden && !S.sheetOpen) refresh().catch(() => {}); });
 
 // ------------------------------------------------------------------ router
+const VIEW_OF = { today: "hoy", day: "hoy", dia: "hoy", training: "entreno", food: "biblioteca", comida: "biblioteca", progress: "progreso" };
 function route() {
   [...OPEN_SHEETS].forEach((c) => c());
   const parts = location.hash.replace(/^#\/?/, "").split("/");
-  // #/hoy = el día de hoy · #/dia/AAAA-MM-DD = otro día · #/comida (antes #/biblioteca); #/hoy/AAAA-MM-DD sigue valiendo
-  const alias = { comida: "biblioteca", dia: "hoy" };
+  // Direcciones en inglés: #/today (hoy) · #/day/AAAA-MM-DD (otro día) · #/training · #/food · #/progress.
+  // Las antiguas en español (#/hoy, #/hoy/AAAA-MM-DD, #/dia/…, #/entreno, #/comida, #/biblioteca, #/progreso) siguen valiendo.
+  const alias = VIEW_OF;
   S.view = alias[parts[0]] || (["hoy", "entreno", "biblioteca", "progreso"].includes(parts[0]) ? parts[0] : "hoy");
+  const EN = { hoy: "today", entreno: "training", biblioteca: "food", comida: "food", progreso: "progress" };
+  if (EN[parts[0]] && !parts[1]) history.replaceState(null, "", "#/" + EN[parts[0]]);
   if (S.view === "hoy") {
     const d = /^\d{4}-\d{2}-\d{2}$/.test(parts[1] || "") ? parts[1] : null;
-    if (d && d >= todayISO()) { history.replaceState(null, "", "#/hoy"); S.noAuto = true; }
-    else if (d && parts[0] === "hoy") history.replaceState(null, "", "#/dia/" + d);
+    if (d && d >= todayISO()) { history.replaceState(null, "", "#/today"); S.noAuto = true; }
+    else if (d && parts[0] !== "day") history.replaceState(null, "", "#/day/" + d);
     const exact = d && d < todayISO();
-    // Al entrar en #/hoy a secas se puede abrir el día de anoche sin cerrar; si se llega con las flechas, es hoy
+    // Al entrar en #/today a secas se puede abrir el día de anoche sin cerrar; si se llega con las flechas, es hoy
     S.autoDay = !exact && !S.noAuto; S.noAuto = false;
     S.date = exact ? d : S.autoDay && S.day && S.day.autoDate ? S.day.autoDate : todayISO();
   }
@@ -131,9 +135,9 @@ function route() {
   refresh().catch((e) => { $("#view").replaceChildren(h("div", { class: "card panel" }, h("h3", null, "No se puede conectar con el servidor"), h("div", { class: "muted" }, e.message))); });
 }
 let lastView = null;
-window.addEventListener("hashchange", () => { const v0 = ({ dia: "hoy", comida: "biblioteca" })[location.hash.split("/")[1]] || location.hash.split("/")[1] || "hoy"; if (v0 !== lastView) window.scrollTo(0, 0); lastView = v0; route(); });
+window.addEventListener("hashchange", () => { const v0 = VIEW_OF[location.hash.split("/")[1]] || location.hash.split("/")[1] || "hoy"; if (v0 !== lastView) window.scrollTo(0, 0); lastView = v0; route(); });
 // No se puede ir a días que aún no han llegado
-const goDay = (d) => { const t = (S.day && S.day.today) || todayISO(); if (d > t) return; const to = d >= t ? "#/hoy" : "#/dia/" + d; if (d >= t) S.noAuto = true; if (location.hash === to) route(); else location.hash = to; };
+const goDay = (d) => { const t = (S.day && S.day.today) || todayISO(); if (d > t) return; const to = d >= t ? "#/today" : "#/day/" + d; if (d >= t) S.noAuto = true; if (location.hash === to) route(); else location.hash = to; };
 
 function skeleton(view) {
   const b = (hh, extra = {}) => h("div", { class: "sk", style: Object.assign({ height: hh + "px" }, extra) });
@@ -253,6 +257,8 @@ function icon(name) {
     plus: "M12 5v14M5 12h14", key: "M7.5 15a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7zM11 11.5h10M18 11.5v3M15 11.5v2", edit: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4", search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3", lock: "M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z",
     star: "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z", chev: "M6 9l6 6 6-6",
     minus: "M5 12h14", barcode: "M4 5v14M7 5v14M10 5v14M14 5v14M16 5v14M20 5v14", camera: "M4 8h3l2-3h6l2 3h3v11H4zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", out: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6",
+    phone: "M8 2.5h8a1.5 1.5 0 0 1 1.5 1.5v16a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 20V4A1.5 1.5 0 0 1 8 2.5zM11 18.5h2",
+    activity: "M4 6h3M4 12h3M4 18h3M10 6h10M10 12h10M10 18h10",
     gear: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z",
     swap: "M7 7h13l-3-3M17 17H4l3 3", up: "M12 19V5M6 11l6-6 6 6", pill: "M10.5 20.5l10-10a4.95 4.95 0 0 0-7-7l-10 10a4.95 4.95 0 0 0 7 7zM8.5 8.5l7 7", plug: "M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5", flag: "M5 21V4M5 4h12l-2.5 4L17 12H5", flame: "M12 3c1 3 4 5 4 9a4 4 0 0 1-8 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 0-8z", bolt: "M13 2L4 14h7l-1 8 9-12h-7z", cal: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
     target: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", medal: "M12 21a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM8.5 9.5L6 3h4l2 5M15.5 9.5L18 3h-4l-2 5", check: "M5 12l5 5 9-10", route: "M6 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM6 15V9a4 4 0 0 1 4-4h6M18 9v6a4 4 0 0 1-4 4H8", dumbbell: "M6 7v10M3 9v6M18 7v10M21 9v6M6 12h12", trophy: "M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8M10 17h4v3h-4z", scale: "M5 4h14v16H5zM9 9a3 3 0 0 1 6 0M12 9l1-2",
@@ -663,7 +669,7 @@ async function stepsData(st) {
 const agoTxt = (ts) => { if (!ts) return "—"; const m = Math.round((Date.now() - new Date(ts.replace(" ", "T"))) / 60000); return m < 1 ? "ahora" : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : dateLabel(ts.slice(0, 10), { day: "numeric", month: "short" }); };
 // Pie común de las fichas que llegan del móvil: estado del último envío + Conexiones + Ver todo en Progreso
 // Conectado: estado del último envío + Conexiones + Ver todo. Sin conectar: «Sin conectar» + Conectar (verde) + Ver todo.
-function sheetFoot(status, mode = null, label = "Ver todo en Progreso", hash = "#/progreso") {
+function sheetFoot(status, mode = null, label = "Ver todo en Progreso", hash = "#/progress") {
   const off = !!mode, go = () => { for (const c of [...OPEN_SHEETS]) c(); location.hash = hash; };
   return [h("div", { class: "sfoot" },
     h("span", { class: "sf-st" + (off ? " off" : "") }, h("i", { class: "sf-dot" }), off ? "Sin conectar" : status),
@@ -906,7 +912,7 @@ async function connectionsSheet() {
         S.me ? row_("👟", "Pasos", st_("pasos", pasosOk, info.pasos_ultimo), info.pasos_ultimo && !isOff("pasos") ? `Último envío ${agoTxt(info.pasos_ultimo)}` : off_("del móvil"), btn_("pasos", info.pasos_ultimo)) : null,
         S.me ? row_("⚖", "Báscula", st_("bascula", !!info.bascula, info.bascula), info.bascula && !isOff("bascula") ? `Último pesaje ${whenTxt(info.bascula)}` : off_("cada pesaje, solo"), btn_("bascula", info.bascula)) : null,
         S.me ? row_("🏋", "Entrenos", st_("entreno", !!info.entreno_ultimo, info.entreno_ultimo), info.entreno_ultimo && !isOff("entreno") ? `Último ${whenTxt(info.entreno_ultimo)}` : off_("cuándo entrenas"), btn_("entreno", info.entreno_ultimo)) : null,
-        S.me ? row_("📋", "Hevy", info.hevy_agente ? "ok" : "off", info.hevy_agente ? "Series y pesos, vía tu agente" : off_("series y pesos"),
+        S.me ? row_("📋", "Hevy", info.hevy_agente ? "ok" : "off", info.hevy_agente ? "Series y pesos, vía " + (info.hevy_agente_por ? agentOf(info.hevy_agente_por).n : "tu agente") : off_("series y pesos"),
           info.hevy_agente ? unhevy : h("button", { class: "btn sm ghost", onclick: () => hevyAgentSheet(info.hevy_agente) }, "Conectar")) : null),
     ], S.me && info.configurado ? [h("button", { class: "btn sm ghost", onclick: () => mobileKeySheet(async () => { info = await api("GET", "/api/movil").catch(() => info); }) }, icon("key"), "Clave del móvil")] : null);
   };
@@ -961,7 +967,7 @@ async function trainingDaySheet(st) {
       : h("div", { class: "card empty flat" }, icon("dumbbell"), h("h3", null, rest ? "Día de descanso" : "Sin entreno"),
         h("p", { class: "muted" }, rest ? "Hoy no cuenta ningún entreno." : "Mándale el entreno a tu agente («entreno hecho» o la captura de Hevy), o márcalo como día de descanso."),
         !closed ? h("button", { class: "btn", onclick: async () => { await act(() => api("PUT", "/api/days/" + st.date, { rest_day: !rest }), rest ? "Descanso quitado" : "Marcado como descanso"); sh.close(); } }, rest ? "Quitar descanso" : "Día de descanso") : null),
-  ], trainOn ? sheetFoot(`Último entreno detectado: ${agoTxt(S.pasos.entreno_ultimo)}`, null, "Ir a Entreno", "#/entreno") : sheetFoot(null, "entreno", "Ir a Entreno", "#/entreno"),
+  ], trainOn ? sheetFoot(`Último entreno detectado: ${agoTxt(S.pasos.entreno_ultimo)}`, null, "Ir a Entreno", "#/training") : sheetFoot(null, "entreno", "Ir a Entreno", "#/training"),
   { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }) });
 }
 
@@ -2035,6 +2041,7 @@ function viewProgress() {
       kpi("Ingesta media 7 d", avgK != null ? fmt(avgK) + " kcal" : "—", avgP != null ? `P ${fmt(avgP)} g · ${logged7.length} días` : ""),
       kpi("Mantenimiento observado", cal.observed_maintenance != null ? fmt(cal.observed_maintenance) + " kcal" : "—", cal.observed_maintenance != null ? `tendencia ${signed(cal.slope_kg_week, 1)} kg/sem · modelo ${fmt(cal.model_tdee_avg)}` : "faltan datos (≥14 días)")),
     h("div", { class: "card panel" }, h("h3", null, "Peso", h("span", { class: "faint", style: { fontWeight: 400 } }, " · puntos: pesajes · gruesa: media de 7 días · discontinua: lo esperado")), h("div", { class: "faint", style: { fontSize: "12.5px", marginTop: "-4px" } }, "Pésate siempre igual: al levantarte, después de ir al baño, antes de comer o beber y con la misma ropa (o sin ella)"), weightChart(ws, P.body)),
+    balancePanel(P.history),
     calPanel(cal),
     stepsPanel(P.history, P.steps_goal),
     bodyPanel(P.body || [], P.weights || []),
@@ -2130,6 +2137,32 @@ function weightChart(ws, bodies, sel, next) {
 }
 
 // Pasos en Progreso: un día por barra (los días sin datos quedan en hueco), la línea del objetivo y lo básico
+// Frente a tu objetivo (Progreso): por cada día cerrado, cuánto te pasaste (barra hacia arriba) o te quedaste corto (hacia abajo)
+function balancePanel(hist) {
+  const ds = (hist || []).filter((x) => x.status === "cerrado" && x.entries > 0 && x.kcal != null && x.target_kcal);
+  if (!ds.length) return null;
+  const dif = (x) => x.kcal - x.target_kcal, by = Object.fromEntries(ds.map((x) => [x.date, x]));
+  // Desde el primer día cerrado (mínimo 14 días, máximo el rango elegido) para que las barras no queden finísimas
+  const first = ds[0].date, span0 = Math.round((new Date(todayISO()) - new Date(first)) / 864e5) + 1;
+  const n = Math.max(14, Math.min(S.progDays || 30, 90, span0)), end = todayISO(), days = Array.from({ length: n }, (_, i) => addDays(end, i - n + 1));
+  const up = Math.max(150, ...ds.map(dif)), dn = Math.max(150, ...ds.map((x) => -dif(x))), span = up + dn;
+  const avg = ds.reduce((a, x) => a + dif(x), 0) / ds.length, ok = ds.filter((x) => Math.abs(dif(x)) <= 150).length, sum = ds.reduce((a, x) => a + dif(x), 0);
+  const kpi = (l, v, s_) => h("div", { class: "kpi" }, h("div", { class: "l" }, l), h("div", { class: "v num" }, v), h("div", { class: "s" }, s_ || ""));
+  const word = (v) => Math.abs(v) <= 150 ? "en tu objetivo" : v > 0 ? "por encima" : "por debajo";
+  return h("div", { class: "card panel" }, h("h3", null, "Frente a tu objetivo", h("span", { class: "faint", style: { fontWeight: 400 } }, " · kcal de más o de menos cada día cerrado")),
+    h("div", { class: "kpis k3" },
+      kpi("Media", signed(Math.round(avg)), `kcal/día · ${word(avg)}`),
+      kpi("En objetivo", `${ok} de ${ds.length}`, "días a ±150 kcal"),
+      kpi("Acumulado", signed(Math.round(sum)), "kcal · " + (Math.abs(sum) < 385 ? "menos de 0,1 kg" : "≈ " + signed(sum / 7700, 1) + " kg de grasa"))),
+    h("div", { class: "bbars" }, h("i", { class: "zero", style: { top: (100 * up) / span + "%" } }),
+      days.map((d) => { const x = by[d], v = x ? dif(x) : null;
+        const cls = v == null ? "gap" : Math.abs(v) <= 150 ? "in" : v > 0 ? "over" : "under";
+        const hh = v == null ? 0 : Math.max(2, (100 * Math.abs(v)) / span);
+        return h("span", { class: "bb " + cls, "data-tip": `${dateLabel(d, { weekday: "long", day: "numeric", month: "short" })}\n` + (v == null ? "Sin cerrar" : `${signed(Math.round(v))} kcal · ${word(v)}\nComiste ${fmt(x.kcal)} de ${fmt(x.target_kcal)}`) },
+          v == null ? null : h("i", { style: v >= 0 ? { bottom: (100 * dn) / span + "%", height: hh + "%" } : { top: (100 * up) / span + "%", height: hh + "%" } })); })),
+    h("div", { class: "pbars-x faint" }, h("span", null, dateLabel(days[0], { day: "numeric", month: "short" })), h("span", null, "hoy")),
+    h("div", { class: "bb-leg faint" }, h("span", null, h("i", { class: "over" }), "Por encima"), h("span", null, h("i", { class: "in" }), "En objetivo (±150)"), h("span", null, h("i", { class: "under" }), "Por debajo")));
+}
 function stepsPanel(hist, goal) {
   const ds = (hist || []).filter((x) => x.steps != null);
   if (!ds.length) return null;
@@ -2517,6 +2550,57 @@ async function settingsSheet() {
   ], null, { wide: true });
 }
 // Menú de cuenta (arriba a la derecha): nombre, Ajustes y Cerrar sesión
+// ---- Actividad: todo lo que se cambia en la cuenta y quién lo hizo (tú en la web, cada agente con su logo, el móvil).
+// Una línea por cambio (lo hecho de golpe se junta: «y 3 más»); al tocarla, el detalle y los datos tal cual.
+const cap = (x) => x ? x[0].toUpperCase() + x.slice(1) : x;
+const whoName = (w) => w === "tu" ? "Tú" : w === "movil" ? "Móvil" : w.startsWith("agente:") ? agentOf(w.slice(7)).n : "Tu agente";
+function whoAvatar(w, size = 30) {
+  if (w === "tu") return h("span", { class: "act-av me", style: { width: size + "px", height: size + "px" } }, ((S.me && (S.me.nombre || S.me.usuario)) || "T")[0].toUpperCase());
+  if (w === "movil") return h("span", { class: "act-av mob", style: { width: size + "px", height: size + "px" } }, icon("phone"));
+  return agentLogo(w.startsWith("agente:") ? agentOf(w.slice(7)) : { logo: null }, size);
+}
+async function activitySheet() {
+  let who = "", items = [], next = null, whos = [], open = null, loading = false;
+  const sh = sheet("Actividad", h("div", { class: "muted" }, "Cargando…"), null, { wide: true, sub: "Lo que se ha cambiado y quién lo hizo" });
+  const load = async (more) => {
+    if (loading) return; loading = true;
+    try {
+      const r = await api("GET", "/api/activity?limit=60" + (who ? "&who=" + encodeURIComponent(who) : "") + (more && next ? "&before=" + next : ""));
+      items = more ? items.concat(r.items) : r.items; next = r.next; whos = r.who || whos;
+    } catch (e) { toast(e.message, { error: true }); }
+    loading = false; draw(more);
+  };
+  const dayHead = (ts) => { const d = ts.slice(0, 10), t = todayISO(); return d === t ? "Hoy" : d === addDays(t, -1) ? "Ayer" : cap(dateLabel(d, { weekday: "long", day: "numeric", month: "long" })); };
+  const detail = (it) => h("div", { class: "act-det" },
+    it.detail.length ? h("div", { class: "act-kv" }, it.detail.map(([k, v]) => [h("span", { class: "faint" }, k), h("span", null, String(v))])) : null,
+    it.more.length ? h("div", { class: "act-more" }, h("div", { class: "faint" }, "También, a la vez:"), h("ul", null, it.more.map((x) => h("li", null, x)))) : null,
+    it.raw && Object.keys(it.raw).length ? h("details", { class: "act-raw" }, h("summary", null, "Ver los datos"), h("pre", null, JSON.stringify(it.raw, null, 2))) : null,
+    h("div", { class: "faint act-when" }, `${dateLabel(it.ts.slice(0, 10), { weekday: "long", day: "numeric", month: "long" })} · ${it.ts.slice(11, 19)}`));
+  const rowOf = (it) => {
+    const on = open === it.id, n = it.count - 1;
+    return h("div", { class: "act-row" + (on ? " on" : "") },
+      h("button", { class: "act-main", onclick: () => { open = on ? null : it.id; draw(); } },
+        whoAvatar(it.who),
+        h("span", { class: "act-tx" }, h("span", null, h("b", null, whoName(it.who)), " ", it.text),
+          h("span", { class: "faint act-sub" }, it.ts.slice(11, 16) + (n > 0 ? (it.action === "health_sync" ? ` · ${it.count} envíos` : ` · y ${n} más`) : ""))),
+        h("span", { class: "act-chev" }, icon(on ? "chev" : "right"))),
+      on ? detail(it) : null);
+  };
+  const draw = (keep = true) => {
+    const body = sh.el.querySelector(".sheet-b"), top = body ? body.scrollTop : 0;
+    const chips = h("div", { class: "act-chips" }, [["", "Todo"], ...whos.map((w) => [w, whoName(w)])].map(([k, l]) =>
+      h("button", { class: "chip" + (who === k ? " on" : ""), onclick: () => { who = k; open = null; load(false); } }, k && k !== "tu" && k !== "movil" ? whoAvatar(k, 16) : null, l)));
+    const groups = []; let last = null;
+    for (const it of items) { const d = it.ts.slice(0, 10); if (d !== last) { groups.push([it.ts, []]); last = d; } groups[groups.length - 1][1].push(it); }
+    sh.set("Actividad", [chips,
+      items.length ? groups.map(([ts, its]) => h("div", { class: "act-day" }, h("div", { class: "sec-t" }, dayHead(ts)), its.map(rowOf)))
+        : h("div", { class: "muted", style: { padding: "24px 0", textAlign: "center" } }, "Aún no hay nada aquí."),
+      next ? h("div", { style: { textAlign: "center", marginTop: "10px" } }, h("button", { class: "btn sm", onclick: () => load(true) }, "Ver más")) : null],
+      null, { sub: "Lo que se ha cambiado y quién lo hizo" });
+    if (keep && body) body.scrollTop = top;
+  };
+  await load(false);
+}
 function drawAccount() {
   const b = $("#btn-acct"); if (!b) return;
   const name = S.me ? (S.me.nombre || S.me.usuario) : "Local";
@@ -2530,6 +2614,7 @@ function accountMenu() {
       h("div", null, h("b", null, name), h("span", null, S.me ? "Sesión iniciada · @" + S.me.usuario : "Versión local (sin cuentas)"))),
     S.me ? h("button", { class: agentConnected() ? "" : "warn", onclick: () => { menu.remove(); connectionsSheet().catch((e) => toast(e.message, { error: true })); } }, icon("plug"),
       "Conexiones", agentConnected() ? h("span", { class: "ag-mini-list" }, S.me.agente.agents.slice(0, 3).map((t) => agentLogo(agentOf(t.agent || t.kind), 18))) : h("span", { class: "alert-dot" }, "!")) : null,
+    h("button", { onclick: () => { menu.remove(); activitySheet().catch((e) => toast(e.message, { error: true })); } }, icon("activity"), "Actividad"),
     h("button", { onclick: () => { menu.remove(); settingsSheet().catch((e) => toast(e.message, { error: true })); } }, icon("gear"), "Ajustes"),
     S.me ? h("button", { onclick: () => { menu.remove(); welcomeSheet().catch((e) => toast(e.message, { error: true })); } }, icon("flag"), "Primeros pasos") : null,
     S.me ? h("button", { class: "danger", onclick: async () => { await api("POST", "/api/logout", {}); location.href = "/login"; } }, icon("out"), "Cerrar sesión") : null);

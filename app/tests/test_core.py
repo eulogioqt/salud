@@ -663,3 +663,17 @@ class TestOffRacion(unittest.TestCase):
         self.assertFalse(sv("375 g", 30, "30 g")["per_unit"])
         self.assertEqual(sv("200 g", 23, "1 barrita (23 g)")["label"], "1 barrita (23 g)")
         self.assertTrue(sv("200 g", 23, "1 barrita (23 g)")["per_unit"])
+
+
+class TestActividad(Base):
+    def test_quien_y_que(self):
+        from salud import activity as A
+        av = self.food("avena")
+        core.add_entry(self.conn, {"date": D1, "food_id": av["id"], "unit_key": "g", "quantity": 50, "meal": "desayuno"}, "agente:chatgpt")
+        core.add_entry(self.conn, {"date": D1, "food_id": av["id"], "unit_key": "g", "quantity": 30, "meal": "cena"}, "web")
+        r = A.feed(self.conn)
+        top = r["items"][:2]
+        self.assertEqual(top[0]["who"], "tu"); self.assertIn("30 g de", top[0]["text"]); self.assertIn("la cena", top[0]["text"])
+        self.assertEqual(top[1]["who"], "agente:chatgpt"); self.assertIn("desayuno", top[1]["text"])
+        self.assertIn("agente:chatgpt", r["who"])
+        self.assertTrue(all(i["who"] == "agente:chatgpt" for i in A.feed(self.conn, who="agente:chatgpt")["items"]))
