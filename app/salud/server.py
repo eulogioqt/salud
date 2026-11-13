@@ -232,11 +232,22 @@ class Handler(BaseHTTPRequestHandler):
         from . import ios as IOS
         conduit = IOS.is_conduit(body)  # iPhone (Conduit): se traduce al formato de Android
         hc = conduit or (isinstance(body, dict) and "app_version" in body and "timezone" in body)  # lo que manda HC Webhook (Android)
+        # Copias de los envíos del iPhone: solo la primera semana (para revisar qué manda); los de formato desconocido, siempre
+        keep = not hc
+        if conduit:
+            today = _t.strftime("%Y-%m-%d")
+            with lock:
+                until = core.get_setting(conn, "movil_copias_hasta")
+                if not until:
+                    import datetime as _dt
+                    until = (_dt.date.today() + _dt.timedelta(days=7)).isoformat()
+                    core.set_setting(conn, "movil_copias_hasta", until, "movil")
+            keep = today <= until
         try:  # copia de cada envío: el último siempre; todos los que no son de HC Webhook (para el traductor del iPhone)
-            if hc and not conduit:
+            if hc and not keep:
                 with open(os.path.join(udir, "ultimo_movil.json"), "w", encoding="utf-8") as f:
                     json.dump(body, f, ensure_ascii=False)
-            else:
+            if keep:
                 d = os.path.join(udir, "movil_envios")
                 os.makedirs(d, exist_ok=True)
                 stamp = _t.strftime("%Y%m%d-%H%M%S") + "-%06d" % (int(_t.time() * 1e6) % 1000000)
@@ -246,7 +257,7 @@ class Handler(BaseHTTPRequestHandler):
                 with open(os.path.join(d, stamp + (".json" if body is not None else ".bin")), "wb") as f:
                     f.write(data)
                 olds = sorted(os.listdir(d))
-                for x in olds[:-600]:  # como mucho los 300 últimos envíos
+                for x in olds[:-2000]:  # como mucho los 1.000 últimos envíos
                     os.remove(os.path.join(d, x))
         except Exception:
             pass
