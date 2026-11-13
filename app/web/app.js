@@ -844,7 +844,7 @@ async function connectionsSheet() {
       if (!confirm("¿Desconectar Hevy? Dejarás de ver aquí que tu agente lo tiene. Para que deje de usarlo, quita también el conector de Hevy en tu agente.")) return;
       await api("POST", "/api/hevy/agente", { conectado: false }); info = await api("GET", "/api/movil").catch(() => info); draw(); } }, "Desconectar");
     sh.set("Conexiones", [
-      h("p", { class: "muted wz-p" }, "Todo es opcional: la web y tu agente funcionan sin conectar nada. Esto solo hace que lleguen solos los datos."),
+      h("p", { class: "muted wz-p" }, "Lo importante es conectar tu agente, para apuntar por chat. Lo demás es opcional: solo hace que los datos lleguen solos."),
       h("div", { class: "pc-list" },
         S.me ? row_("✦", "Agente", agentConnected() ? "ok" : "off",
           agentConnected() ? S.me.agente.agents.map((t) => agentOf(t.agent || t.kind).n).join(", ") + " · para apuntar por chat" : off_("por chat"),

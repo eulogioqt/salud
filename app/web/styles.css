@@ -1910,3 +1910,8 @@ img { -webkit-user-drag: none; user-select: none; }
 .pc-row > .grow { min-width: 0; }
 .pc-row .faint.sm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pc-row > .btn { flex: none; }
+/* Chip del rayo: el número del mismo color que el rayo */
+.kcc { color: #d49a00; }
+@media (prefers-color-scheme: dark) { .kcc { color: #f0c040; } }
+.datec.kcalchip { color: #d49a00; } .datec.kcalchip .tx { color: inherit !important; }
+@media (prefers-color-scheme: dark) { .datec.kcalchip { color: #f0c040; } }
