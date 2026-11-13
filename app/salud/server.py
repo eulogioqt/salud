@@ -246,6 +246,16 @@ class Handler(BaseHTTPRequestHandler):
                     os.remove(os.path.join(d, x))
         except Exception:
             pass
+        plat = "android" if hc else "ios"
+        try:  # qué móvil manda (para llamar a la conexión «Health Connect» o «Apple Salud») y cuándo fue el último envío del iPhone
+            with lock:
+                if core.get_setting(conn, "movil_plataforma") != plat:
+                    core.set_setting(conn, "movil_plataforma", plat, "movil")
+            if not hc:
+                with open(os.path.join(udir, "ultimo_ios.txt"), "w") as f:
+                    f.write(_t.strftime("%Y-%m-%d %H:%M"))
+        except Exception:
+            pass
         if not hc:
             # Formato que aún no traducimos (iPhone): se guarda y se da por recibido; se procesará desde la copia
             return self._send(200, {"ok": True, "guardado": True})
@@ -304,9 +314,15 @@ class Handler(BaseHTTPRequestHandler):
                 ent = conn.execute("SELECT substr(MAX(start),1,16) FROM hc_sessions").fetchone()[0]
                 off = [x for x in (core.get_setting(conn, "movil_off") or "").split(",") if x]
                 from . import hevy as _H
+                plat = core.get_setting(conn, "movil_plataforma")
                 hag = core.get_setting(conn, "hevy_agente")
                 hby = _H.agents_with_hevy(conn)
-            return self._send(200, {"configurado": bool(t), "hevy_agente": hag, "hevy_agentes": hby, "conectado": bool(t and t.get("used")), "ultimo": t and t.get("used"),
+            try:
+                with open(os.path.join(os.path.dirname(auth.user_db(MULTI, user)), "ultimo_ios.txt")) as f:
+                    ios_last = f.read().strip()
+            except OSError:
+                ios_last = None
+            return self._send(200, {"configurado": bool(t), "hevy_agente": hag, "hevy_agentes": hby, "plataforma": plat, "ios_ultimo": ios_last, "conectado": bool(t and t.get("used")), "ultimo": t and t.get("used"),
                                     "clave_creada": t and t.get("created"), "off": off,
                                     "bascula": bas, "pasos_ultimo": stp, "entreno_ultimo": ent and ent.replace("T", " "),
                                     "url": self._base() + "/api/hooks/salud"})
