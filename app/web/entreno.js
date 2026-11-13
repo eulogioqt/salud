@@ -202,7 +202,7 @@ document.addEventListener("pointermove", (e) => {
 });
 // En las gráficas, en cambio, como en casi todas las webs: sale al tocar, sigue al dedo si lo deslizas de lado y se quita al soltar
 // (deslizar en vertical hace scroll y lo quita).
-const CHART_SEL = ".sch, .swk, .sdays, .pbars, .bbars, svg, .dist, .lvg-dots";
+const CHART_SEL = ".sch, .swk, .sdays, .pbars, .bal-bars, svg, .dist, .lvg-dots";
 const inChart = (t) => !!(t && t.closest && t.closest(CHART_SEL));
 let SCRUB = null;
 // La barra/día más cercano al dedo en horizontal (las barras pueden ser finísimas o estar vacías)
@@ -215,7 +215,7 @@ document.addEventListener("pointerdown", (e) => {
   if (e.pointerType === "mouse") return;
   clearTimeout(HOLD.t); HOLD.t = null;
   let t = tipTarget(e);
-  const root = e.target && e.target.closest ? e.target.closest(".sch, .swk, .sdays, .pbars, .bbars, .dist, .lvg-dots") : null;
+  const root = e.target && e.target.closest ? e.target.closest(".sch, .swk, .sdays, .pbars, .bal-bars, .dist, .lvg-dots") : null;
   if (!t && root) t = nearestTip(root, e.clientX);
   if (t && inChart(t)) { SCRUB = { id: e.pointerId, root: root || t.closest(CHART_SEL), el: t }; clearTimeout(TIP_T); showTipAt(t.dataset.tip, t, SCRUB.root); return; }
   if (!t) { if (!HOLD.shown) hideTip(); return; }

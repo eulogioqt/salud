@@ -2004,19 +2004,19 @@ img { -webkit-user-drag: none; user-select: none; }
 .e-cal { background: var(--e-cal); }
 @media (max-width: 640px) { table.t.ptable td { border: 0; } table.t.ptable tr td.pt-x { padding: 0; } }
 /* Gráficas: en táctil el tooltip sigue al dedo de lado; en vertical, scroll */
-.sch, .swk, .sdays, .pbars, .dist, .lvg-dots, svg [data-tip] { touch-action: pan-y; }
+.sch, .swk, .sdays, .pbars, .bal-bars, .dist, .lvg-dots, svg [data-tip] { touch-action: pan-y; }
 /* Frente a tu objetivo: barras por encima / por debajo de la línea del objetivo */
-.bbars { position: relative; height: 140px; display: flex; justify-content: space-between; gap: 2px; margin-top: 14px; touch-action: pan-y; }
-.bbars .zero { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line-2); z-index: 1; pointer-events: none; }
-.bbars .bb { position: relative; flex: 1; max-width: 18px; min-width: 0; }
-.bbars .bb i { position: absolute; left: 0; right: 0; border-radius: 3px; }
-.bbars .bb.over i { background: var(--warn); }
-.bbars .bb.under i { background: var(--p); }
-.bbars .bb.in i { background: var(--faint); }
-.bb-leg { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; margin-top: 8px; }
-.bb-leg span { display: inline-flex; align-items: center; gap: 5px; }
-.bb-leg i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
-.bb-leg i.over { background: var(--warn); } .bb-leg i.under { background: var(--p); } .bb-leg i.in { background: var(--faint); }
+.bal-bars { position: relative; height: 140px; display: flex; justify-content: space-between; gap: 2px; margin-top: 14px; touch-action: pan-y; }
+.bal-bars .zero { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line-2); z-index: 1; pointer-events: none; }
+.bal-bars .bal-b { position: relative; flex: 1; max-width: 18px; min-width: 0; }
+.bal-bars .bal-b i { position: absolute; left: 0; right: 0; border-radius: 3px; }
+.bal-bars .bal-b.over i { background: var(--warn); }
+.bal-bars .bal-b.under i { background: var(--p); }
+.bal-bars .bal-b.in i { background: var(--faint); }
+.bal-leg { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; margin-top: 8px; }
+.bal-leg span { display: inline-flex; align-items: center; gap: 5px; }
+.bal-leg i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.bal-leg i.over { background: var(--warn); } .bal-leg i.under { background: var(--p); } .bal-leg i.in { background: var(--faint); }
 /* Actividad */
 .act-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
 .act-chips .chip { display: inline-flex; align-items: center; gap: 6px; }

@@ -2175,14 +2175,14 @@ function balancePanel(hist) {
       kpi("Media", signed(Math.round(avg)), `kcal/día · ${word(avg)}`),
       kpi("En objetivo", `${ok} de ${ds.length}`, "días a ±150 kcal"),
       kpi("Acumulado", signed(Math.round(sum)), "kcal · " + (Math.abs(sum) < 385 ? "menos de 0,1 kg" : "≈ " + signed(sum / 7700, 1) + " kg de grasa"))),
-    h("div", { class: "bbars" }, h("i", { class: "zero", style: { top: (100 * up) / span + "%" } }),
+    h("div", { class: "bal-bars" }, h("i", { class: "zero", style: { top: (100 * up) / span + "%" } }),
       days.map((d) => { const x = by[d], v = x ? dif(x) : null;
         const cls = v == null ? "gap" : Math.abs(v) <= 150 ? "in" : v > 0 ? "over" : "under";
         const hh = v == null ? 0 : Math.max(2, (100 * Math.abs(v)) / span);
-        return h("span", { class: "bb " + cls, "data-tip": `${dateLabel(d, { weekday: "long", day: "numeric", month: "short" })}\n` + (v == null ? "Sin cerrar" : `${signed(Math.round(v))} kcal · ${word(v)}\nComiste ${fmt(x.kcal)} de ${fmt(x.target_kcal)}`) },
+        return h("span", { class: "bal-b " + cls, "data-tip": `${dateLabel(d, { weekday: "long", day: "numeric", month: "short" })}\n` + (v == null ? "Sin cerrar" : `${signed(Math.round(v))} kcal · ${word(v)}\nComiste ${fmt(x.kcal)} de ${fmt(x.target_kcal)}`) },
           v == null ? null : h("i", { style: v >= 0 ? { bottom: (100 * dn) / span + "%", height: hh + "%" } : { top: (100 * up) / span + "%", height: hh + "%" } })); })),
     h("div", { class: "pbars-x faint" }, h("span", null, dateLabel(days[0], { day: "numeric", month: "short" })), h("span", null, "hoy")),
-    h("div", { class: "bb-leg faint" }, h("span", null, h("i", { class: "over" }), "Por encima"), h("span", null, h("i", { class: "in" }), "En objetivo (±150)"), h("span", null, h("i", { class: "under" }), "Por debajo")));
+    h("div", { class: "bal-leg faint" }, h("span", null, h("i", { class: "over" }), "Por encima"), h("span", null, h("i", { class: "in" }), "En objetivo (±150)"), h("span", null, h("i", { class: "under" }), "Por debajo")));
 }
 function stepsPanel(hist, goal) {
   const ds = (hist || []).filter((x) => x.steps != null);
