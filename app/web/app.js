@@ -502,8 +502,13 @@ function bodyStrip(st) {
   const day = st.day, closed = st.status === "cerrado", en = st.energy;
   const el = h("input", { class: "inline num", inputMode: "decimal", placeholder: day.weight_kg == null && st.weight_interp != null ? fmt(st.weight_interp, 1) : "—", value: day.weight_kg == null ? "" : String(day.weight_kg).replace(".", ","), disabled: closed });
   el.addEventListener("keydown", (e) => { if (e.key === "Enter") el.blur(); });
-  const fit = () => { el.style.width = Math.max(2, (el.value || el.placeholder || "—").length + 0.6) + "ch"; };  // «kg» pegado al número
-  el.addEventListener("input", fit); fit();
+  // «kg» pegado al número: ancho según lo escrito (las cifras miden ~1ch; la coma y el punto, mucho menos)
+  const fit = () => { const t = el.value || el.placeholder || "—";
+    if (!el.isConnected) { el.style.width = Math.max(1.6, [...t].reduce((a, c) => a + (/[0-9]/.test(c) ? 1 : /[,.]/.test(c) ? 0.4 : 0.9), 0) + 0.3) + "ch"; return; }
+    const c = getComputedStyle(el), m = h("span", { style: { position: "absolute", visibility: "hidden", whiteSpace: "pre", fontFamily: c.fontFamily, fontSize: c.fontSize,
+      fontWeight: c.fontWeight, letterSpacing: c.letterSpacing, fontVariantNumeric: c.fontVariantNumeric } }, t);
+    document.body.append(m); el.style.width = Math.ceil(m.getBoundingClientRect().width + 2) + "px"; m.remove(); };
+  el.addEventListener("input", fit); fit(); requestAnimationFrame(fit);
   el.addEventListener("change", async () => {
     const n = parseNum(el.value);
     if (Number.isNaN(n)) { toast("Valor no válido", { error: true }); return; }
@@ -577,7 +582,7 @@ async function weightSheet(st) {
         h("div", { class: "wday-s" }, dayW != null ? [main && main.time ? "a las " + main.time : null, src].filter(Boolean).join(" · ")
           : st.weight_interp != null ? (st.weight_est_fit ? "Sin pesaje ese día: lo comido y gastado desde el pesaje anterior, ajustado para encajar con el siguiente"
             : "Sin pesaje: tu último pesaje + lo que has comido y gastado desde entonces") : scale ? "Pésate al levantarte: llegará solo" : "Pésate al levantarte, después del baño y antes de comer"),
-        w7.avg7 != null ? h("div", { class: "wday-s" }, `Media de 7 días ${fmt(w7.avg7, 2)} kg` + (prev.avg7 != null ? ` · ${signed(w7.avg7 - prev.avg7, 2)} kg en 7 días` : "")) : null),
+        w7.avg7 != null ? h("div", { class: "wday-s" }, `Media de 7 días ${fmt(w7.avg7, 1)} kg` + (prev.avg7 != null ? ` · ${signed(w7.avg7 - prev.avg7, 1)} kg en 7 días` : "")) : null),
       tiles.length ? h("div", { class: "btiles six" }, tiles) : null,
       others.length ? h("div", { class: "oth-w" }, h("div", { class: "faint sm" }, "Otros pesajes de ese día (no cuentan para la tendencia)"),
         others.map((b) => h("div", { class: "oth-r" }, h("span", { class: "num" }, `${fmt(b.weight_kg, 1)} kg`), h("span", { class: "faint" }, b.time ? " · " + b.time : ""), h("span", { class: "grow" }),
@@ -1938,9 +1943,9 @@ function viewProgress() {
     h("div", { class: "row", style: { marginBottom: "12px" } }, h("h2", { class: "vt" }, "Progreso"), h("span", { class: "grow" }), range),
     h("div", { class: "kpis" },
       kpi("Último peso", last ? fmt(last.weight_kg, 1) + " kg" : "—", last ? dateLabel(last.date, { day: "numeric", month: "short" }) : "sin pesajes"),
-      kpi("Media 7 días", lastAvg ? fmt(lastAvg.avg7, 2) + " kg" : "—", prevAvg && prevAvg.avg7 != null ? signed(lastAvg.avg7 - prevAvg.avg7, 2) + " kg vs semana anterior" : ""),
+      kpi("Media 7 días", lastAvg ? fmt(lastAvg.avg7, 1) + " kg" : "—", prevAvg && prevAvg.avg7 != null ? signed(lastAvg.avg7 - prevAvg.avg7, 1) + " kg vs semana anterior" : ""),
       kpi("Ingesta media 7 d", avgK != null ? fmt(avgK) + " kcal" : "—", avgP != null ? `P ${fmt(avgP)} g · ${logged7.length} días` : ""),
-      kpi("Mantenimiento observado", cal.observed_maintenance != null ? fmt(cal.observed_maintenance) + " kcal" : "—", cal.observed_maintenance != null ? `tendencia ${signed(cal.slope_kg_week, 2)} kg/sem · modelo ${fmt(cal.model_tdee_avg)}` : "faltan datos (≥14 días)")),
+      kpi("Mantenimiento observado", cal.observed_maintenance != null ? fmt(cal.observed_maintenance) + " kcal" : "—", cal.observed_maintenance != null ? `tendencia ${signed(cal.slope_kg_week, 1)} kg/sem · modelo ${fmt(cal.model_tdee_avg)}` : "faltan datos (≥14 días)")),
     h("div", { class: "card panel" }, h("h3", null, "Peso", h("span", { class: "faint", style: { fontWeight: 400 } }, " · puntos: pesajes · gruesa: media de 7 días · discontinua: lo esperado")), h("div", { class: "faint", style: { fontSize: "12.5px", marginTop: "-4px" } }, "Pésate siempre igual: al levantarte, después de ir al baño, antes de comer o beber y con la misma ropa (o sin ella)"), weightChart(ws, P.body)),
     calPanel(cal),
     stepsPanel(P.history, P.steps_goal),
@@ -2022,8 +2027,8 @@ function weightChart(ws, bodies, sel, next) {
     tip_.replaceChildren(...[h("b", null, dateLabel(w.date, { weekday: "short", day: "numeric", month: "short" }) + (p.t ? " · " + p.t : "")),
       h("div", null, h("i", { class: "sw " + { main: "pt", est: "ipt", other: "opt" }[p.k] }), { main: "Peso del día ", est: "Estimado (sin pesaje) ", other: "Otro pesaje " }[p.k], h("b", { class: "num" }, fmt(p.v, 1) + " kg")),
       p.k === "other" ? h("div", { class: "faint" }, "No cuenta para la tendencia") : null,
-      p.k !== "other" && w.avg7 != null ? h("div", null, h("i", { class: "sw avg" }), "Media 7 días ", h("b", { class: "num" }, fmt(w.avg7, 2))) : null,
-      p.k !== "other" && w.expected != null ? h("div", null, h("i", { class: "sw exp" }), "Esperado ", h("b", { class: "num" }, fmt(w.expected, 2))) : null].filter(Boolean));
+      p.k !== "other" && w.avg7 != null ? h("div", null, h("i", { class: "sw avg" }), "Media 7 días ", h("b", { class: "num" }, fmt(w.avg7, 1))) : null,
+      p.k !== "other" && w.expected != null ? h("div", null, h("i", { class: "sw exp" }), "Esperado ", h("b", { class: "num" }, fmt(w.expected, 1))) : null].filter(Boolean));
     tip_.classList.remove("hidden");
     const px = (p.px / W) * r.width; tip_.style.left = Math.min(Math.max(px, 70), r.width - 70) + "px";
   };
@@ -2110,7 +2115,7 @@ function weeksTable(weeks) {
     [...weeks].reverse().map((w) => h("tr", null, h("td", null, dateLabel(w.week, { day: "numeric", month: "short" })), h("td", { class: "r" }, `${w.days_logged}/${w.days}`),
       h("td", { class: "r num" }, w.kcal == null ? "—" : fmt(w.kcal)), h("td", { class: "r num faint" }, w.approx_pct == null ? "—" : w.approx_pct + " %"), h("td", { class: "r num" }, w.protein_g == null ? "—" : fmt(w.protein_g)),
       h("td", { class: "r num" }, w.carbs_g == null ? "—" : fmt(w.carbs_g)), h("td", { class: "r num" }, w.fat_g == null ? "—" : fmt(w.fat_g)),
-      h("td", { class: "r num" }, w.weight == null ? "—" : fmt(w.weight, 2)), h("td", { class: "r num" }, signed(w.weight_delta, 2)),
+      h("td", { class: "r num" }, w.weight == null ? "—" : fmt(w.weight, 1)), h("td", { class: "r num" }, signed(w.weight_delta, 1)),
       h("td", { class: "r num" }, w.tdee == null ? "—" : fmt(w.tdee)), h("td", { class: "r num" }, signed(w.balance))))));
 }
 
@@ -2124,7 +2129,7 @@ function daysTable(hist) {
         h("td", null, d.status === "cerrado" ? h("span", { class: "pill closed", title: "Cerrado" }, icon("lock")) : ""),
         h("td", { class: "r num" }, d.entries ? fmt(d.kcal) + mk("kcal") : "—"), h("td", { class: "r num" }, d.entries ? fmt(d.protein_g) + mk("protein_g") : "—"),
         h("td", { class: "r num" }, d.entries ? fmt(d.carbs_g) + mk("carbs_g") : "—"), h("td", { class: "r num" }, d.entries ? fmt(d.fat_g) + mk("fat_g") : "—"),
-        h("td", { class: "r num" }, d.weight_kg == null ? "—" : fmt(d.weight_kg, 1)), h("td", { class: "r num" }, d.avg7 == null ? "—" : fmt(d.avg7, 2)),
+        h("td", { class: "r num" }, d.weight_kg == null ? "—" : fmt(d.weight_kg, 1)), h("td", { class: "r num" }, d.avg7 == null ? "—" : fmt(d.avg7, 1)),
         h("td", { class: "r num" }, d.steps == null ? "—" : fmt(d.steps)), h("td", { class: "r num" }, fmt(d.tdee) + (d.tdee_complete ? "" : "*")),
         h("td", { class: "r num" }, d.entries ? signed(d.balance) : "—"));
     })));
