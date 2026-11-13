@@ -801,7 +801,7 @@ async function mobileKeySheet(onNew) {
   const gen = async () => { tok = (await api("POST", "/api/movil", {})).token; info = await api("GET", "/api/movil").catch(() => info); onNew && onNew(tok); draw(); };
   const draw = () => sh.set("Clave del móvil", [
     h("p", { class: "muted wz-p" }, "Es la clave que pones en «HC Webhook» (Android) o en «Conduit» (iPhone). Una sola sirve para pasos, báscula y entrenos."),
-    tok ? h("div", null, h("b", null, "Tu clave nueva"), h("div", { class: "faint sm" }, "Cópiala ahora: no se vuelve a mostrar. En HC Webhook va en el encabezado «Authorization»."), copyLine("Bearer " + tok))
+    tok ? h("div", null, h("b", null, "Tu clave nueva"), h("div", { class: "faint sm" }, "Cópiala ahora: no se vuelve a mostrar. En Conduit va en el token; en HC Webhook, en el encabezado «Authorization»."), copyLine(tok))
       : info.configurado ? h("div", { class: "note" }, `Ya tienes una clave · creada ${whenTxt(info.clave_creada)}` + (info.ultimo ? ` · último uso ${whenTxt(info.ultimo)}` : " · aún sin usar"))
         : h("div", { class: "note" }, "Aún no tienes clave."),
   ], info.configurado || tok ? [
@@ -833,8 +833,8 @@ async function mobileSheet(forced) {
             h("span", { class: "ag-t" }, h("b", null, t), h("span", null, sub)), h("span", { class: "ag-go" }, icon("right")))))]);
     }
     const ios = os === "ios";
-    // La clave: en iPhone (Conduit) a secas; en Android (HC Webhook) va con «Bearer »
-    const keyLine = tok ? copyLine((ios ? "" : "Bearer ") + tok)
+    // La clave, a secas (el servidor la acepta con o sin «Bearer»)
+    const keyLine = tok ? copyLine(tok)
       : info.configurado ? h("div", { class: "faint sm" }, "La misma clave que ya usas. ", h("button", { class: "lnk-btn", onclick: () => mobileKeySheet(async (k) => { tok = k; await reload(); }) }, "¿La has perdido?"))
         : h("button", { class: "btn sm primary", onclick: async () => { tok = (await api("POST", "/api/movil", {})).token; await reload(); } }, "Generar mi clave");
     const url = copyLine(info.url || location.origin + "/api/hooks/salud");
