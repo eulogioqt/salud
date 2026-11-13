@@ -940,7 +940,7 @@ function prRow(p) {
   const setTxt = p.set && ["w", "e1", "sv"].includes(p.type) ? " · " + setShort(p.kind, p.set) : "";
   return h("button", { class: "exrow", onclick: () => exerciseSheet(p.name) }, exIcon(p.name, 34),
     h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, (() => { const e = (S.tStats && S.tStats.list || []).find((x) => exKeyName(x.name) === exKeyName(p.name)); return e && e.level ? lvlShield(e.level, 18) : null; })(), h("span", null, dispName(p.name))),
-      h("div", { class: "exr-s" }, dateLabel(p.date, { weekday: "short", day: "numeric", month: "short" }) + ` · antes ${recTxt(p.type, p.prev, p.kind)}` + setTxt)),
+      h("div", { class: "exr-s" }, h("span", { class: "only-m" }, REC_LABEL[p.type] + " · "), dateLabel(p.date, { weekday: "short", day: "numeric", month: "short" }) + ` · antes ${recTxt(p.type, p.prev, p.kind)}` + setTxt)),
     h("div", { class: "exr-v pr" }, h("b", { class: "num" }, h("span", { class: "trophy" }, icon("trophy")), recTxt(p.type, p.value, p.kind)), h("span", null, REC_LABEL[p.type])));
 }
 
@@ -1024,11 +1024,15 @@ function tRecords(st) {
       const types = REC_KINDS[k];
       return h("div", { class: "card panel" }, h("h3", null, t),
         h("div", { class: "rtable-wrap" }, h("table", { class: "t rtable" },
-          h("tr", null, h("th", null, "Ejercicio"), types.map((ty) => h("th", { class: "r" }, REC_LABEL[ty].replace(" (volumen)", "")))),
+          h("tr", null, h("th", null, "Ejercicio"), types.map((ty) => h("th", { class: "r", title: REC_LABEL[ty] }, PR_SHORT[ty]))),
           xs.map((e) => h("tr", { onclick: () => exerciseSheet(e.name) },
             h("td", null, h("div", { class: "rt-n" }, exIcon(e.name, 26), h("span", null, e.name))),
             types.map((ty) => { const r = e.rec[ty]; return h("td", { class: "r num" }, r ? tip(h("span", null, recTxt(ty, r.v, e.kind)),
-              `${REC_LABEL[ty]}: ${recTxt(ty, r.v, e.kind)}${r.set && ["w", "e1", "sv"].includes(ty) ? " (" + setShort(e.kind, r.set) + ")" : ""}\n${dateLabel(r.date, { day: "numeric", month: "short", year: "numeric" })}`) : "—"); }))))));
+              `${REC_LABEL[ty]}: ${recTxt(ty, r.v, e.kind)}${r.set && ["w", "e1", "sv"].includes(ty) ? " (" + setShort(e.kind, r.set) + ")" : ""}\n${dateLabel(r.date, { day: "numeric", month: "short", year: "numeric" })}`) : "—"); }))))),
+        // en el móvil la tabla no cabe: lista con los récords de cada ejercicio debajo de su nombre
+        h("div", { class: "exlist rlist" }, xs.map((e) => h("button", { class: "exrow", onclick: () => exerciseSheet(e.name) }, exIcon(e.name, 34),
+          h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, h("span", null, e.name)),
+            h("div", { class: "exr-s rl-s" }, types.filter((ty) => e.rec[ty]).map((ty) => h("span", null, PR_SHORT[ty] + " ", h("b", null, recTxt(ty, e.rec[ty].v, e.kind))))))))));
     }));
 }
 
@@ -1592,7 +1596,7 @@ async function exerciseSheet_(name) {
         return h("div", { class: "exhero-next" },
           L.idx < 5 ? h("div", { class: "exn-ends" }, h("span", null, h("b", { class: "lvname l" + L.idx }, LVL[L.idx]), " " + u(lo)), h("span", null, h("b", { class: "lvname l" + (L.idx + 1) }, LVL[L.idx + 1]), " " + u(hi))) : null,
           tip(h("div", { class: "click", onclick: () => levelSheet(name, L) }, lvlBar(L)), "Pulsa para ver la curva de rangos"),
-          h("div", { class: "exn-v" }, `Tu ${how}: `, h("b", null, u(L.raw)), L.idx < 5 && L.need ? ` · te faltan ${L.need.replace(/ para .*/, "").replace(" de 1RM", "")}` : " · rango máximo", ` · top ${fmt(Math.max(0.5, 100 - L.pct))} %`));
+          h("div", { class: "exn-v" }, `Tu ${how}: `, h("b", null, u(L.raw)), L.idx < 5 && L.need ? ` · te faltan ${L.need.replace(/ para .*/, "").replace(" de 1RM", "").replace(/^\+/, "")}` : " · rango máximo", ` · top ${fmt(Math.max(0.5, 100 - L.pct))} %`));
       })() : null)),
     h("div", { class: "kpis tight recs", style: { gridTemplateColumns: `repeat(${types.length}, 1fr)` } }, types.map((t) => { const r = rec[t];
       return h("div", { class: "kpi" }, h("div", { class: "l" }, h("span", { class: "sic c" }, "🏆"), REC_LABEL[t]), h("div", { class: "v num" }, r ? recTxt(t, r.v, kind) : "—"),

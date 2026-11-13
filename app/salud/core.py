@@ -353,7 +353,8 @@ def resolve_dynamic(conn, d, t):
     kcal = round((base + (t["kcal_offset"] or 0)) / (1 - tef))
     kg = en["weight_used_kg"]
     t.update({"kcal": kcal, "base_kcal": round(base), "weight_kg": kg, "projected_steps": proj if no_steps else None, "steps_pending": no_steps, "steps_plan": sp,
-              "base_parts": {"bmr": en["bmr"], "neat": en["neat"], "steps": en["steps_kcal"] or 0, "steps_n": en["steps"], "exercise": en["exercise_kcal"],
+              "base_parts": {"bmr": en["bmr"], "neat": en["neat"], "steps": en["steps_kcal"] or 0, "steps_n": en["steps"], "steps_in_acts": en.get("steps_in_activities") or 0,
+                             "exercise": en["exercise_kcal"], "exercise_list": en["exercise"],
                              "ajuste": en["calibration"]["ajuste_kcal"]},
               "tef_pct": tef,
               "protein_g": round((t["protein_per_kg"] or 2.0) * kg) if kg else None,
@@ -1079,10 +1080,10 @@ def energy(conn, d, intake_kcal=None, day=None, acts=None, raw=False):
     missing = [n for n, v in (("peso", kg), ("altura", h), ("edad o fecha de nacimiento", age), ("sexo", sex if sex in ("H", "M") else None)) if v is None]
     bmr = None if missing else 10 * kg + 6.25 * h - 5 * age + (5 if sex == "H" else -161)
     tef = float(s["tef_pct"]) * (intake_kcal or 0)
-    # Día a día (NEAT): se elige al cerrar; mientras el día está abierto y sin elegir cuenta 0 («por definir").
-    # Días cerrados de antes de esto, sin elegir: el valor base (normal).
+    # Día a día (NEAT): se elige al cerrar; mientras tanto cuenta uno «normal» (lo mismo que supone el objetivo, para que
+    # gasto, balance y «quedan» cuadren entre sí). Días cerrados de antes de esto, sin elegir: también el normal.
     neat_pending = day["neat_kcal"] is None and day.get("status") != "cerrado"
-    neat = day["neat_kcal"] if day["neat_kcal"] is not None else (0.0 if neat_pending else float(s["neat_base_kcal"]))
+    neat = day["neat_kcal"] if day["neat_kcal"] is not None else float(s["neat_base_kcal"])
     # Los niveles (50/150/300/450) son para unos 75 kg: moverse cuesta en proporción al peso, así que se ajustan a cada persona
     neat_f = 1.0 if kg is None else max(0.6, min(1.4, kg / 75))
     if any(abs(neat - v) < 1 for _k, _l, v in NEAT_LEVELS) or abs(neat - float(s["neat_base_kcal"])) < 1:
@@ -1111,7 +1112,7 @@ def energy(conn, d, intake_kcal=None, day=None, acts=None, raw=False):
     ex = []
     for a in acts:
         k, src = activity_kcal(a, kg) if kg is not None or a["kcal_net"] is not None else (0, "falta el peso")
-        ex.append({"id": a["id"], "type": a["type"], "kcal": round(k), "source": src})
+        ex.append({"id": a["id"], "type": a["type"], "kcal": round(k), "source": src, "description": a["description"], "minutes": a["minutes"]})
     ex_raw = sum(x["kcal"] for x in ex)
     steps_raw = steps_kcal
     # Calibración (lo que la báscula dice que el modelo se equivoca): base ±kcal, factor de pasos y de entrenos
@@ -1131,7 +1132,7 @@ def energy(conn, d, intake_kcal=None, day=None, acts=None, raw=False):
         "weight_used_kg": None if kg is None else round(kg, 2), "weight_source": ksrc, "weight_measured": measured,
         "missing_profile": missing,
         "bmr": None if bmr is None else round(bmr), "tef": round(tef), "neat": round(neat),
-        "neat_source": (neat_label(day["neat_kcal"]) or "elegido para el día") if day["neat_kcal"] is not None else ("por definir al cerrar el día" if neat_pending else "normal"),
+        "neat_source": (neat_label(day["neat_kcal"]) or "elegido para el día") if day["neat_kcal"] is not None else ("normal de momento: se elige al cerrar el día" if neat_pending else "normal"),
         "neat_pending": neat_pending, "neat_factor": round(neat_f, 2),
         "neat_set": day["neat_kcal"] is not None,
         "steps": day["steps"], "steps_effective": eff_steps, "steps_in_activities": steps_in_acts, "steps_auto_sessions": auto,
