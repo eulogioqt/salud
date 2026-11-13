@@ -1906,3 +1906,7 @@ img { -webkit-user-drag: none; user-select: none; }
 .pc-dot.ok { background: #22a06b; } .pc-dot.warn { background: #e0a020; }
 .pc-off { color: var(--muted); font-weight: 600; }
 .pc-row .pc-t b { font-size: 15px; }
+/* Conexiones: el detalle siempre en una línea */
+.pc-row > .grow { min-width: 0; }
+.pc-row .faint.sm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-row > .btn { flex: none; }

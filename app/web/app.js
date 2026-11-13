@@ -847,11 +847,11 @@ async function connectionsSheet() {
       h("p", { class: "muted wz-p" }, "Todo es opcional: la web y tu agente funcionan sin conectar nada. Esto solo hace que lleguen solos los datos."),
       h("div", { class: "pc-list" },
         S.me ? row_("✦", "Agente", agentConnected() ? "ok" : "off",
-          agentConnected() ? S.me.agente.agents.map((t) => agentOf(t.agent || t.kind).n).join(", ") + " · para apuntar por chat" : off_("para apuntar por chat"),
+          agentConnected() ? S.me.agente.agents.map((t) => agentOf(t.agent || t.kind).n).join(", ") + " · para apuntar por chat" : off_("por chat"),
           h("button", { class: "btn sm ghost", onclick: () => connectAgent() }, agentConnected() ? "Gestionar" : "Conectar")) : null,
         S.me ? row_("👟", "Pasos", st_("pasos", pasosOk, info.pasos_ultimo), info.pasos_ultimo && !isOff("pasos") ? `Último envío ${agoTxt(info.pasos_ultimo)}` : off_("del móvil"), btn_("pasos", info.pasos_ultimo)) : null,
         S.me ? row_("⚖", "Báscula", st_("bascula", !!info.bascula, info.bascula), info.bascula && !isOff("bascula") ? `Último pesaje ${whenTxt(info.bascula)}` : off_("cada pesaje, solo"), btn_("bascula", info.bascula)) : null,
-        S.me ? row_("🏋", "Entrenos", st_("entreno", !!info.entreno_ultimo, info.entreno_ultimo), info.entreno_ultimo && !isOff("entreno") ? `Último ${whenTxt(info.entreno_ultimo)}` : off_("detecta cuándo entrenas"), btn_("entreno", info.entreno_ultimo)) : null,
+        S.me ? row_("🏋", "Entrenos", st_("entreno", !!info.entreno_ultimo, info.entreno_ultimo), info.entreno_ultimo && !isOff("entreno") ? `Último ${whenTxt(info.entreno_ultimo)}` : off_("cuándo entrenas"), btn_("entreno", info.entreno_ultimo)) : null,
         S.me ? row_("📋", "Hevy", info.hevy_agente ? "ok" : "off", info.hevy_agente ? "Series y pesos, vía tu agente" : off_("series y pesos"),
           info.hevy_agente ? unhevy : h("button", { class: "btn sm ghost", onclick: () => hevyAgentSheet(info.hevy_agente) }, "Conectar")) : null),
     ], S.me && info.configurado ? [h("button", { class: "btn sm ghost", onclick: () => mobileKeySheet(async () => { info = await api("GET", "/api/movil").catch(() => info); }) }, icon("key"), "Clave del móvil")] : null);
