@@ -1504,8 +1504,8 @@ function exSettingsPanel(name, kind, rec) {
   };
   const btn = h("button", { class: "btn sm", onclick: save }, "Guardar");
   return h("div", { class: "exset2" },
-    isMach ? [h("span", null, "Peso de la máquina"), h("div", { class: "exset2-in" }, mk, h("span", { class: "faint" }, "kg")), h("span", { class: "faint grow" }, "si lo incluyes al apuntar; para el rango se cuenta solo lo cargado")]
-      : [h("span", null, "Relación de la polea"), h("div", { class: "exset2-in" }, h("b", null, "1 :"), rN), h("span", { class: "faint grow" }, "1 : 2 = la polea pesa la mitad de lo que marca")],
+    isMach ? [h("span", null, "Peso de la máquina"), h("div", { class: "exset2-in" }, mk, h("span", { class: "faint" }, "kg")), h("span", { class: "faint exset2-h" }, "Si lo incluyes al apuntar; para el rango se cuenta solo lo cargado.")]
+      : [h("span", null, "Relación de la polea"), h("div", { class: "exset2-in" }, h("b", null, "1 :"), rN), h("span", { class: "faint exset2-h" }, "1 : 2 = la polea pesa la mitad de lo que marca.")],
     btn);
 }
 
@@ -1598,15 +1598,16 @@ async function exerciseSheet_(name) {
           tip(h("div", { class: "click", onclick: () => levelSheet(name, L) }, lvlBar(L)), "Pulsa para ver la curva de rangos"),
           h("div", { class: "exn-v" }, `Tu ${how}: `, h("b", null, u(L.raw)), L.idx < 5 && L.need ? ` · te faltan ${L.need.replace(/ para .*/, "").replace(" de 1RM", "").replace(/^\+/, "")}` : " · rango máximo", ` · top ${fmt(Math.max(0.5, 100 - L.pct))} %`));
       })() : null)),
-    h("div", { class: "kpis tight recs", style: { gridTemplateColumns: `repeat(${types.length}, 1fr)` } }, types.map((t) => { const r = rec[t];
-      return h("div", { class: "kpi" }, h("div", { class: "l" }, h("span", { class: "sic c" }, "🏆"), REC_LABEL[t]), h("div", { class: "v num" }, r ? recTxt(t, r.v, kind) : "—"),
-        h("div", { class: "s" }, r ? (r.set && ["w", "e1", "sv"].includes(t) ? setShort(kind, r.set) + " · " : "") + dateLabel(r.date, { day: "numeric", month: "short", year: "2-digit" }) : "")); })),
-    h("div", { class: "kpis five tight" },
-      kpi("Sesiones", String(hist.length), "desde " + dateLabel(asc[0].date, { month: "short", year: "2-digit" })),
-      kpi("Última", dateLabel(hist[0].date, { day: "numeric", month: "short" }), workSets(hist[0].sets).map((s_) => setShort(kind, s_)).slice(0, 2).join(", ")),
-      kpi("Series", fmt(allSets.length), "efectivas en total"),
-      kpi("Reps totales", fmt(totalReps), ""),
-      isW ? kpi("Volumen total", fmt(totalVol / 1000, 1) + " t", "", null, fmt(totalVol) + " kg (todas las series)") : kpi("Media reps", allSets.length ? fmt(totalReps / allSets.length, 1) : "—", "por serie")),
+    // Récords en una lista (sin una caja por cifra) y el resto en una sola franja de datos
+    h("div", { class: "card panel flat exrecs" }, h("h3", null, "Récords"), types.map((t) => { const r = rec[t];
+      return h("div", { class: "exrec" }, h("span", { class: "trophy" }, icon("trophy")),
+        h("div", { class: "grow" }, h("span", null, REC_LABEL[t]), r ? h("small", null, (r.set && ["w", "e1", "sv"].includes(t) ? setShort(kind, r.set) + " · " : "") + dateLabel(r.date, { day: "numeric", month: "short", year: "2-digit" })) : null),
+        h("b", { class: "num" }, r ? recTxt(t, r.v, kind) : "—")); })),
+    h("div", { class: "card panel flat exstats" },
+      h("div", { class: "exst-g" }, [["Sesiones", String(hist.length)], ["Series", fmt(allSets.length)], ["Reps", fmt(totalReps)],
+        isW ? ["Volumen", fmt(totalVol / 1000, 1) + " t"] : ["Media reps", allSets.length ? fmt(totalReps / allSets.length, 1) : "—"]].map(([l, v]) => h("div", null, h("b", { class: "num" }, v), h("span", null, l)))),
+      h("div", { class: "exst-f" }, `Desde ${dateLabel(asc[0].date, { month: "short", year: "numeric" })} · última ${dateLabel(hist[0].date, { day: "numeric", month: "short" })}: `,
+        workSets(hist[0].sets).map((s_) => setShort(kind, s_)).slice(0, 3).join(", "))),
     exSettingsPanel(name, kind, rec),
     mergeRow(name, kind),
     h("div", { class: "card panel flat" }, h("div", { class: "row wrap", style: { marginBottom: "6px" } }, h("h3", { style: { margin: 0 } }, "Progreso"), h("span", { class: "grow" }), chips), chartBox),

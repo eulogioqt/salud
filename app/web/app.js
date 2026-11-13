@@ -413,11 +413,11 @@ function summaryCard(st) {
         balTip(st))));
 }
 // Desglose del día (diseño B): balance arriba, lo comido (macros y comidas) y lo gastado (cada parte con su barra).
-// Un entreno o actividad en el gasto: su título, tipo, minutos y de dónde salen las kcal
+// Un entreno o actividad en el gasto: su título (o el tipo si es una actividad suelta), minutos y de dónde salen las kcal
 function exPart(x) {
   const tl = (ACT_TYPES.find((a) => a[0] === x.type) || [0, x.type])[1];
   const src = x.source === "agente" ? "estimado por tu agente" : x.source.startsWith("estimado") ? "estimado" : x.source === "manual" ? "lo que apuntaste" : x.source;
-  return ["ex", x.description || tl, x.kcal, [x.description ? tl : null, x.minutes ? fmt(x.minutes) + " min" : null, src].filter(Boolean).join(" · ")];
+  return ["ex", x.description || tl, x.kcal, [x.minutes ? fmt(x.minutes) + " min" : null, src].filter(Boolean).join(" · ")];
 }
 const stepsSub = (n, inActs) => n == null ? "sin apuntar" : `${fmt(n)} pasos` + (inActs ? ` (sin los ${fmt(inActs)} del entreno)` : "");
 // Gasto por partes (barra + filas con su punto de color): el mismo en el desglose y en el objetivo
@@ -463,8 +463,8 @@ function energySheet(st) {
     h("div", { class: "grow" }, h("div", { class: "bd-apx2-t" }, "de lo que has comido es aproximado"),
       h("div", { class: "bd-apx2-s" }, `${fmt(st.approx_kcal)} kcal de comidas fuera o productos sin etiqueta. Al ponerles la etiqueta se corrige en todos los días.`))) : null;
   const eaten = h("div", { class: "bd-sec" },
-    h("div", { class: "bd-st" }, h("span", { class: "grow" }, "Lo que has comido",
-        tg.kcal ? h("span", { class: "bd-left" + (kc > tg.kcal ? " over" : "") }, kc > tg.kcal ? `+${fmt(kc - tg.kcal)} de más` : `quedan ${fmt(tg.kcal - kc)}`) : null),
+    h("div", { class: "bd-st" }, h("span", { class: "grow" }, "Lo que has comido"),
+      tg.kcal && !closed ? h("span", { class: "bd-left" + (kc > tg.kcal ? " over" : "") }, kc > tg.kcal ? `+${fmt(kc - tg.kcal)} de más` : `quedan ${fmt(tg.kcal - kc)}`) : null,
       h("span", { class: "num bd-tot" }, h("b", null, v(t, "kcal")), tg.kcal ? h("span", { class: "faint" }, " / " + fmt(tg.kcal) + " kcal") : " kcal")),
     h("div", { class: "bd-macros" },
       macroRow("p", "Proteína", "protein_g", tg.protein_g), macroRow("c", "Carbohidratos", "carbs_g", tg.carbs_g), macroRow("g", "Grasas", "fat_g", tg.fat_mid_g)),
@@ -1382,15 +1382,18 @@ function summaryView(s, extra) {
   // fila principal (negrita) y filas de desglose (sangradas, más pequeñas)
   const main = (a, b, c) => h("tr", { class: "main" }, h("td", null, a), h("td", { class: "r num" }, b), h("td", { class: "r num faint" }, c || ""));
   const sub = (a, b, c) => h("tr", { class: "sub" }, h("td", null, a), h("td", { class: "r num" }, b), h("td", { class: "r num faint" }, c || ""));
+  // objetivo y, al lado, la diferencia en un badge (verde si está bien, ámbar si se aleja)
+  const og = (goal, diff, ok, dec = 0) => goal == null ? "" : h("span", { class: "og" }, fmt(goal, dec),
+    h("span", { class: "ogd " + (ok ? "ok" : "off") }, Math.abs(diff) < 0.5 ? "✓" : signed(Math.round(diff))));
   const gap = () => h("tr", { class: "gap" }, h("td", { colspan: 3 }));
   const bal = s.balance;
   return h("div", null,
     h("table", { class: "t sumtbl v2" },
-      h("tr", null, h("th", null, ""), h("th", { class: "r" }, "Día"), h("th", { class: "r" }, "Objetivo · dif.")),
-      main("Calorías", v(t, "kcal") + " kcal", tg.kcal ? `${fmt(tg.kcal)} · ${signed(d.kcal)}` : ""),
-      sub("Proteína", v(t, "protein_g") + " g", tg.protein_g != null ? `${fmt(tg.protein_g)} · ${signed(d.protein_g)}` : ""),
-      sub("Carbohidratos", v(t, "carbs_g") + " g", tg.carbs_g != null ? `${fmt(tg.carbs_g)} · ${signed(d.carbs_g)}` : ""),
-      sub("Grasas", v(t, "fat_g") + " g", tg.fat_mid_g != null ? `${fmt(tg.fat_mid_g)} · ${signed((t.fat_g || 0) - tg.fat_mid_g)}` : ""),
+      h("tr", null, h("th", null, ""), h("th", { class: "r" }, "Día"), h("th", { class: "r" }, "Objetivo")),
+      main("Calorías", v(t, "kcal") + " kcal", tg.kcal ? og(tg.kcal, d.kcal, Math.abs(d.kcal) <= 0.05 * tg.kcal) : ""),
+      sub("Proteína", v(t, "protein_g") + " g", tg.protein_g != null ? og(tg.protein_g, d.protein_g, d.protein_g >= -5) : ""),
+      sub("Carbohidratos", v(t, "carbs_g") + " g", tg.carbs_g != null ? og(tg.carbs_g, d.carbs_g, Math.abs(d.carbs_g) <= 0.15 * tg.carbs_g) : ""),
+      sub("Grasas", v(t, "fat_g") + " g", tg.fat_mid_g != null ? og(tg.fat_mid_g, (t.fat_g || 0) - tg.fat_mid_g, (t.fat_g || 0) >= (tg.fat_min_g || 0) && (t.fat_g || 0) <= (tg.fat_max_g || 1e9)) : ""),
       gap(),
       main("Gasto estimado", fmt(en.total) + " kcal" + (en.complete ? "" : " *"), en.complete ? "" : "incompleto"),
       sub("Metabolismo basal", fmt(en.bmr), ""), sub("Efecto térmico (TEF)", fmt(en.tef), ""), sub("NEAT sin pasos", fmt(en.neat), ""),
@@ -1399,12 +1402,12 @@ function summaryView(s, extra) {
       (() => { // el balance frente al que buscabas: según el gasto, la diferencia elegida; fijo, objetivo − gasto
         const objB = tg.dynamic ? tg.kcal_offset : tg.kcal && en.total != null ? tg.kcal - en.total : null;
         return h("tr", { class: "main bal " + (bal == null ? "" : bal < 0 ? "neg" : "pos") }, h("td", null, "Balance estimado"), h("td", { class: "r num" }, signed(bal) + " kcal"),
-          h("td", { class: "r num faint" }, bal == null ? "" : objB != null ? `${signed(Math.round(objB))} · ${signed(Math.round(bal - objB))}` : bal < 0 ? "déficit" : "superávit"));
+          h("td", { class: "r num faint" }, bal == null ? "" : objB != null ? h("span", { class: "og" }, signed(Math.round(objB)), h("span", { class: "ogd " + (Math.abs(bal - objB) <= 150 ? "ok" : "off") }, Math.abs(bal - objB) < 0.5 ? "✓" : signed(Math.round(bal - objB)))) : bal < 0 ? "déficit" : "superávit"));
       })(),
       gap(),
       main("Peso", s.weight_kg != null ? fmt(s.weight_kg, 1) + " kg" : "—", s.avg7 != null ? "media 7 d " + fmt(s.avg7, 1) : ""),
       main("Pasos", s.steps != null ? fmt(s.steps) : "—", ""),
-      main("Actividad", s.activities.length ? s.activities.map((a) => `${a.type}${a.minutes ? " " + fmt(a.minutes) + " min" : ""}`).join(", ") : "descanso", "")),
+      h("tr", { class: "main" }, h("td", null, "Entreno"), h("td", { class: "r wrapv", colspan: 2 }, s.activities.length ? s.activities.map((a) => `${a.description || (ACT_TYPES.find((x) => x[0] === a.type) || [0, a.type])[1]}${a.minutes ? " · " + fmt(a.minutes) + " min" : ""}`).join(", ") : "descanso"))),
     (t.missing || []).length ? h("div", { class: "note warn" }, "* Totales mínimos: hay valores desconocidos.") : null,
     s.observations && s.observations.length ? h("ul", { class: "obs" }, s.observations.map((o) => h("li", null, o))) : null,
     extra || null);
