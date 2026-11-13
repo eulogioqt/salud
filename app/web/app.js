@@ -1388,9 +1388,9 @@ function summaryView(s, extra) {
   // fila principal (negrita) y filas de desglose (sangradas, más pequeñas)
   const main = (a, b, c) => h("tr", { class: "main" }, h("td", null, a), h("td", { class: "r num" }, b), h("td", { class: "r num faint" }, c || ""));
   const sub = (a, b, c) => h("tr", { class: "sub" }, h("td", null, a), h("td", { class: "r num" }, b), h("td", { class: "r num faint" }, c || ""));
-  // objetivo y, al lado, la diferencia en un badge (verde si está bien, ámbar si se aleja)
+  // objetivo y, al lado, la diferencia en un badge neutro
   const og = (goal, diff, ok, dec = 0) => goal == null ? "" : h("span", { class: "og" }, fmt(goal, dec),
-    h("span", { class: "ogd " + (ok ? "ok" : "off") }, Math.abs(diff) < 0.5 ? "✓" : signed(Math.round(diff))));
+    h("span", { class: "ogd" }, Math.abs(diff) < 0.5 ? "=" : signed(Math.round(diff))));
   const gap = () => h("tr", { class: "gap" }, h("td", { colspan: 3 }));
   const bal = s.balance;
   return h("div", null,
@@ -1408,7 +1408,7 @@ function summaryView(s, extra) {
       (() => { // el balance frente al que buscabas: según el gasto, la diferencia elegida; fijo, objetivo − gasto
         const objB = tg.dynamic ? tg.kcal_offset : tg.kcal && en.total != null ? tg.kcal - en.total : null;
         return h("tr", { class: "main bal " + (bal == null ? "" : bal < 0 ? "neg" : "pos") }, h("td", null, "Balance estimado"), h("td", { class: "r num" }, signed(bal) + " kcal"),
-          h("td", { class: "r num faint" }, bal == null ? "" : objB != null ? h("span", { class: "og" }, signed(Math.round(objB)), h("span", { class: "ogd " + (Math.abs(bal - objB) <= 150 ? "ok" : "off") }, Math.abs(bal - objB) < 0.5 ? "✓" : signed(Math.round(bal - objB)))) : bal < 0 ? "déficit" : "superávit"));
+          h("td", { class: "r num faint" }, bal == null ? "" : objB != null ? h("span", { class: "og" }, signed(Math.round(objB)), h("span", { class: "ogd" }, Math.abs(bal - objB) < 0.5 ? "=" : signed(Math.round(bal - objB)))) : bal < 0 ? "déficit" : "superávit"));
       })(),
       gap(),
       main("Peso", s.weight_kg != null ? fmt(s.weight_kg, 1) + " kg" : "—", ""),

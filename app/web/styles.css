@@ -1968,3 +1968,5 @@ img { -webkit-user-drag: none; user-select: none; }
 .exset2 > span:first-child { flex: 1; }
 .exset2 .exset2-h { order: 9; flex: 1 0 100%; font-size: 12px; line-height: 1.4; }
 .gp-tef { margin-top: 8px; }
+/* Diferencia con el objetivo: badge neutro, como los demás de la web (−250 del déficit, ÷ 0,9…) */
+.ogd { background: var(--surface-2); color: var(--muted); font-weight: 650; }

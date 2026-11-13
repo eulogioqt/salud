@@ -99,15 +99,8 @@ def _local(iso):
 
 
 def _activity_type(title, exercises):
-    t = core._norm(title)
-    if "hyrox" in t:
-        return "hyrox"
-    if re.search(r"\b(carrera|correr|run|running|rodaje|series)\b", t):
-        return "carrera"
-    if re.search(r"\b(bici|cycling|spinning)\b", t):
-        return "bici"
-    if "calistenia" in t:
-        return "calistenia"
+    """Ya no se deduce nada del título: las kcal del entreno las estima el agente analizándolo. Queda «fuerza» como
+    tipo genérico (solo se usaría si un entreno llegara sin kcal del agente)."""
     return "fuerza"
 
 

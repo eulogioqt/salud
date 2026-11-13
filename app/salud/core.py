@@ -1092,7 +1092,9 @@ def energy(conn, d, intake_kcal=None, day=None, acts=None, raw=False):
     # Pasos dados durante una sesión de carrera/hyrox/caminata: su gasto ya va en la sesión. Si los pasos llegan del móvil
     # por tramos, se calculan solos con la hora del entreno; si no, los indica la persona.
     auto = {}
-    if day["steps"] and any(a["type"] in STEP_TYPES and a["steps_in_activity"] is None for a in acts):
+    # Entrenos: los pasos que el móvil cuenta durante la sesión ya van en las kcal del entreno (las estima el agente con
+    # todo lo que se movió), así que se descuentan siempre, sea del tipo que sea.
+    if day["steps"] and any(a["steps_in_activity"] is None for a in acts):
         from datetime import datetime as _dt, timedelta as _td
         for w in conn.execute("SELECT activity_id, start_time, duration_min FROM workouts WHERE date=? AND deleted_at IS NULL "
                               "AND activity_id IS NOT NULL AND start_time IS NOT NULL AND duration_min > 0", (d,)):
@@ -1103,7 +1105,7 @@ def energy(conn, d, intake_kcal=None, day=None, acts=None, raw=False):
             if n[1]:
                 auto[w["activity_id"]] = int(n[0] or 0)
     steps_in_acts = sum(a["steps_in_activity"] if a["steps_in_activity"] is not None else
-                        (auto.get(a["id"], 0) if a["type"] in STEP_TYPES else 0) for a in acts)
+                        auto.get(a["id"], 0) for a in acts)
     if day["steps"] is None or kg is None:
         steps_kcal, eff_steps = None, None
     else:
