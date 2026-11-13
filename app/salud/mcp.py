@@ -28,7 +28,8 @@ Reglas:
 - Nunca simules un registro: usa la herramienta y su salida es la confirmación. «Cuánto llevo» → `ver_dia`.
 - null = desconocido, nunca 0. Si falta un dato relevante, pregunta UNA cosa concreta.
 - Antes de añadir, `buscar_alimento` para usar lo que ya existe (y su unidad). No inventes valores de productos de marca: pide la etiqueta o usa Open Food Facts citándolo. Lo que crees (productos, recetas, comidas habituales) queda «por revisar» hasta que la persona lo acepte en la pestaña Comida.
-- Comidas fuera: `estimar_comida` con rango y supuestos en la nota.
+- UNA ENTRADA POR ALIMENTO O BEBIDA, siempre: nunca juntes una comida entera (ni un menú) en una sola entrada. «Albóndigas, puré, patatas, donut y 2 vasos de Coca-Cola» son 5 entradas en el almuerzo; «pizza y Coca-Cola Zero» son 2 en la cena. Así se ven, se corrigen y se reutilizan por separado.
+- Comidas fuera: `estimar_comida` UNA VEZ POR CADA plato o bebida (con su cantidad, rango y supuestos en la nota). Si es un producto que ya existe o de marca conocida (Coca-Cola Zero, una lata…), mejor `buscar_alimento` + `anadir_alimento` que estimarlo.
 - Comida habitual = un conjunto de VARIOS alimentos que toma junto (su desayuno, un táper, un batido). Un producto suelto (una barrita, una lata de Coca-Cola, un yogur, un paquete) NUNCA es una comida habitual: es un producto (`api` POST /api/foods, con su ración «1 unidad (23 g)» y `default_unit` por unidad) y se apunta con `anadir_alimento`. El servidor rechaza comidas habituales de un solo alimento.
 - Comidas habituales: si apunta algo de varios alimentos que parece de siempre (su desayuno, un táper, un batido) y no venía de una comida habitual, pregúntale una vez al final: «¿lo guardo como comida habitual? La próxima vez bastará con decirme su nombre». Si dice que sí, créala con `api` POST /api/templates {name, meal, items:[{food_id, unit_key, quantity}]} y dibújale su ilustración. Cuando nombre una comida habitual, usa `comida_habitual` (con `cambios` si esta vez varía algo) en vez de volver a estimarla.
 - Aceite: una línea más en la comida (chorrito ≈ 8 g, cucharada ≈ 10 g; plancha/salteado cuenta 100 %, fritura ~10–15 % del peso del alimento).
@@ -198,7 +199,7 @@ TOOLS = [
      lambda a: _fh(a, ["habitual", a["nombre"]] + (["-c", a["comida"]] if a.get("comida") else [])
                    + sum([["--set", "%d=%s" % (c["item_id"], c["cantidad"])] for c in a.get("cambios") or []], [])
                    + sum([["--skip", str(i)] for i in a.get("omitir") or []], [])), False),
-    ("estimar_comida", "Comida fuera o sin pesar: estimación con kcal y macros, rango (min–max kcal) y supuestos en la nota.",
+    ("estimar_comida", "Estimación de UN plato o UNA bebida (no de la comida entera: llámala una vez por cada cosa) con kcal y macros, rango (min–max kcal) y supuestos en la nota. Para comida fuera o sin pesar.",
      _o({"descripcion": U, "kcal": N, "proteina_g": N, "carbohidratos_g": N, "grasa_g": N, "kcal_min": N, "kcal_max": N,
          "comida": COMIDA, "nota": U, "fecha": FECHA, "hora": HORA}, ["descripcion", "kcal", "comida"]),
      lambda a: _fh(a, ["estimar", a["descripcion"], "--kcal", str(a["kcal"]), "-c", a["comida"]]

@@ -89,7 +89,7 @@ Pesos (para rangos y 1RM): mancuernas = el peso de las dos; a un brazo = peso no
 - Comida habitual = varios alimentos que se toman juntos (desayuno, táper, batido). Un producto suelto (barrita, lata, yogur) es un **producto** con su ración por unidad, nunca una comida habitual (el servidor las rechaza con un solo alimento).
 - Fotos: preferir Open Food Facts por URL con `image_source`.
 - Lo que se toma por unidad (lata, yogur, pack) se registra por unidad (`default_unit`); lo demás por peso.
-- Comidas fuera: estimar con rango y supuestos en `--nota`.
+- Una entrada por alimento o bebida, nunca la comida entera junta (menú de 5 cosas = 5 entradas). Comidas fuera: un `estimar` por cada plato o bebida, con rango y supuestos en `--nota`.
 - Aceite: una línea más en la comida donde se usó. Sin pesar: chorrito ≈ 8 g, cucharada ≈ 10 g. Plancha/salteado: contar el 100 %; fritura profunda: absorción ~10–15 % del peso del alimento.
 - Recetas en crudo/seco. Los días cerrados no cambian; no modificarlos sin `reabrir` pedido por el usuario. Excepción: corregir los datos de un producto (p. ej. ponerle la etiqueta) se aplica a lo apuntado en todos los días.
 - «Cierra el día»: `S check`, decir solo lo que falta de verdad, preguntar si cierra igualmente; tras cerrar, resumen compacto.
