@@ -1970,3 +1970,36 @@ img { -webkit-user-drag: none; user-select: none; }
 .gp-tef { margin-top: 8px; }
 /* Diferencia con el objetivo: badge neutro, como los demás de la web (−250 del déficit, ÷ 0,9…) */
 .ogd { background: var(--surface-2); color: var(--muted); font-weight: 650; }
+/* Diálogo de confirmación (descartar cambios) */
+.dlg-bd { display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 200; }
+.dlg { background: var(--surface); border-radius: 18px; padding: 20px 20px 16px; width: 100%; max-width: 360px; box-shadow: 0 18px 50px rgba(0,0,0,.25); }
+.dlg b { font-size: 17px; } .dlg p { margin: 6px 0 16px; color: var(--muted); font-size: 14px; }
+.dlg-b { display: flex; gap: 8px; justify-content: flex-end; }
+.btn.danger-solid { background: #c0392b; border-color: #c0392b; color: #fff; }
+.backdrop.dlg-bd { align-items: center !important; justify-content: center !important; padding: 20px !important; }
+/* Raciones del producto: en PC tabla; en el móvil una tarjeta por ración con cada campo etiquetado */
+.pt-defl span { display: none; }
+@media (max-width: 640px) {
+  .tbl-wrap:has(> .ptable) { overflow: visible; }
+  .ptable, .ptable tbody { display: block; width: 100%; } .ptable thead { display: none; }
+  .ptable tr { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 12px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 14px; position: relative; }
+  .ptable td { display: flex; flex-direction: column; gap: 3px; width: auto !important; padding: 0; min-width: 0; }
+  .ptable td::before { content: attr(data-l); font-size: 11.5px; color: var(--muted); font-weight: 550; }
+  .ptable td .input { width: 100%; min-width: 0; box-sizing: border-box; }
+  .ptable td.pt-lab { grid-column: 1 / -1; padding-right: 36px; }
+  .ptable td.pt-q { grid-column: span 2; }
+  .ptable td.pt-def { grid-column: span 2; justify-content: flex-end; text-align: left !important; }
+  .ptable td.pt-def::before { visibility: hidden; }
+  .pt-defl { display: flex; align-items: center; gap: 8px; min-height: 36px; font-size: 13px; } .pt-defl span { display: inline; }
+  .ptable td.pt-x { position: absolute; top: 8px; right: 8px; } .ptable td.pt-x::before { display: none; }
+}
+@media (max-width: 640px) {
+  .ptable td:nth-child(1) { order: 0; } .ptable td:nth-child(2) { order: 1; } .ptable td:nth-child(3) { order: 2; } .ptable td:nth-child(8) { order: 3; }
+  .ptable td:nth-child(4) { order: 4; } .ptable td:nth-child(5) { order: 5; } .ptable td:nth-child(6) { order: 6; } .ptable td:nth-child(7) { order: 7; }
+  .ptable td:nth-child(9) { order: 8; grid-column: 1 / -1; } .ptable td.pt-def::before { display: none; }
+}
+/* Gasto por partes: el degradado sigue el orden de las filas (metabolismo → día a día → pasos → entrenos → digestión) */
+:root { --e-bmr: #1f7a5a; --e-neat: #4f9a7e; --e-steps: #7db6a0; --e-ex: #a9cfc0; --e-tef: #cfe4db; --e-cal: #d9d4c7; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --e-bmr: #3fae84; --e-neat: #35906e; --e-steps: #2c7559; --e-ex: #245d48; --e-tef: #1d4a3a; --e-cal: #4a4740; } }
+.e-cal { background: var(--e-cal); }
+@media (max-width: 640px) { table.t.ptable td { border: 0; } table.t.ptable tr td.pt-x { padding: 0; } }

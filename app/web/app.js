@@ -185,7 +185,13 @@ function sheet(title, body, footer, opts = {}) {
     if (opts.onClose) opts.onClose();
     if (!S.sheetOpen && S.pendingRefresh) { S.pendingRefresh = false; refresh(); }
   };
-  const onKey = (e) => { if (e.key === "Escape" && bd === document.querySelector("#sheet-root .backdrop:last-child")) close(); };
+  // Fichas de crear o editar datos (opts.guard): si has cambiado algo y la cierras sin guardar, pregunta antes de descartar
+  let dirty = false;
+  const userClose = async () => {
+    if (opts.guard && dirty && !(await confirmDiscard())) return;
+    close();
+  };
+  const onKey = (e) => { if (e.key === "Escape" && bd === document.querySelector("#sheet-root .backdrop:last-child")) userClose(); };
   document.addEventListener("keydown", onKey);
   OPEN_SHEETS.add(close); SHEET_STACK.push({ key: skey, close });
   const titleEl = h("h2", null, title), subEl = h("div", { class: "sheet-sub" }), descEl = h("div", { class: "sheet-desc hidden" }), extraEl = h("div", { class: "title-x" });
@@ -195,13 +201,14 @@ function sheet(title, body, footer, opts = {}) {
   const sh = h("div", { class: "sheet" + (opts.wide ? " wide" : "") },
     h("div", { class: "grab" }),
     h("div", { class: "sheet-h" }, backEl, h("div", { class: "sheet-t" }, h("div", { class: "title-row" }, titleEl, extraEl), descEl, subEl),
-      h("button", { class: "icon-btn round", onclick: close, "aria-label": "Cerrar" }, icon("x"))),
+      h("button", { class: "icon-btn round", onclick: userClose, "aria-label": "Cerrar" }, icon("x"))),
     bodyEl, footEl);
   bd.append(sh);
-  bd.addEventListener("mousedown", (e) => { if (e.target === bd) close(); });
+  bd.addEventListener("mousedown", (e) => { if (e.target === bd) userClose(); });
+  if (opts.guard) { const mark = (e) => { if (e.isTrusted) dirty = true; }; bodyEl.addEventListener("input", mark); bodyEl.addEventListener("change", mark); }
   $("#sheet-root").append(bd);
   const ctl = {
-    close, el: sh,
+    close, el: sh, markDirty: () => { dirty = true; },
     set(t, b, f, o = {}) {
       const clean = (x) => [].concat(x || []).flat(Infinity).filter((k) => k != null && k !== false);
       titleEl.textContent = t; subEl.textContent = o.sub || ""; subEl.classList.toggle("hidden", !o.sub);
@@ -217,6 +224,18 @@ function sheet(title, body, footer, opts = {}) {
   return ctl;
 }
 
+// Confirmación al salir con cambios sin guardar
+function confirmDiscard() {
+  return new Promise((res) => {
+    const done = (v) => { bd.classList.add("closing"); setTimeout(() => bd.remove(), 140); document.removeEventListener("keydown", key, true); res(v); };
+    const key = (e) => { if (e.key === "Escape") { e.stopPropagation(); done(false); } };
+    const bd = h("div", { class: "backdrop dlg-bd", onmousedown: (e) => { if (e.target === bd) done(false); } },
+      h("div", { class: "dlg", role: "alertdialog" }, h("b", null, "¿Descartar los cambios?"), h("p", null, "Lo que has cambiado no se guardará."),
+        h("div", { class: "dlg-b" }, h("button", { class: "btn", onclick: () => done(false) }, "Seguir editando"), h("button", { class: "btn danger-solid", onclick: () => done(true) }, "Descartar"))));
+    document.addEventListener("keydown", key, true);
+    $("#sheet-root").append(bd);
+  });
+}
 // Texto de una etiqueta con icono: recortado a la altura de las mayúsculas para que quede centrado con el icono en cualquier fuente
 const tx = (s) => h("span", { class: "tx" }, s);
 function icon(name) {
@@ -1552,10 +1571,11 @@ function foodEditor(f, opt = {}) {
     r.kcal = numIn(p.kcal); r.p = numIn(p.protein_g); r.c = numIn(p.carbs_g); r.g = numIn(p.fat_g);
     r.q = h("select", { class: "input" }, Object.entries(QUAL).map(([k, l]) => h("option", { value: k, selected: k === (p.quality || "etiqueta") }, l)));
     r.def = h("input", { type: "radio", name: "pdef", checked: !!p.is_default, title: "Base para escalar por g/ml" });
-    r.el = h("tr", null, h("td", null, r.label), h("td", { style: { width: "70px" } }, r.amount), h("td", { style: { width: "70px" } }, r.unit), h("td", { style: { width: "70px" } }, r.kcal),
-      h("td", { style: { width: "62px" } }, r.p), h("td", { style: { width: "62px" } }, r.c), h("td", { style: { width: "62px" } }, r.g), h("td", { style: { width: "122px" } }, r.q),
-      h("td", { style: { width: "28px", textAlign: "center" } }, r.def),
-      h("td", { style: { width: "30px" } }, h("button", { class: "icon-btn", title: "Quitar", onclick: () => { r.deleted = true; r.el.remove(); } }, icon("x"))));
+    // en el móvil cada ración es una tarjeta (la tabla no cabía y los números se cortaban): data-l es la etiqueta de cada campo
+    r.el = h("tr", null, h("td", { class: "pt-lab", "data-l": "Ración" }, r.label), h("td", { class: "pt-n", "data-l": "Cantidad", style: { width: "70px" } }, r.amount), h("td", { class: "pt-n", "data-l": "Unidad", style: { width: "70px" } }, r.unit), h("td", { class: "pt-n", "data-l": "kcal", style: { width: "70px" } }, r.kcal),
+      h("td", { class: "pt-n", "data-l": "Proteína", style: { width: "62px" } }, r.p), h("td", { class: "pt-n", "data-l": "Carbos", style: { width: "62px" } }, r.c), h("td", { class: "pt-n", "data-l": "Grasas", style: { width: "62px" } }, r.g), h("td", { class: "pt-q", "data-l": "Dato", style: { width: "122px" } }, r.q),
+      h("td", { class: "pt-def", "data-l": "Base", style: { width: "28px", textAlign: "center" } }, h("label", { class: "pt-defl" }, r.def, h("span", null, "Base para g/ml"))),
+      h("td", { class: "pt-x", style: { width: "30px" } }, h("button", { class: "icon-btn", title: "Quitar", onclick: () => { r.deleted = true; r.el.remove(); if (typeof sh !== "undefined" && sh.markDirty) sh.markDirty(); } }, icon("x"))));
     return r;
   };
   const prows = (f.portions || []).map(prow);
@@ -1595,6 +1615,7 @@ function foodEditor(f, opt = {}) {
   let offImg = null;
   const offNote = h("div", { class: "note hidden" });
   const applyOff = (o) => {
+    if (typeof sh !== "undefined" && sh.markDirty) sh.markDirty();
     if (!name.value.trim() || isNew) name.value = o.name || name.value;
     if (!brand.value.trim() && o.brand) brand.value = o.brand;
     offCode = o.code; srcSel.value = "off"; srcOther.classList.add("hidden");
@@ -1608,8 +1629,12 @@ function foodEditor(f, opt = {}) {
     if (!r100) { r100 = prow({ quality: q }); prows.push(r100); tbody.append(r100.el); }
     setRow(r100, o.per100, "100 " + o.unit, 100, o.unit);
     if (!live.some((r) => r.def.checked)) r100.def.checked = true;
-    if (o.serving && !live.some((r) => r !== r100 && parseNum(r.amount.value) === o.serving.amount)) {
-      const rs = prow({ quality: q }); prows.push(rs); tbody.append(rs.el); setRow(rs, o.serving, o.serving.label, o.serving.amount, o.serving.unit);
+    // La ración de Open Food Facts: si ya hay una del mismo peso (p. ej. «1 barrita (23 g)»), se actualizan sus valores y se
+    // conserva su nombre; si no, se añade.
+    if (o.serving) {
+      let rs = live.find((r) => r !== r100 && Math.abs((parseNum(r.amount.value) || 0) - o.serving.amount) < 0.6);
+      if (rs) setRow(rs, o.serving, rs.label.value.trim() || o.serving.label, o.serving.amount, o.serving.unit);
+      else { rs = prow({ quality: q }); prows.push(rs); tbody.append(rs.el); setRow(rs, o.serving, o.serving.label, o.serving.amount, o.serving.unit); }
     }
     const hadPhoto = !!(f.image || pendingImg);
     if (o.image_url && !hadPhoto) { offImg = o.image_url; pendingImg = o.image_url; drawPhoto(); }
@@ -1665,7 +1690,7 @@ function foodEditor(f, opt = {}) {
   const sh = sheet(isNew ? "Nuevo producto" : f.name, body, [
     isNew && !opt.supp && opt.manual ? h("button", { class: "btn ghost", onclick: () => { sh.close(); foodEditor(null, { ...opt, manual: false, off: null }); } }, icon("barcode"), "Usar código de barras") : null,
     !isNew ? h("button", { class: "btn ghost danger", onclick: (e) => confirmDel(e, () => act(() => api("POST", `/api/foods/${f.id}/deleted`, { value: true }), "Eliminado (recuperable desde la base de datos)").then(sh.close)) }, "Eliminar") : null,
-    h("span", { class: "grow" }), ...saveButtons(isNew, f, save)], { wide: true, sub: reviewSub(isNew, f),
+    h("span", { class: "grow" }), ...saveButtons(isNew, f, save)], { wide: true, guard: true, sub: reviewSub(isNew, f),
     titleExtra: isNew ? null : h("button", { class: "fav-btn" + (f.favorite ? " on" : ""), title: f.favorite ? "Quitar de favoritos" : "Añadir a favoritos (sale antes al buscar)",
       onclick: async (e) => { const b = e.currentTarget; await act(() => api("POST", `/api/foods/${f.id}/favorite`, { value: !f.favorite })); f.favorite = f.favorite ? 0 : 1; b.classList.toggle("on", !!f.favorite); b.textContent = f.favorite ? "★" : "☆"; } }, f.favorite ? "★" : "☆") });
   if (opt.off) applyOff(opt.off);
@@ -1694,19 +1719,45 @@ function offChooser(onFound, big, onManual) {
 let ZX_LOAD = null;
 const loadZxing = () => ZX_LOAD || (ZX_LOAD = new Promise((ok, ko) => { const s = document.createElement("script"); s.src = "/vendor/zxing.min.js"; s.onload = () => ok(window.ZXing); s.onerror = () => { ZX_LOAD = null; ko(new Error("No se pudo cargar el lector")); }; document.head.append(s); }));
 // Escáner de códigos de barras con la cámara: nativo (Chrome en Android) o con ZXing (ordenador, iPhone)
+// Pitido de lector de caja (y vibración) al leer un código. El audio se prepara al pulsar «Escanear» (los navegadores
+// solo dejan sonar si sale de un toque del usuario) y suena cuando se detecta el código.
+function scanBeeper() {
+  let ctx = null;
+  try { ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume && ctx.resume(); } catch (e) { ctx = null; }
+  return () => {
+    try { navigator.vibrate && navigator.vibrate(60); } catch (e) { /* sin vibración */ }
+    if (!ctx) return;
+    const o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime;
+    o.type = "square"; o.frequency.value = 2400;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + 0.01); g.gain.setValueAtTime(0.25, t + 0.12); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+    o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 0.16);
+    setTimeout(() => ctx.close && ctx.close(), 400);
+  };
+}
+// Cámara para códigos: algo de zoom (los códigos son pequeños y así no hay que acercar tanto el móvil, que desenfoca) y enfoque continuo
+const SCAN_VIDEO = { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } };
+async function tuneScanTrack(stream) {
+  const tr = stream && stream.getVideoTracks()[0]; if (!tr || !tr.getCapabilities) return;
+  const cap = tr.getCapabilities(), adv = {};
+  if (cap.zoom) adv.zoom = Math.min(cap.zoom.max, Math.max(cap.zoom.min, 2));
+  if ((cap.focusMode || []).includes("continuous")) adv.focusMode = "continuous";
+  if (Object.keys(adv).length) try { await tr.applyConstraints({ advanced: [adv] }); } catch (e) { /* sin ajustes */ }
+}
 async function scanBarcode(onCode) {
-  if (!("BarcodeDetector" in window)) return scanZxing(onCode);
+  const beep = scanBeeper();
+  const found = (c) => { beep(); onCode(c); };
+  if (!("BarcodeDetector" in window)) return scanZxing(found);
   let stream = null, stop = false;
   const video = h("video", { class: "scan-v", playsInline: true, muted: true, autoplay: true });
   const msg = h("div", { class: "note" }, "Apunta al código de barras del envase");
   const sh = sheet("Escanear código", [h("div", { class: "scan-w" }, video, h("i", { class: "scan-line" })), msg], null, { onClose: () => { stop = true; if (stream) stream.getTracks().forEach((t) => t.stop()); } });
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-    video.srcObject = stream; await video.play();
+    stream = await navigator.mediaDevices.getUserMedia({ video: SCAN_VIDEO });
+    video.srcObject = stream; await video.play(); tuneScanTrack(stream);
     const det = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e"] });
     const tick = async () => {
       if (stop) return;
-      try { const r = await det.detect(video); if (r.length) { const c = r[0].rawValue; sh.close(); onCode(c); return; } } catch (e) { /* sigue */ }
+      try { const r = await det.detect(video); if (r.length) { const c = r[0].rawValue; sh.close(); found(c); return; } } catch (e) { /* sigue */ }
       setTimeout(tick, 200);
     };
     tick();
@@ -1720,7 +1771,8 @@ async function scanZxing(onCode) {
   try {
     const ZX = await loadZxing();
     reader = new ZX.BrowserMultiFormatReader();
-    await reader.decodeFromConstraints({ video: { facingMode: "environment" } }, video, (res) => { if (res) { const c = res.getText(); reader.reset(); sh.close(); onCode(c); } });
+    await reader.decodeFromConstraints({ video: SCAN_VIDEO }, video, (res) => { if (res) { const c = res.getText(); reader.reset(); sh.close(); onCode(c); } });
+    tuneScanTrack(video.srcObject);
   } catch (e) { msg.className = "note warn"; msg.textContent = "No se puede usar la cámara: escribe el código o pega el enlace."; }
 }
 
@@ -1805,7 +1857,7 @@ function recipeEditor(r) {
   };
   const sh = sheet(isNew ? "Nueva receta" : r.name, body, [
     !isNew ? h("button", { class: "btn ghost danger", onclick: (e) => confirmDel(e, () => act(() => api("POST", `/api/foods/${r.id}/deleted`, { value: true }), "Receta eliminada").then(sh.close)) }, "Eliminar") : null,
-    h("span", { class: "grow" }), ...saveButtons(isNew, r, save)], { wide: true, sub: reviewSub(isNew, r) });
+    h("span", { class: "grow" }), ...saveButtons(isNew, r, save)], { wide: true, guard: true, sub: reviewSub(isNew, r) });
   if (isNew) setTimeout(() => name.focus(), 40);
 }
 
@@ -1841,7 +1893,7 @@ function templateEditor(t) {
   };
   const sh = sheet(isNew ? "Nueva comida habitual" : t.name, body, [
     !isNew ? h("button", { class: "btn ghost danger", onclick: (e) => confirmDel(e, () => act(() => api("PUT", "/api/templates/" + t.id, { deleted: 1 }), "Eliminada").then(sh.close)) }, "Eliminar") : null,
-    h("span", { class: "grow" }), ...saveButtons(isNew, t, save)], { wide: true, sub: reviewSub(isNew, t),
+    h("span", { class: "grow" }), ...saveButtons(isNew, t, save)], { wide: true, guard: true, sub: reviewSub(isNew, t),
     titleExtra: isNew ? null : h("button", { class: "fav-btn" + (t.favorite ? " on" : ""), title: t.favorite ? "Quitar de favoritas" : "Añadir a favoritas (sale antes al añadir comida)",
       onclick: async (e) => { const b = e.currentTarget; await act(() => api("PUT", "/api/templates/" + t.id, { favorite: t.favorite ? 0 : 1 })); t.favorite = t.favorite ? 0 : 1; b.classList.toggle("on", !!t.favorite); b.textContent = t.favorite ? "★" : "☆"; await loadCatalog(); } }, t.favorite ? "★" : "☆") });
   if (isNew) setTimeout(() => name.focus(), 40);
@@ -1942,7 +1994,7 @@ function bodySheet() {
     const body = { date: date.value, time: time.value || null, notes: notes.value || null };
     for (const k in ins) { const n = parseNum(ins[k].value); if (Number.isNaN(n)) return toast("Número no válido", { error: true }); body[k] = n; }
     await act(() => api("POST", "/api/body", body), "Medición guardada"); sh.close();
-  } }, "Guardar")]);
+  } }, "Guardar")], { guard: true });
 }
 
 // --------------------------------------------------------------- progreso
@@ -2124,7 +2176,7 @@ function calEditSheet(cal) {
       h("button", { class: "btn primary", onclick: async () => {
         const body = {}; for (const [k] of F) { const n = parseNum(ins[k].value); if (n == null || Number.isNaN(n)) { toast("Valor no válido: " + k, { error: true }); return; } if (String(n) !== String(Number(P[k]))) body[k] = String(n); }
         if (Object.keys(body).length) await act(() => api("PUT", "/api/calibration", body), "Guardado");
-        sh.close(); await refresh(); } }, "Guardar")]);
+        sh.close(); await refresh(); } }, "Guardar")], { guard: true });
 }
 
 function weeksTable(weeks) {
@@ -2350,7 +2402,7 @@ function targetSheet(tg, onSaved) {
   const sh = sheet("Objetivo diario", [seg, body], [h("span", { class: "grow" }),
     h("button", { class: "btn primary", onclick: async () => {
       try { await api("POST", "/api/targets", { ...payload(), valid_from: vf.value, provisional: true, note: "Editado desde la web" }); } catch (e) { toast(e.message, { error: true }); return; }
-      toast("Objetivo guardado"); sh.close(); await refresh(); onSaved && onSaved(); } }, "Guardar")]);
+      toast("Objetivo guardado"); sh.close(); await refresh(); onSaved && onSaved(); } }, "Guardar")], { guard: true });
   draw();
 }
 // ---- Primeros pasos (obligatorio la primera vez): tus datos → conectar tu agente (y él hace el resto) o, sin agente, objetivo y Hevy a mano

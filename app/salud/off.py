@@ -59,7 +59,11 @@ def lookup(q, timeout=10):
     sq = _num(p.get("serving_quantity"))
     if sq and sq > 0:
         k = sq / 100
-        serving = {"label": (p.get("serving_size") or "1 ración").strip(), "amount": sq, "unit": unit,
+        ss = (p.get("serving_size") or "").strip()
+        # «23 g» a secas no dice qué es: se llama «1 unidad (23 g)» (si trae nombre, p. ej. «1 barrita (23 g)», se respeta)
+        if not ss or re.fullmatch(r"[\d.,]+\s*(g|gr|ml|cl|l)\.?", ss.lower()):
+            ss = "1 unidad (%s %s)" % (("%g" % sq).replace(".", ","), unit)
+        serving = {"label": ss, "amount": sq, "unit": unit,
                    **{f: (None if v is None else round(v * k, 1)) for f, v in per100.items()}}
     name = (p.get("product_name_es") or p.get("product_name") or p.get("generic_name_es") or "").strip()
     brand = (p.get("brands") or "").split(",")[0].strip() or None
