@@ -692,3 +692,29 @@ class TestHevyPorAgente(Base):
         H.mark_agent(self.conn, "web", False)
         self.assertEqual(H.agents_with_hevy(self.conn), {})
         self.assertFalse(core.get_setting(self.conn, "hevy_agente"))
+
+
+class TestIphoneConduit(Base):
+    def test_traduce_y_guarda(self):
+        from salud import ios as IOS
+        from datetime import datetime, timezone
+        ms = lambda s: str(int(datetime.fromisoformat(s).replace(tzinfo=timezone.utc).timestamp() * 1000))
+        ph = {"name": "Raquel", "bundleId": "com.apple.health.X", "productType": "iPhone18,3"}
+        p = {"schemaVersion": "v1", "batchId": "b", "deviceId": "d", "sentAtUnixMs": "1", "batches": [
+            {"hkTypeId": "HKQuantityTypeIdentifierStepCount", "samples": [
+                {"uuid": "1", "startUnixMs": ms("2026-11-12T09:00:00"), "endUnixMs": ms("2026-11-12T09:10:00"), "source": ph, "quantity": {"value": 800, "unit": "count"}},
+                {"uuid": "2", "startUnixMs": ms("2026-11-12T10:00:00"), "endUnixMs": ms("2026-11-12T10:05:00"), "source": ph, "quantity": {"value": 200.4, "unit": "count"}},
+                {"uuid": "3", "startUnixMs": ms("2026-11-12T10:00:00"), "endUnixMs": ms("2026-11-12T10:05:00"), "source": {"name": "Otra", "bundleId": "com.otra"}, "quantity": {"value": 999, "unit": "count"}},
+                {"uuid": "4", "startUnixMs": ms("2017-12-01T10:00:00"), "endUnixMs": ms("2017-12-01T10:05:00"), "source": ph, "quantity": {"value": 50, "unit": "count"}}]},
+            {"hkTypeId": "HKQuantityTypeIdentifierBodyMass", "samples": [{"uuid": "5", "startUnixMs": ms("2026-11-12T07:30:00"), "endUnixMs": ms("2026-11-12T07:30:00"), "source": ph, "quantity": {"value": 57.2, "unit": "kg"}}]},
+            {"hkTypeId": "HKQuantityTypeIdentifierBodyFatPercentage", "samples": [{"uuid": "6", "startUnixMs": ms("2026-11-12T07:30:00"), "endUnixMs": ms("2026-11-12T07:30:00"), "source": ph, "quantity": {"value": 0.207, "unit": "%"}}]},
+            {"hkTypeId": "HKWorkoutTypeIdentifier", "samples": [{"uuid": "7", "startUnixMs": ms("2026-11-12T18:00:00"), "endUnixMs": ms("2026-11-12T19:30:00"),
+                "source": {"name": "Hevy", "bundleId": "com.hevyapp.hevy"}, "workout": {"activityType": "traditionalStrengthTraining", "durationSeconds": 5400, "brandName": "Pierna"}}]}]}
+        hc = IOS.to_hc(p, "2026-11-09")
+        self.assertEqual(len(hc["steps"]), 2)  # sin la otra app ni lo de 2017
+        r = core.ingest_health(self.conn, hc, "movil")
+        self.assertEqual(r["dias"][0]["pasos"], 1000)
+        bm = self.conn.execute("SELECT weight_kg, fat_pct FROM body_metrics WHERE deleted_at IS NULL").fetchone()
+        self.assertAlmostEqual(bm["weight_kg"], 57.2); self.assertAlmostEqual(bm["fat_pct"], 20.7)
+        se = self.conn.execute("SELECT type, title, duration_s FROM hc_sessions").fetchone()
+        self.assertEqual(se["title"], "Pierna"); self.assertEqual(core._hc_type(se["type"]), "fuerza")

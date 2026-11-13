@@ -857,8 +857,7 @@ async function mobileSheet(forced) {
     const what = h("div", null, h("div", { class: "sec-t" }, "Qué llega"), h("div", { class: "mv-types" }, types.map(([k, ic, t, l]) =>
       h("label", { class: "mv-type" + (isOff(k) ? " off" : "") }, h("span", { class: "mv-ic" }, ic),
         h("span", { class: "grow" }, h("b", null, t), h("span", { class: "faint sm" }, isOff(k) ? "Apagado" : l ? "Último " + whenTxt(l) : "Aún nada")),
-        h("input", { type: "checkbox", class: "mv-sw", checked: !isOff(k), onchange: () => toggle(k) })))),
-      ios ? h("div", { class: "faint sm", style: { marginTop: "8px" } }, "En pruebas: lo del iPhone se guarda y pronto saldrá aquí.") : null);
+        h("input", { type: "checkbox", class: "mv-sw", checked: !isOff(k), onchange: () => toggle(k) })))));
     const how = h("div", { class: "agent-steps simple" }, steps);
     sh.set(PLAT_NAME[os], [
       status,

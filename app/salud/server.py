@@ -229,9 +229,11 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(data.decode("utf-8"))
         except (ValueError, UnicodeDecodeError):
             body = None
-        hc = isinstance(body, dict) and "app_version" in body and "timezone" in body  # lo que manda HC Webhook (Android)
+        from . import ios as IOS
+        conduit = IOS.is_conduit(body)  # iPhone (Conduit): se traduce al formato de Android
+        hc = conduit or (isinstance(body, dict) and "app_version" in body and "timezone" in body)  # lo que manda HC Webhook (Android)
         try:  # copia de cada envío: el último siempre; todos los que no son de HC Webhook (para el traductor del iPhone)
-            if hc:
+            if hc and not conduit:
                 with open(os.path.join(udir, "ultimo_movil.json"), "w", encoding="utf-8") as f:
                     json.dump(body, f, ensure_ascii=False)
             else:
@@ -248,12 +250,12 @@ class Handler(BaseHTTPRequestHandler):
                     os.remove(os.path.join(d, x))
         except Exception:
             pass
-        plat = "android" if hc else "ios"
+        plat = "android" if hc and not conduit else "ios"
         try:  # qué móvil manda (para llamar a la conexión «Health Connect» o «Apple Salud») y cuándo fue el último envío del iPhone
             with lock:
                 if core.get_setting(conn, "movil_plataforma") != plat:
                     core.set_setting(conn, "movil_plataforma", plat, "movil")
-            if not hc:
+            if plat == "ios":
                 with open(os.path.join(udir, "ultimo_ios.txt"), "w") as f:
                     f.write(_t.strftime("%Y-%m-%d %H:%M"))
         except Exception:
@@ -263,6 +265,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True, "guardado": True})
         try:
             with lock:
+                if conduit:
+                    if not body.get("batches"):  # «Test Connection»: sin datos
+                        return self._send(200, {"ok": True, "prueba": True})
+                    body = IOS.to_hc(body, core.tracking_start(conn))
                 return self._send(200, core.ingest_health(conn, body, "movil"))
         except Exception as e:
             return self._send(400, {"error": str(e)})
