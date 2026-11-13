@@ -207,7 +207,9 @@ class Handler(BaseHTTPRequestHandler):
         import gzip
         import time as _t
         auth_h = (self.headers.get("Authorization") or "").strip()
-        tok = auth_h[7:].strip() if auth_h.lower().startswith("bearer ") else auth_h  # también el token a secas
+        tok = auth_h
+        while tok.lower().startswith("bearer "):  # con o sin «Bearer» (y si la app se lo añade a uno que ya lo lleva)
+            tok = tok[7:].strip()
         who = auth.token_user(MULTI, tok, kinds=("pasos",)) if tok else None
         if not who:
             return self._send(401, {"error": "Token de pasos no válido: genéralo en la web (Conexiones → Pasos → Conectar)"})

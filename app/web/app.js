@@ -819,49 +819,55 @@ const uaPlat = () => /iPhone|iPad/.test(navigator.userAgent) ? "ios" : /Android/
 const movilPlat = (info) => (info && info.plataforma) || uaPlat();
 const stepsConnectSheet = () => mobileSheet();
 async function mobileSheet(forced) {
-  let info = await api("GET", "/api/movil").catch(() => ({})), tok = null, os = forced || movilPlat(info), tm = null;
-  const sh = sheet("Móvil", null, null, { onClose: () => { clearInterval(tm); loadPasos(); }, wide: false });
+  let info = await api("GET", "/api/movil").catch(() => ({})), tok = null, os = forced || movilPlat(info), tm = null, howOpen = false;
+  const sh = sheet("Móvil", null, null, { onClose: () => { clearInterval(tm); loadPasos(); } });
   const step = (n, t, d, extra, ok) => h("div", { class: "ast" }, h("span", { class: "n" + (ok ? " ok" : "") }, ok ? "✓" : String(n)), h("div", null, h("b", null, t), d ? h("div", { class: "muted" }, d) : null, extra || null));
   const isOff = (k) => (info.off || []).includes(k);
   const toggle = async (k) => { await api("POST", "/api/movil", { off: k, desactivar: !isOff(k) }); info = await api("GET", "/api/movil").catch(() => info); draw(); };
+  const reload = async () => { info = await api("GET", "/api/movil").catch(() => info); draw(); };
   const draw = () => {
-    const keyBtn = (t) => h("button", { class: "btn sm", onclick: () => mobileKeySheet(async (k) => { tok = k; info = await api("GET", "/api/movil").catch(() => info); draw(); }) }, t);
-    const tokLine = tok ? copyLine("Bearer " + tok) : info.configurado ? h("div", { class: "faint sm" }, "Usa la clave que ya tienes (la misma para todo). ", keyBtn("Administrar")) : keyBtn("Generar mi clave");
-    const url = copyLine(info.url || location.origin + "/api/hooks/salud");
     if (!os) {  // en el ordenador: primero qué móvil tiene
-      return sh.set("Conectar tu móvil", [h("p", { class: "muted wz-p" }, "Así los pasos, los pesajes y los entrenos llegan solos. ¿Qué móvil tienes?"),
+      return sh.set("Conectar tu móvil", [h("p", { class: "muted wz-p" }, "Para que tus pasos, pesajes y entrenos lleguen solos. ¿Qué móvil tienes?"),
         h("div", { class: "plat-pick" }, [["ios", "iPhone", "Apple Salud"], ["android", "Android", "Health Connect"]].map(([k, t, sub]) =>
           h("button", { class: "agent-btn", onclick: () => { os = k; draw(); } }, h("span", { class: "plat-ic" }, k === "ios" ? "📱" : "🤖"),
             h("span", { class: "ag-t" }, h("b", null, t), h("span", null, sub)), h("span", { class: "ag-go" }, icon("right")))))]);
     }
-    const iosLast = info.ios_ultimo, andLast = info.ultimo || info.pasos_ultimo;
-    const done = os === "ios" ? !!iosLast : !!andLast;
-    let body;
-    if (os === "android") body = [
-      step(1, "Lo que quieras que llegue, guardado en Health Connect", "Pasos: el propio móvil, Google Fit o tu pulsera. Báscula: su app (Renpho, Withings, Zepp Life…). Entrenos: Hevy → Ajustes → Integraciones → Health Connect.", xiaomiGuide()),
-      step(2, "Instala «HC Webhook»", "Gratis, desde GitHub. En Webhooks → Añadir, pon esta dirección:", h("div", null, url,
-        h("div", { class: "muted", style: { marginTop: "8px" } }, "Y en Encabezado, «Authorization» con tu clave:"), tokLine,
-        h("div", { class: "muted", style: { marginTop: "8px" } }, "Activa Pasos (cada 15 min, con «Contar una vez»), Peso, Grasa corporal, Masa magra, Masa ósea, Agua corporal, Metabolismo basal y Sesiones de ejercicio."),
-        h("a", { class: "btn sm ext", style: { marginTop: "8px" }, href: "https://github.com/mcnaveen/health-connect-webhook/releases/latest", target: "_blank", rel: "noopener" }, "Descargar HC Webhook", " ↗"))),
-      step(3, "Listo", null, h("div", { class: "agent-wait soft" + (done ? " done" : "") }, done ? `Conectado · último envío ${whenTxt(andLast)}` : "Cuando llegue el primer envío, aquí pondrá «Conectado»."), done)];
-    else body = [
-      step(1, "Instala «Conduit Health Sync»", "Gratis, en la App Store. Al abrirla, dale permiso para leer de Salud: pasos, peso, grasa corporal, sueño y entrenos.",
-        h("a", { class: "btn sm ext", style: { marginTop: "8px" }, href: "https://apps.apple.com/app/id6786544769", target: "_blank", rel: "noopener" }, "Abrir en la App Store", " ↗")),
-      step(2, "En Conduit → Settings → Webhook", "Pon esta dirección:", h("div", null, url, h("div", { class: "muted", style: { marginTop: "8px" } }, "Y en el token, tu clave:"), tokLine,
-        h("div", { class: "muted", style: { marginTop: "8px" } }, "En Data Types deja activados pasos, peso, grasa corporal, sueño y entrenos. Pulsa «Test Connection»."))),
-      step(3, "Listo", "Va solo: manda lo nuevo cuando usas el móvil (con el iPhone bloqueado, Apple no deja leer Salud).",
-        h("div", { class: "agent-wait soft" + (done ? " done" : "") }, done ? `Llegando · último envío ${whenTxt(iosLast)} · en pruebas: pronto saldrá en tus pasos y pesajes` : "Cuando llegue el primer envío, aquí pondrá «Conectado»."), done)];
-    // Qué llega (cada cosa se puede apagar sin tocar el móvil)
-    const types = [["pasos", "👟", "Pasos", info.pasos_ultimo && `último ${whenTxt(info.pasos_ultimo)}`], ["bascula", "⚖", "Báscula", info.bascula && `último pesaje ${whenTxt(info.bascula)}`],
-      ["entreno", "🏋", "Entrenos", info.entreno_ultimo && `último ${whenTxt(info.entreno_ultimo)}`]];
-    const what = done ? h("div", null, h("div", { class: "sec-t" }, "Qué llega"), h("div", { class: "mv-types" }, types.map(([k, ic, t, last]) =>
-      h("label", { class: "mv-type" + (isOff(k) ? " off" : "") }, h("span", { class: "mv-ic" }, ic), h("span", { class: "grow" }, h("b", null, t), h("span", { class: "faint sm" }, isOff(k) ? "Apagado: no se guarda" : last || "aún sin datos")),
-        h("input", { type: "checkbox", class: "mv-sw", checked: !isOff(k), onchange: () => toggle(k) }))))) : null;
-    sh.set(PLAT_NAME[os], [h("p", { class: "muted wz-p" }, "Así tus pasos, pesajes y entrenos llegan solos. Es opcional: si no, los apuntas a mano o se los dices a tu agente."),
-      h("div", { class: "agent-steps simple" }, body), what,
-      h("div", { class: "faint sm", style: { marginTop: "10px" } }, os === "ios" ? "¿Tienes Android? " : "¿Tienes iPhone? ",
-        h("button", { class: "lnk-btn", onclick: () => { os = os === "ios" ? "android" : "ios"; draw(); } }, os === "ios" ? "Health Connect" : "Apple Salud"))],
-      info.configurado ? [h("button", { class: "btn sm ghost", onclick: () => mobileKeySheet(async () => { info = await api("GET", "/api/movil").catch(() => info); draw(); }) }, icon("key"), "Clave del móvil")] : null);
+    const ios = os === "ios";
+    // La clave: en iPhone (Conduit) a secas; en Android (HC Webhook) va con «Bearer »
+    const keyLine = tok ? copyLine((ios ? "" : "Bearer ") + tok)
+      : info.configurado ? h("div", { class: "faint sm" }, "La misma clave que ya usas. ", h("button", { class: "lnk-btn", onclick: () => mobileKeySheet(async (k) => { tok = k; await reload(); }) }, "¿La has perdido?"))
+        : h("button", { class: "btn sm primary", onclick: async () => { tok = (await api("POST", "/api/movil", {})).token; await reload(); } }, "Generar mi clave");
+    const url = copyLine(info.url || location.origin + "/api/hooks/salud");
+    const last = ios ? info.ios_ultimo : info.ultimo || info.pasos_ultimo;
+    const done = !!last && (info.plataforma ? info.plataforma === os : true);
+    const ext = (href, t) => h("a", { class: "btn sm ext", style: { marginTop: "8px" }, href, target: "_blank", rel: "noopener" }, t, " ↗");
+    const steps = ios ? [
+      step(1, "Instala «Conduit Health Sync»", "Gratis. Al abrirla, deja que lea Salud.", ext("https://apps.apple.com/app/id6786544769", "App Store")),
+      step(2, "En Conduit → Settings → Webhook", "Pega la dirección y tu clave:", h("div", { class: "mv-fields" }, url, keyLine)),
+      step(3, "Activa los datos y pulsa «Test Connection»", "En Data Types: pasos, peso, grasa corporal, sueño y entrenos."),
+    ] : [
+      step(1, "Que tus apps guarden en Health Connect", "Pasos: el móvil o Google Fit. Báscula: su app. Entrenos: Hevy → Ajustes → Integraciones.", xiaomiGuide()),
+      step(2, "Instala «HC Webhook»", "Gratis, desde GitHub.", ext("https://github.com/mcnaveen/health-connect-webhook/releases/latest", "Descargar")),
+      step(3, "En Webhooks → Añadir", "Pega la dirección, y la clave en el encabezado «Authorization»:", h("div", { class: "mv-fields" }, url, keyLine)),
+      step(4, "Activa los datos", "Pasos (cada 15 min, «Contar una vez»), peso, grasa, masa magra, ósea, agua, metabolismo basal y sesiones de ejercicio."),
+    ];
+    const status = h("div", { class: "mv-status" + (done ? " ok" : "") }, h("span", { class: "pc-dot " + (done ? "ok" : "off") }),
+      h("span", null, done ? `Conectado · último envío ${agoTxt(last)}` : "Aún no ha llegado nada: aquí pondrá «Conectado» con el primer envío."));
+    const types = [["pasos", "👟", "Pasos", info.pasos_ultimo], ["bascula", "⚖", "Báscula", info.bascula], ["entreno", "🏋", "Entrenos", info.entreno_ultimo]];
+    const what = h("div", null, h("div", { class: "sec-t" }, "Qué llega"), h("div", { class: "mv-types" }, types.map(([k, ic, t, l]) =>
+      h("label", { class: "mv-type" + (isOff(k) ? " off" : "") }, h("span", { class: "mv-ic" }, ic),
+        h("span", { class: "grow" }, h("b", null, t), h("span", { class: "faint sm" }, isOff(k) ? "Apagado" : l ? "Último " + whenTxt(l) : "Aún nada")),
+        h("input", { type: "checkbox", class: "mv-sw", checked: !isOff(k), onchange: () => toggle(k) })))),
+      ios ? h("div", { class: "faint sm", style: { marginTop: "8px" } }, "En pruebas: lo del iPhone se guarda y pronto saldrá aquí.") : null);
+    const how = h("div", { class: "agent-steps simple" }, steps);
+    sh.set(PLAT_NAME[os], [
+      status,
+      done ? what : how,
+      done ? h("details", { class: "mv-how", open: howOpen, ontoggle: (e) => { howOpen = e.target.open; } }, h("summary", null, "Cómo se configura"), how) : null,
+      done ? h("div", { class: "faint sm mv-note" }, ios ? "Va solo: manda lo nuevo cuando usas el iPhone (bloqueado, Apple no deja leer Salud)." : "Va solo: cada 15 minutos.") : null,
+      !done ? h("div", { class: "faint sm mv-note" }, ios ? "¿Tienes Android? " : "¿Tienes iPhone? ",
+        h("button", { class: "lnk-btn", onclick: () => { os = ios ? "android" : "ios"; tok = null; draw(); } }, ios ? "Health Connect" : "Apple Salud")) : null,
+    ], null);
   };
   draw();
   tm = setInterval(async () => { const r = await api("GET", "/api/movil").catch(() => null);
