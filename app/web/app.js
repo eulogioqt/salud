@@ -334,12 +334,18 @@ function goalSheet(st) {
         ["neat", "Día a día", P.neat || 0, st.day.neat_kcal == null ? "uno normal hasta que elijas al cerrar" : "el que elegiste"],
         ["steps", "Pasos", P.steps || 0, stepsPlanTxt(st)],
         ...((P.exercise_list || []).length ? P.exercise_list.map(exPart) : [["ex", "Entrenos", 0, "ninguno apuntado (no se prevén)"]]),
-        ...(P.ajuste ? [["cal", "Ajuste de calibración", P.ajuste, "según cómo cambia tu peso"]] : [])]))),
+        ...(P.ajuste ? [["cal", "Ajuste de calibración", P.ajuste, "según cómo cambia tu peso"]] : [])]),
+        // por qué no coincide con el «Gasto» de Hoy: ese ya suma lo que gasta digerir lo que llevas comido (aquí va en el paso 3)
+        st.energy && st.energy.tef && st.energy.total != null ? h("div", { class: "gp-s gp-tef" },
+          Math.abs(st.energy.total - st.energy.tef - base) <= 2
+            ? `Sin la digestión, que va en el paso 3. Por eso el gasto de Hoy es mayor (${fmt(st.energy.total)}): ya suma lo que gasta digerir lo que llevas comido (${fmt(st.energy.tef)}).`
+            : `Sin la digestión, que va en el paso 3. El gasto de Hoy (${fmt(st.energy.total)}) es distinto: cuenta solo lo que llevas (tus pasos de ahora y la digestión de lo comido, ${fmt(st.energy.tef)}).`) : null)),
       off ? step(++n, off < 0 ? "Quitas tu déficit" : "Sumas tu superávit", signed(off, 0), net,
         off < 0 ? "Lo que debe llegarle a tu cuerpo para bajar poco a poco." : "Lo que debe llegarle a tu cuerpo para subir poco a poco.") : null,
       step(++n, "Divides entre " + fmt(1 - tef, 1), "÷ " + fmt(1 - tef, 1), eat,
         `Digerir la comida gasta ~${fmt(tef * 100)} % de lo que comes. Para que te lleguen ${fmt(net)}, hay que comer ${fmt(net)} ÷ ${fmt(1 - tef, 1)} = ${fmt(eat)} (${fmt(dig)} se van en digerir).`, null, true)),
-    !closed ? h("div", { class: "note" }, (tg.steps_pending ? "Los pasos y el día a día se prevén" : "El día a día se supone") + " para que el objetivo no baje durante el día; al cerrar se ajusta con lo real. Los entrenos cuentan cuando los apuntas.") : null],
+    !closed ? h("div", { class: "note" }, (tg.steps_pending ? "Los pasos y el día a día se prevén" : "El día a día es uno normal")
+      + " hasta que cierres el día; por eso el gasto de Hoy lleva *. Al cerrar se ajusta con lo real. Los entrenos cuentan cuando los apuntas.") : null],
     [h("span", { class: "grow" }), h("button", { class: "btn", onclick: change }, "Cambiar objetivo")], { sub });
 }
 // Con qué pasos cuenta el objetivo y por qué (ver step_projection en el servidor)

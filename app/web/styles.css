@@ -1967,3 +1967,4 @@ img { -webkit-user-drag: none; user-select: none; }
 /* Ajuste del ejercicio: título, campo y Guardar en una fila; la explicación debajo, a todo el ancho */
 .exset2 > span:first-child { flex: 1; }
 .exset2 .exset2-h { order: 9; flex: 1 0 100%; font-size: 12px; line-height: 1.4; }
+.gp-tef { margin-top: 8px; }
