@@ -200,9 +200,66 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, {"error": err})
         return self._send(200, {"code": code, "stdout": out, "stderr": err})
 
+    def _hook_salud(self):
+        """Datos del móvil con el token de pasos: Android (HC Webhook) o iPhone (Conduit, HealthPipe…).
+        Todo envío se guarda tal cual (sin la cabecera del token) en <usuario>/movil_envios/ para poder ver qué manda cada app
+        y volver a procesarlo cuando haya traductor; los de HC Webhook se procesan como siempre."""
+        import gzip
+        import time as _t
+        auth_h = (self.headers.get("Authorization") or "").strip()
+        tok = auth_h[7:].strip() if auth_h.lower().startswith("bearer ") else auth_h  # también el token a secas
+        who = auth.token_user(MULTI, tok, kinds=("pasos",)) if tok else None
+        if not who:
+            return self._send(401, {"error": "Token de pasos no válido: genéralo en la web (Conexiones → Pasos → Conectar)"})
+        try:
+            raw = self._body_raw(32 * 1024 * 1024)
+        except ValueError as e:
+            return self._send(413, {"error": str(e)})
+        data = raw
+        if (self.headers.get("Content-Encoding") or "").lower() == "gzip" or raw[:2] == b"\x1f\x8b":
+            try:
+                data = gzip.decompress(raw)
+            except OSError:
+                pass
+        conn, lock = user_ctx(who)
+        udir = os.path.dirname(auth.user_db(MULTI, who))
+        try:
+            body = json.loads(data.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            body = None
+        hc = isinstance(body, dict) and "app_version" in body and "timezone" in body  # lo que manda HC Webhook (Android)
+        try:  # copia de cada envío: el último siempre; todos los que no son de HC Webhook (para el traductor del iPhone)
+            if hc:
+                with open(os.path.join(udir, "ultimo_movil.json"), "w", encoding="utf-8") as f:
+                    json.dump(body, f, ensure_ascii=False)
+            else:
+                d = os.path.join(udir, "movil_envios")
+                os.makedirs(d, exist_ok=True)
+                stamp = _t.strftime("%Y%m%d-%H%M%S") + "-%06d" % (int(_t.time() * 1e6) % 1000000)
+                hdr = {k: v for k, v in self.headers.items() if k.lower() not in ("authorization", "cookie")}
+                with open(os.path.join(d, stamp + ".meta.json"), "w", encoding="utf-8") as f:
+                    json.dump({"headers": hdr, "bytes": len(raw), "json": body is not None}, f, ensure_ascii=False, indent=1)
+                with open(os.path.join(d, stamp + (".json" if body is not None else ".bin")), "wb") as f:
+                    f.write(data)
+                olds = sorted(os.listdir(d))
+                for x in olds[:-600]:  # como mucho los 300 últimos envíos
+                    os.remove(os.path.join(d, x))
+        except Exception:
+            pass
+        if not hc:
+            # Formato que aún no traducimos (iPhone): se guarda y se da por recibido; se procesará desde la copia
+            return self._send(200, {"ok": True, "guardado": True})
+        try:
+            with lock:
+                return self._send(200, core.ingest_health(conn, body, "movil"))
+        except Exception as e:
+            return self._send(400, {"error": str(e)})
+
     def _api(self, method):
         u = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
+        if MULTI and u.path == "/api/hooks/salud" and method == "POST":
+            return self._hook_salud()
         body = {}
         if method in ("POST", "PUT", "DELETE"):
             n = int(self.headers.get("Content-Length") or 0)
@@ -221,23 +278,6 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(401, {"error": "Sin sesión"})
             info = auth.list_users(MULTI).get(ctx[2], {})
             return self._send(200, {"usuario": ctx[2], "nombre": info.get("name"), "agente": self._agent_info(ctx[2])})
-        if MULTI and u.path == "/api/hooks/salud" and method == "POST":
-            # Datos del móvil (app «HC Webhook» en Android / «Health Webhook» en iPhone) con el token de pasos
-            bearer = self.headers.get("Authorization") or ""
-            who = auth.token_user(MULTI, bearer[7:].strip(), kinds=("pasos",)) if bearer.startswith("Bearer ") else None
-            if not who:
-                return self._send(401, {"error": "Token de pasos no válido: genéralo en la web (Hoy → Pasos → Conectar)"})
-            conn, lock = user_ctx(who)
-            try:  # copia del último envío (para ver qué manda el móvil: báscula, etc.)
-                with open(os.path.join(os.path.dirname(auth.user_db(MULTI, who)), "ultimo_movil.json"), "w", encoding="utf-8") as f:
-                    json.dump(body, f, ensure_ascii=False)
-            except Exception:
-                pass
-            try:
-                with lock:
-                    return self._send(200, core.ingest_health(conn, body, "movil"))
-            except Exception as e:
-                return self._send(400, {"error": str(e)})
         if MULTI and u.path in ("/api/movil", "/api/pasos"):  # lo que manda el móvil (Health Connect / Salud): pasos, báscula y entrenos
             user = auth.session_user(MULTI, self._cookie_token())
             if not user:
@@ -263,9 +303,10 @@ class Handler(BaseHTTPRequestHandler):
                 stp = conn.execute("SELECT MAX(received_at) FROM step_buckets").fetchone()[0]
                 ent = conn.execute("SELECT substr(MAX(start),1,16) FROM hc_sessions").fetchone()[0]
                 off = [x for x in (core.get_setting(conn, "movil_off") or "").split(",") if x]
+                from . import hevy as _H
                 hag = core.get_setting(conn, "hevy_agente")
-                hby = core.get_setting(conn, "hevy_agente_por")
-            return self._send(200, {"configurado": bool(t), "hevy_agente": hag, "hevy_agente_por": hby and hby.split(":")[-1], "conectado": bool(t and t.get("used")), "ultimo": t and t.get("used"),
+                hby = _H.agents_with_hevy(conn)
+            return self._send(200, {"configurado": bool(t), "hevy_agente": hag, "hevy_agentes": hby, "conectado": bool(t and t.get("used")), "ultimo": t and t.get("used"),
                                     "clave_creada": t and t.get("created"), "off": off,
                                     "bascula": bas, "pasos_ultimo": stp, "entreno_ultimo": ent and ent.replace("T", " "),
                                     "url": self._base() + "/api/hooks/salud"})

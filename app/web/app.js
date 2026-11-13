@@ -864,8 +864,11 @@ async function stepsConnectSheet(mode = "pasos") {
 }
 // Hevy a través del agente: Salud no puede conectarse a Hevy (solo acepta apps dadas de alta por ellos); tu agente sí.
 // Sale «Conectado» en cuanto el agente sube un entreno tal cual viene de Hevy (no con capturas).
-function hevyAgentSheet(ok) {
+// «Claude y ChatGPT»: los agentes que han avisado de que tienen Hevy
+const hevyVia = (d) => { const ks = Object.keys(d || {}).filter((k) => k !== "agente"); return ks.length ? ks.map((k) => agentOf(k).n).join(" y ") : "tu agente"; };
+function hevyAgentSheet(ok, ags) {
   if (ok === undefined) ok = (S.pasos || {}).hevy_agente;
+  if (!ags) ags = (S.pasos || {}).hevy_agentes || {};
   // Solo las instrucciones de los agentes que tiene conectados (si no hay ninguno, o no es ni Claude ni ChatGPT, las dos)
   const used = agentsUsed().map((t) => agentOf(t.agent || t.kind).k);
   let cl = used.some((k) => k.startsWith("claude")), gp = used.includes("chatgpt");
@@ -878,6 +881,12 @@ function hevyAgentSheet(ok) {
         "Inicias sesión en hevy.com y pulsas «Permitir acceso». Gratis, no hace falta Hevy PRO."].filter(Boolean).join(" ")),
       step(2, "Abre un chat nuevo con tu agente", "Al empezar comprueba que ve tu Hevy y nos lo dice." + (gp ? (cl ? " En ChatGPT, " : " ") + (cl ? "escribe" : "Escribe") + " @Salud y @Hevy en el mensaje." : "")),
       step(3, "Listo", ok ? `Conectado · comprobado ${agoTxt(ok)}` : "Cuando lo compruebe, aquí pondrá «Conectado».", !!ok)),
+    // Cada agente avisa por su cuenta: quién tiene Hevy y quién no lo ha dicho aún
+    [...new Set(used)].length ? h("div", null, h("div", { class: "sec-t" }, "Tus agentes"),
+      h("div", { class: "ag-list" }, [...new Set(used)].map((k) => { const ag = agentOf(k), t = ags[k] || (k.startsWith("claude") && ags["claude"]);
+        return h("div", { class: "ag-item" }, agentLogo(ag, 28), h("div", { class: "grow" }, h("b", null, ag.n),
+          h("div", { class: "faint" }, t ? `Tiene Hevy · avisó ${agoTxt(t)}` : "Aún no ha dicho si tiene Hevy (lo dice al empezar un chat)")),
+          t ? h("span", { class: "ok-dot" }, "✓") : null); }))) : null,
   ], null);
 }
 // Conexiones (menú de tu nombre): agente, pasos, báscula y Hevy en un solo sitio.
@@ -912,8 +921,8 @@ async function connectionsSheet() {
         S.me ? row_("👟", "Pasos", st_("pasos", pasosOk, info.pasos_ultimo), info.pasos_ultimo && !isOff("pasos") ? `Último envío ${agoTxt(info.pasos_ultimo)}` : off_("del móvil"), btn_("pasos", info.pasos_ultimo)) : null,
         S.me ? row_("⚖", "Báscula", st_("bascula", !!info.bascula, info.bascula), info.bascula && !isOff("bascula") ? `Último pesaje ${whenTxt(info.bascula)}` : off_("cada pesaje, solo"), btn_("bascula", info.bascula)) : null,
         S.me ? row_("🏋", "Entrenos", st_("entreno", !!info.entreno_ultimo, info.entreno_ultimo), info.entreno_ultimo && !isOff("entreno") ? `Último ${whenTxt(info.entreno_ultimo)}` : off_("cuándo entrenas"), btn_("entreno", info.entreno_ultimo)) : null,
-        S.me ? row_("📋", "Hevy", info.hevy_agente ? "ok" : "off", info.hevy_agente ? "Series y pesos, vía " + (info.hevy_agente_por ? agentOf(info.hevy_agente_por).n : "tu agente") : off_("series y pesos"),
-          info.hevy_agente ? unhevy : h("button", { class: "btn sm ghost", onclick: () => hevyAgentSheet(info.hevy_agente) }, "Conectar")) : null),
+        S.me ? row_("📋", "Hevy", info.hevy_agente ? "ok" : "off", info.hevy_agente ? "Series y pesos, vía " + hevyVia(info.hevy_agentes) : off_("series y pesos"),
+          info.hevy_agente ? unhevy : h("button", { class: "btn sm ghost", onclick: () => hevyAgentSheet(info.hevy_agente, info.hevy_agentes) }, "Conectar")) : null),
     ], S.me && info.configurado ? [h("button", { class: "btn sm ghost", onclick: () => mobileKeySheet(async () => { info = await api("GET", "/api/movil").catch(() => info); }) }, icon("key"), "Clave del móvil")] : null);
   };
   draw();

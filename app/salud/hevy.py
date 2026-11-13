@@ -35,7 +35,7 @@ def status(conn):
     return {"configured": bool(k), "key_hint": ("…" + k[-4:]) if k else None,
             "last_sync": core.get_setting(conn, "hevy_last_sync_local"),
             "last_result": json.loads(res) if res else None,
-            "agente": core.get_setting(conn, "hevy_agente"), "agente_por": core.get_setting(conn, "hevy_agente_por"), "pendientes": core.pending_sessions(conn)}
+            "agente": core.get_setting(conn, "hevy_agente"), "agentes": agents_with_hevy(conn), "pendientes": core.pending_sessions(conn)}
 
 
 def set_key(conn, key, source="web"):
@@ -173,6 +173,31 @@ def sync(conn, full=False):
     return res
 
 
+def agents_with_hevy(conn):
+    """{agente: cuándo avisó} de los agentes que tienen el conector de Hevy («agente» = sin saber cuál)."""
+    try:
+        d = json.loads(core.get_setting(conn, "hevy_por_agente") or "{}")
+    except ValueError:
+        d = {}
+    old = core.get_setting(conn, "hevy_agente")
+    return d or ({"agente": old} if old else {})  # aviso de antes de guardarlo por agente
+
+
+def mark_agent(conn, source, on):
+    """Cada agente avisa por su cuenta de si tiene Hevy; «Conectado» si al menos uno lo tiene."""
+    s = source or ""
+    who = s.split(":", 1)[1] if s.startswith("agente:") else "agente"
+    d = agents_with_hevy(conn)
+    if on:
+        d[who] = ts()
+    elif s == "web":
+        d = {}  # «Desconectar» en la web: todos
+    else:
+        d.pop(who, None)
+    core.set_setting(conn, "hevy_por_agente", json.dumps(d), source)
+    core.set_setting(conn, "hevy_agente", max(d.values()) if d else None, source)
+
+
 def import_json(conn, data, source="chat"):
     """Importa entrenos en formato de la API de Hevy (p. ej. exportados vía ChatGPT).
     Usa `exercise_type` si viene; si no, deduce el tipo por las series y el nombre."""
@@ -231,7 +256,5 @@ def import_json(conn, data, source="chat"):
     # (con el id del entreno y el exercise_template_id de cada ejercicio). Las capturas van por registrar_entreno y el CSV no trae ids.
     if (source == "chat" or source.startswith("agente")) and (res["created"] or res["updated"]) and any(
             w.get("id") and any(ex.get("exercise_template_id") for ex in (w.get("exercises") or [])) for w in data):
-        core.set_setting(conn, "hevy_agente", ts(), source)
-        if source.startswith("agente:"):
-            core.set_setting(conn, "hevy_agente_por", source, source)
+        mark_agent(conn, source, True)
     return res

@@ -412,14 +412,8 @@ def _activity(c, q, b, s):
 
 @route("POST", r"/api/hevy/agente")
 def _hevy_agente(c, q, b, s):
-    """El agente dice si tiene el conector de Hevy. Un «no» de un agente no borra el «sí» de otro (Claude sí, ChatGPT no)."""
-    by = s if (s or "").startswith("agente:") else None
-    if b.get("conectado"):
-        core.set_setting(c, "hevy_agente", core.ts(), s)
-        core.set_setting(c, "hevy_agente_por", by, s)
-    elif not by or core.get_setting(c, "hevy_agente_por") in (None, "", by):
-        core.set_setting(c, "hevy_agente", None, s)
-        core.set_setting(c, "hevy_agente_por", None, s)
+    """Cada agente dice si él tiene el conector de Hevy (Claude sí, ChatGPT no…): se guarda por agente."""
+    H.mark_agent(c, s, bool(b.get("conectado")))
     return H.status(c)
 
 

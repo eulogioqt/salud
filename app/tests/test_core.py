@@ -677,3 +677,18 @@ class TestActividad(Base):
         self.assertEqual(top[1]["who"], "agente:chatgpt"); self.assertIn("desayuno", top[1]["text"])
         self.assertIn("agente:chatgpt", r["who"])
         self.assertTrue(all(i["who"] == "agente:chatgpt" for i in A.feed(self.conn, who="agente:chatgpt")["items"]))
+
+
+class TestHevyPorAgente(Base):
+    def test_cada_agente_avisa(self):
+        from salud import hevy as H
+        H.mark_agent(self.conn, "agente:claude", True)
+        H.mark_agent(self.conn, "agente:chatgpt", False)
+        self.assertEqual(set(H.agents_with_hevy(self.conn)), {"claude"})
+        H.mark_agent(self.conn, "agente:chatgpt", True)
+        H.mark_agent(self.conn, "agente:claude", False)
+        self.assertEqual(set(H.agents_with_hevy(self.conn)), {"chatgpt"})
+        self.assertTrue(core.get_setting(self.conn, "hevy_agente"))
+        H.mark_agent(self.conn, "web", False)
+        self.assertEqual(H.agents_with_hevy(self.conn), {})
+        self.assertFalse(core.get_setting(self.conn, "hevy_agente"))
