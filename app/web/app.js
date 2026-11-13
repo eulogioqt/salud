@@ -317,35 +317,31 @@ function goalSheet(st) {
       [h("span", { class: "grow" }), h("button", { class: "btn", onclick: change }, "Cambiar objetivo")], { sub });
     return;
   }
-  // Paso a paso: lo que gastarás → déficit/superávit (lo que debe llegarle al cuerpo) → ÷ 0,9 por la digestión (lo que comes)
+  // Dos pasos: lo que gastarás hoy (con la digestión de lo que vas a comer) y le quitas el déficit. Así «lo que gastarás»
+  // es el mismo gasto que el de Hoy y el desglose cuando comas lo que te queda (spend = comer − déficit).
   const P = tg.base_parts || {}, off = tg.kcal_offset || 0, tef = tg.tef_pct || 0.1;
-  const base = tg.base_kcal || 0, net = base + off, eat = tg.kcal, dig = eat - net;
+  const base = tg.base_kcal || 0, eat = tg.kcal, spend = eat - off, dig = spend - base, en = st.energy;
   const step = (n, title, op, val, desc, extra, last) => h("div", { class: "gp-step" + (last ? " last" : "") },
     h("span", { class: "gp-n" }, String(n)),
     h("div", { class: "gp-c" },
       h("div", { class: "gp-h" }, h("span", { class: "gp-t" }, title, op ? h("span", { class: "gp-op num" }, op) : null), h("b", { class: "num" }, fmt(val))),
       desc ? h("div", { class: "gp-s" }, desc) : null, extra || null));
-  let n = 0;
   const sh = sheet("Objetivo de hoy", [
     h("div", { class: "goal-hero" }, h("b", { class: "num" }, fmt(eat)), h("span", null, " kcal para comer hoy")),
     h("div", { class: "gp" },
-      step(++n, "Lo que gastarás hoy", null, base, null, h("div", { class: "gp-parts" }, ...partsBlock([
-        ["bmr", "Metabolismo basal", P.bmr || 0, "en reposo, con tu peso"],
-        ["neat", "Día a día", P.neat || 0, st.day.neat_kcal == null ? "uno normal hasta que elijas al cerrar" : "el que elegiste"],
+      step(1, "Lo que gastarás hoy", null, spend, null, h("div", { class: "gp-parts" }, ...partsBlock([
+        ["bmr", "Metabolismo basal", P.bmr || 0, tg.weight_kg ? `en reposo · ${fmt(tg.weight_kg, 1)} kg` : "en reposo"],
+        ["neat", "Día a día", P.neat || 0, st.day.neat_kcal == null ? "uno normal hasta que elijas al cerrar" : (st.energy && st.energy.neat_source) || "el que elegiste"],
         ["steps", "Pasos", P.steps || 0, stepsPlanTxt(st)],
         ...((P.exercise_list || []).length ? P.exercise_list.map(exPart) : [["ex", "Entrenos", 0, "ninguno apuntado (no se prevén)"]]),
-        ...(P.ajuste ? [["cal", "Ajuste de calibración", P.ajuste, "según cómo cambia tu peso"]] : [])]),
-        // por qué no coincide con el «Gasto» de Hoy: ese ya suma lo que gasta digerir lo que llevas comido (aquí va en el paso 3)
-        st.energy && st.energy.tef && st.energy.total != null ? h("div", { class: "gp-s gp-tef" },
-          Math.abs(st.energy.total - st.energy.tef - base) <= 2
-            ? `Sin la digestión, que va en el paso 3. Por eso el gasto de Hoy es mayor (${fmt(st.energy.total)}): ya suma lo que gasta digerir lo que llevas comido (${fmt(st.energy.tef)}).`
-            : `Sin la digestión, que va en el paso 3. El gasto de Hoy (${fmt(st.energy.total)}) es distinto: cuenta solo lo que llevas (tus pasos de ahora y la digestión de lo comido, ${fmt(st.energy.tef)}).`) : null)),
-      off ? step(++n, off < 0 ? "Quitas tu déficit" : "Sumas tu superávit", signed(off, 0), net,
-        off < 0 ? "Lo que debe llegarle a tu cuerpo para bajar poco a poco." : "Lo que debe llegarle a tu cuerpo para subir poco a poco.") : null,
-      step(++n, "Divides entre " + fmt(1 - tef, 1), "÷ " + fmt(1 - tef, 1), eat,
-        `Digerir la comida gasta ~${fmt(tef * 100)} % de lo que comes. Para que te lleguen ${fmt(net)}, hay que comer ${fmt(net)} ÷ ${fmt(1 - tef, 1)} = ${fmt(eat)} (${fmt(dig)} se van en digerir).`, null, true)),
-    !closed ? h("div", { class: "note" }, (tg.steps_pending ? "Los pasos y el día a día se prevén" : "El día a día es uno normal")
-      + " hasta que cierres el día; por eso el gasto de Hoy lleva *. Al cerrar se ajusta con lo real. Los entrenos cuentan cuando los apuntas.") : null],
+        ...(P.ajuste ? [["cal", "Ajuste de calibración", P.ajuste, "según cómo cambia tu peso"]] : []),
+        ["tef", "Digestión", dig, `${fmt(tef * 100)} % de lo que vas a comer (${fmt(eat)})`]]),
+        en && en.total != null && !closed && (st.totals.kcal || 0) < eat ? h("div", { class: "gp-s gp-tef" },
+          `El gasto de Hoy (${fmt(en.total)}) es lo que llevas: llegará a ${fmt(spend)} cuando comas lo que te queda.`) : null)),
+      step(2, off < 0 ? "Quitas tu déficit" : off > 0 ? "Sumas tu superávit" : "Comes lo mismo que gastas", off ? signed(off, 0) : null, eat,
+        off < 0 ? "Comiendo esto, el día acaba en tu déficit." : off > 0 ? "Comiendo esto, el día acaba en tu superávit." : "Comiendo esto, el día acaba en equilibrio.", null, true)),
+    !closed ? h("div", { class: "note" }, (tg.steps_pending ? "Los pasos se prevén y el día a día es uno normal" : "El día a día es uno normal")
+      + " hasta que cierres el día (por eso el gasto de Hoy lleva *). Al cerrar se ajusta con lo real. Los entrenos cuentan cuando los apuntas.") : null],
     [h("span", { class: "grow" }), h("button", { class: "btn", onclick: change }, "Cambiar objetivo")], { sub });
 }
 // Con qué pasos cuenta el objetivo y por qué (ver step_projection en el servidor)
@@ -359,7 +355,7 @@ function stepsPlanTxt(st) {
     return `${n} previstos: llevas ${fmt(sp.now)} + ~${fmt(sp.rest)} que sueles andar desde las ${sp.from} ${src}`;
   }
   if (sp.mode === "media") return `${n} previstos: ${sp.mean_label || "tu media"}` + (sp.now == null ? (isToday ? " (aún sin pasos de hoy)" : " (sin pasos apuntados)") : ` (llevas ${fmt(sp.now)}: vas por debajo de tu ritmo)`);
-  return `${n} reales` + (P.steps_in_acts ? ` (sin los ${fmt(P.steps_in_acts)} del entreno)` : "");
+  return `${n} pasos` + (P.steps_in_acts ? ` (sin los ${fmt(P.steps_in_acts)} del entreno)` : "");
 }
 // Qué cuenta el gasto de hoy y qué falta (lo que explica el *), y con qué cuenta el objetivo
 function gastoTip(st) {
@@ -389,7 +385,7 @@ function balTip(st) {
   return ["Balance = comido − gastado", `Hoy | ${b == null ? "?" : signed(b)} kcal (${b == null ? "—" : b < 0 ? "déficit" : b > 0 ? "superávit" : "equilibrio"})`,
     goal != null ? `Tu objetivo | ${signed(goal)} kcal` : null,
     st.status !== "cerrado" && tg.dynamic && tg.kcal && (st.totals.kcal || 0) < tg.kcal && b != null
-      ? `Si comes las ${fmt(tg.kcal - (st.totals.kcal || 0))} kcal que quedan, acabas en ${signed(tg.kcal_offset || 0)}, tu objetivo (comer también gasta: un 10 % se va en digerir).` : null].filter(Boolean).join("\n");
+      ? `Si comes lo que te queda (${fmt(tg.kcal - (st.totals.kcal || 0))}), el gasto llega a ${fmt(tg.kcal - (tg.kcal_offset || 0))} y el balance acaba en ${signed(tg.kcal_offset || 0)}, tu objetivo.` : null].filter(Boolean).join("\n");
 }
 function summaryCard(st) {
   const t = st.totals, tg = st.target || {}, en = st.energy;
@@ -448,7 +444,7 @@ function energySheet(st) {
       h("em", null, balGoal == null ? (bal == null ? "—" : bal < 0 ? "déficit" : bal > 0 ? "superávit" : "equilibrio") : "objetivo " + signed(balGoal)))),
     // por qué «quedan» no es balance − objetivo: lo que comes de más también se digiere (10 %)
     !closed && tg.dynamic && tg.kcal && kc < tg.kcal && bal != null ? h("div", { class: "bd-why" },
-      `Si comes las ${fmt(tg.kcal - kc)} kcal que quedan, el balance acaba en ${signed(tg.kcal_offset || 0)}, tu objetivo: comer también gasta (un 10 % se va en digerir).`) : null];
+      `Si comes lo que te queda (${fmt(tg.kcal - kc)}), el gasto llega a ${fmt(tg.kcal - (tg.kcal_offset || 0))} y el balance acaba en ${signed(tg.kcal_offset || 0)}, tu objetivo.`) : null];
   // Lo comido: lo que llevas de cada macro y una marca con su objetivo debajo
   const macroRow = (k, name, f, goal) => {
     const val = t[f] || 0, top = goal || 0, scale = Math.max(top * 1.25, val, 1);
@@ -484,10 +480,10 @@ function energySheet(st) {
   // Lo gastado
   const parts = [
     ["bmr", "Metabolismo basal", (en.missing_profile || []).length ? null : en.bmr, (en.missing_profile || []).length ? "completa tu perfil en Ajustes" : `en reposo · ${fmt(en.weight_used_kg, 1)} kg`],
-    ["tef", "Digestión", en.tef, "10 % de lo que comes"],
-    ["neat", "Día a día", en.neat, en.neat_set ? "de pie, tareas… · " + en.neat_source : en.neat_pending ? "normal de momento · lo eliges al cerrar" : "de pie, tareas… · normal"],
+    ["neat", "Día a día", en.neat, en.neat_set ? en.neat_source : en.neat_pending ? "uno normal hasta que elijas al cerrar" : "normal"],
     ["steps", "Pasos", en.steps_kcal, stepsSub(en.steps == null ? null : en.steps_effective, en.steps_in_activities)],
-    ...en.exercise.map(exPart),
+    ...(en.exercise.length ? en.exercise.map(exPart) : [["ex", "Entrenos", 0, "ninguno apuntado"]]),
+    ["tef", "Digestión", en.tef, `${fmt((st.target && st.target.tef_pct || 0.1) * 100)} % de lo que llevas comido (${fmt(kc)})`],
   ];
   const tot = en.total || parts.reduce((a, p) => a + (p[2] || 0), 0) || 1;
   const burned = h("div", { class: "bd-sec" },
@@ -500,7 +496,7 @@ function energySheet(st) {
   const obs = closed && c && c.summary && (c.summary.observations || []).length
     ? h("div", { class: "bd-sec" }, h("div", { class: "bd-st" }, "Observaciones del cierre"), h("ul", { class: "bd-obs" }, c.summary.observations.map((o) => h("li", null, o)))) : null;
   sheet(closed ? "Resumen del día" : "Desglose del día", [hero, eaten, burned, obs,
-    h("div", { class: "faint bd-foot" }, "El gasto es una estimación: tu metabolismo en reposo (según peso, altura, edad y sexo) + la digestión (10 % de lo que comes) + lo que te mueves en el día + tus pasos + tus entrenos.")], null, { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }), titleExtra: closedNote });
+    h("div", { class: "faint bd-foot" }, "El gasto es una estimación: tu metabolismo en reposo (según peso, altura, edad y sexo) + lo que te mueves en el día + tus pasos + tus entrenos + la digestión (10 % de lo que comes).")], null, { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }), titleExtra: closedNote });
 }
 function energyTable(en, balance) {
   const r = (a, b, c) => h("tr", null, h("td", null, a, c ? h("span", { class: "faint" }, " · " + c) : null), h("td", { class: "num" }, b));
