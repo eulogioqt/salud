@@ -81,8 +81,10 @@ async function loadDay() {
   if (S.autoDay) {
     const od = st.open_days || [], want = od.length && !st.today_entry_count ? od[od.length - 1] : st.today;
     if (want !== st.date) { S.date = want; st = await api("GET", "/api/state?date=" + want); }
+    st.autoDate = st.date;
+    // Se abre otro día: queda en la URL (#/dia/…) y ya no salta solo a hoy después
+    if (st.date !== st.today) { S.autoDay = false; if (/^#\/hoy\b/.test(location.hash) || !location.hash) history.replaceState(null, "", "#/dia/" + st.date); }
   }
-  if (S.autoDay) st.autoDate = st.date;
   S.day = st; S.rev = st.rev;
 }
 async function refresh() {
@@ -109,10 +111,17 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden && !S
 function route() {
   [...OPEN_SHEETS].forEach((c) => c());
   const parts = location.hash.replace(/^#\/?/, "").split("/");
-  S.view = ["hoy", "entreno", "biblioteca", "progreso"].includes(parts[0]) ? parts[0] : "hoy";
+  // #/hoy = el día de hoy · #/dia/AAAA-MM-DD = otro día · #/comida (antes #/biblioteca); #/hoy/AAAA-MM-DD sigue valiendo
+  const alias = { comida: "biblioteca", dia: "hoy" };
+  S.view = alias[parts[0]] || (["hoy", "entreno", "biblioteca", "progreso"].includes(parts[0]) ? parts[0] : "hoy");
   if (S.view === "hoy") {
-    S.autoDay = !/^\d{4}-\d{2}-\d{2}$/.test(parts[1] || "");
-    S.date = !S.autoDay ? (parts[1] > todayISO() ? todayISO() : parts[1]) : S.day && S.day.autoDate ? S.day.autoDate : todayISO();
+    const d = /^\d{4}-\d{2}-\d{2}$/.test(parts[1] || "") ? parts[1] : null;
+    if (d && d >= todayISO()) { history.replaceState(null, "", "#/hoy"); S.noAuto = true; }
+    else if (d && parts[0] === "hoy") history.replaceState(null, "", "#/dia/" + d);
+    const exact = d && d < todayISO();
+    // Al entrar en #/hoy a secas se puede abrir el día de anoche sin cerrar; si se llega con las flechas, es hoy
+    S.autoDay = !exact && !S.noAuto; S.noAuto = false;
+    S.date = exact ? d : S.autoDay && S.day && S.day.autoDate ? S.day.autoDate : todayISO();
   }
   document.querySelectorAll("#tabs a").forEach((a) => a.classList.toggle("on", a.dataset.v === S.view));
   $("#view").classList.toggle("wide", S.view !== "hoy");
@@ -122,9 +131,9 @@ function route() {
   refresh().catch((e) => { $("#view").replaceChildren(h("div", { class: "card panel" }, h("h3", null, "No se puede conectar con el servidor"), h("div", { class: "muted" }, e.message))); });
 }
 let lastView = null;
-window.addEventListener("hashchange", () => { const v0 = location.hash.split("/")[1] || "hoy"; if (v0 !== lastView) window.scrollTo(0, 0); lastView = v0; route(); });
+window.addEventListener("hashchange", () => { const v0 = ({ dia: "hoy", comida: "biblioteca" })[location.hash.split("/")[1]] || location.hash.split("/")[1] || "hoy"; if (v0 !== lastView) window.scrollTo(0, 0); lastView = v0; route(); });
 // No se puede ir a días que aún no han llegado
-const goDay = (d) => { const t = (S.day && S.day.today) || todayISO(); if (d > t) return; location.hash = "#/hoy/" + d; };
+const goDay = (d) => { const t = (S.day && S.day.today) || todayISO(); if (d > t) return; const to = d >= t ? "#/hoy" : "#/dia/" + d; if (d >= t) S.noAuto = true; if (location.hash === to) route(); else location.hash = to; };
 
 function skeleton(view) {
   const b = (hh, extra = {}) => h("div", { class: "sk", style: Object.assign({ height: hh + "px" }, extra) });
@@ -808,7 +817,7 @@ async function stepsConnectSheet(mode = "pasos") {
     bascula: { t: "Conectar tu báscula", p: "Así cada pesaje llega solo, con su composición.",
       app: ["Una app de báscula que guarde en Health Connect", "La de tu báscula, si guarda en Health Connect (Renpho, Withings, Zepp Life…).", "xiaomi"],
       tipos: "Peso, Grasa corporal, Masa magra, Masa ósea, Agua corporal y Metabolismo basal", done: () => !!info.bascula, ok: () => `Conectada · último pesaje ${whenTxt(info.bascula)}`, wait: "Pésate: cuando llegue el pesaje, aquí pondrá «Conectada»." },
-    entreno: { t: "Conectar tus entrenos", p: "Así sabemos cuándo entrenas y, si al cerrar el día no has mandado el entreno, te lo pedimos. Las series y los pesos se los mandas a tu agente (captura o ChatGPT) o subes el CSV de Hevy en Entreno.",
+    entreno: { t: "Conectar tus entrenos", p: "Así sabemos cuándo entrenas y, si al cerrar el día no has mandado el entreno, te lo pedimos. Las series y los pesos se los mandas a tu agente (con Hevy conectado o una captura) o subes el CSV de Hevy en Entreno.",
       app: ["Una app de entreno que guarde en Health Connect", "Recomendada: Hevy → Ajustes → Integraciones → Health Connect, y al guardar el entreno deja activado «Health Connect»."],
       tipos: "Sesiones de ejercicio", done: () => !!info.entreno_ultimo, ok: () => `Conectado · último entreno ${whenTxt(info.entreno_ultimo)}`, wait: "Guarda un entreno: cuando llegue, aquí pondrá «Conectado»." },
   }[mode];
@@ -851,12 +860,17 @@ async function stepsConnectSheet(mode = "pasos") {
 // Sale «Conectado» en cuanto el agente sube un entreno tal cual viene de Hevy (no con capturas).
 function hevyAgentSheet(ok) {
   if (ok === undefined) ok = (S.pasos || {}).hevy_agente;
+  // Solo las instrucciones de los agentes que tiene conectados (si no hay ninguno, o no es ni Claude ni ChatGPT, las dos)
+  const used = agentsUsed().map((t) => agentOf(t.agent || t.kind).k);
+  let cl = used.some((k) => k.startsWith("claude")), gp = used.includes("chatgpt");
+  if (!cl && !gp) cl = gp = true;
   const step = (n, t, d, done) => h("div", { class: "ast" }, h("span", { class: "n" + (done ? " ok" : "") }, done ? "✓" : String(n)), h("div", null, h("b", null, t), d ? h("div", { class: "muted" }, d) : null));
   sheet("Hevy en tu agente", [
     h("p", { class: "muted wz-p" }, "Así tu agente sube cada entreno con todas sus series y pesos, sin capturas. Si además tienes los entrenos conectados por Health Connect, lo sube él solo cuando habléis."),
     h("div", { class: "agent-steps simple" },
-      step(1, "Añade Hevy a tu agente", "En Claude: Ajustes → Conectores → busca Hevy. En ChatGPT: la app de Hevy."),
-      step(2, "Abre un chat nuevo con tu agente", "Al empezar comprueba que ve tu Hevy y nos lo dice."),
+      step(1, "Añade Hevy a tu agente", [cl ? "En Claude: Personalizar → Conectores → busca Hevy → «Conectar»." : null, gp ? "En ChatGPT: Complementos → busca Hevy." : null,
+        "Inicias sesión en hevy.com y pulsas «Permitir acceso». Gratis, no hace falta Hevy PRO."].filter(Boolean).join(" ")),
+      step(2, "Abre un chat nuevo con tu agente", "Al empezar comprueba que ve tu Hevy y nos lo dice." + (gp ? (cl ? " En ChatGPT, " : " ") + (cl ? "escribe" : "Escribe") + " @Salud y @Hevy en el mensaje." : "")),
       step(3, "Listo", ok ? `Conectado · comprobado ${agoTxt(ok)}` : "Cuando lo compruebe, aquí pondrá «Conectado».", !!ok)),
   ], null);
 }
@@ -1564,6 +1578,7 @@ function foodEditor(f, opt = {}) {
   const notes = h("textarea", { class: "input", rows: 2, placeholder: "Notas" }, f.notes || "");
   const duSel = h("select", { class: "input" }, h("option", { value: "" }, "Automático (por peso si se puede)"),
     (f.units || []).filter((u) => u.key !== "x").map((u) => h("option", { value: u.key, selected: u.key === f.default_unit }, u.key === "g" ? "Por peso (g)" : u.key === "ml" ? "Por volumen (ml)" : "Por unidad: " + u.label)));
+  duSel.addEventListener("change", () => prows.forEach((r) => (r.byUnit = false)));
   const prow = (p) => {
     const r = { id: p.id, el: null, deleted: false };
     r.label = h("input", { class: "input", value: p.label || "", placeholder: "p. ej. 1 lata" });
@@ -1635,12 +1650,14 @@ function foodEditor(f, opt = {}) {
       let rs = live.find((r) => r !== r100 && Math.abs((parseNum(r.amount.value) || 0) - o.serving.amount) < 0.6);
       if (rs) setRow(rs, o.serving, rs.label.value.trim() || o.serving.label, o.serving.amount, o.serving.unit);
       else { rs = prow({ quality: q }); prows.push(rs); tbody.append(rs.el); setRow(rs, o.serving, o.serving.label, o.serving.amount, o.serving.unit); }
+      // Caja de varias unidades (barritas, yogures, latas): se apunta por unidad
+      if (o.serving.per_unit) { prows.forEach((r) => (r.byUnit = r === rs)); if (typeof duSel !== "undefined" && duSel && rs.id) duSel.value = "p:" + rs.id; }
     }
     const hadPhoto = !!(f.image || pendingImg);
     if (o.image_url && !hadPhoto) { offImg = o.image_url; pendingImg = o.image_url; drawPhoto(); }
     offNote.className = "note off-found" + (o.complete ? "" : " warn");
     offNote.replaceChildren(`De Open Food Facts: ${o.name || "sin nombre"}${o.brand ? " (" + o.brand + ")" : ""} · ${o.per100.kcal == null ? "?" : fmt(o.per100.kcal)} kcal por 100 ${o.unit}` +
-      (o.complete ? " · revísalo y guarda" : " · le faltan valores: complétalos con la etiqueta") + (offImg ? " · con su foto" : ""));
+      (o.serving && o.serving.per_unit ? ` · se apunta por unidad${o.serving.pack_units ? " (caja de " + o.serving.pack_units + ")" : ""}` : "") + (o.complete ? " · revísalo y guarda" : " · le faltan valores: complétalos con la etiqueta") + (offImg ? " · con su foto" : ""));
     if (o.image_url && hadPhoto) offNote.append(h("div", { class: "off-photo" }, h("img", { src: o.image_url, alt: "" }), h("span", null, "Ya tiene foto. ¿Usar la de Open Food Facts?"),
       h("button", { type: "button", class: "btn sm", onclick: (e) => { offImg = o.image_url; pendingImg = o.image_url; drawPhoto(); e.currentTarget.parentNode.remove(); toast("Se cambiará al guardar"); } }, "Usar esta foto")));
   };
@@ -1665,7 +1682,7 @@ function foodEditor(f, opt = {}) {
       if (r.deleted) { if (r.id) portions.push({ id: r.id, deleted: true }); continue; }
       const vals = { amount: parseNum(r.amount.value), kcal: parseNum(r.kcal.value), protein_g: parseNum(r.p.value), carbs_g: parseNum(r.c.value), fat_g: parseNum(r.g.value) };
       if (Object.values(vals).some(Number.isNaN)) return toast("Hay un número no válido", { error: true });
-      portions.push({ id: r.id, label: r.label.value.trim(), unit: r.unit.value || null, quality: r.q.value, is_default: r.def.checked, ...vals });
+      portions.push({ id: r.id, label: r.label.value.trim(), unit: r.unit.value || null, quality: r.q.value, is_default: r.def.checked, ...(r.byUnit && (!duSel || !r.id || duSel.value === "p:" + r.id) ? { by_unit: true } : {}), ...vals });
     }
     const data = { name: name.value.trim(), category: cat.value.trim() || null, brand: brand.value.trim() || null, status: status.value, source: sourceText(), notes: notes.value.trim() || null, portions, ...(accept === true ? { reviewed: true } : {}), ...(!isNew ? { default_unit: duSel.value || null } : {}) };
     if (isNew) {
@@ -2104,7 +2121,7 @@ function weightChart(ws, bodies, sel, next) {
     const px = (p.px / W) * r.width; tip_.style.left = Math.min(Math.max(px, 70), r.width - 70) + "px";
   };
   const leave = () => { clearTimeout(hideT); vline.classList.add("hidden"); hov.classList.add("hidden"); tip_.classList.add("hidden"); };
-  // Ratón: se ve mientras está encima. Dedo: manteniendo pulsado (y deslizando sin soltar se mueve); al soltar se va a los 2 s.
+  // Ratón: se ve mientras está encima. Dedo: al tocar (deslizando de lado se mueve); al soltar se quita.
   svg.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") move(e); });
   svg.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") leave(); });
   touchHold(svg, (e) => { clearTimeout(hideT); move(e); }, leave);
@@ -2233,15 +2250,15 @@ function hevyBox() {
 const MCP_URL = () => location.origin + "/mcp";
 const AGENTS = [
   { k: "claude", n: "Claude", sub: "Web, escritorio, móvil y Cowork", logo: "claude.png", c: "#d97757",
-    steps: () => [["Añádelo en Claude", "«+ Añadir» → «Añadir conector personalizado» → nombre «Salud» y pega la dirección. Lo demás, como viene (Iniciar sesión ahora · Usar la identidad publicada de Claude · sin encabezados) → Añadir.", { href: "https://claude.ai/customize/connectors", t: "Abrir conectores de Claude" }],
+    steps: () => [["Añádelo en Claude", "«+ Añadir» → «Añadir conector personalizado» → nombre «Salud», pega la dirección y «Continuar». Lo demás, como viene (Iniciar sesión ahora · Usar la identidad publicada de Claude · sin encabezados) → Añadir.", { href: "https://claude.ai/customize/connectors", t: "Abrir conectores de Claude" }],
       ["Pulsa «Conectar» y luego «Permitir»", ""],
       ["Quita los avisos", "En ese mismo conector, cambia «Requiere aprobación» por «Permitir siempre» (en los dos grupos de herramientas). Si no, te pedirá permiso cada vez que apunte algo."]] },
   { k: "claude-code", n: "Claude Code", sub: "Terminal", logo: "claude-code.png", c: "#d97757",
     steps: (u) => [["Ejecuta en una terminal", "", `claude mcp add --transport http --scope user salud ${u}`],
       ["En Claude Code: /mcp → salud → Authenticate", "y pulsa «Permitir»."]] },
-  { k: "chatgpt", n: "ChatGPT", sub: "Modo desarrollador (de pago)", logo: "chatgpt.png", c: "#10a37f",
-    steps: () => [["Añádelo en ChatGPT", "Ajustes → Aplicaciones → Avanzado → «Modo de desarrollador» → «Crear» → pega la dirección."],
-      ["Pulsa «Crear» y luego «Permitir»", ""]] },
+  { k: "chatgpt", n: "ChatGPT", sub: "Plus o superior · desde la web", logo: "chatgpt.png", c: "#10a37f",
+    steps: () => [["Añádelo en ChatGPT", "En chatgpt.com: Complementos → «+» → «Añadir servidor MCP personalizado» → nombre «Salud», pega la dirección y deja la autenticación en OAuth → «Entiendo y quiero continuar» → «Crear como complemento».", { href: "https://chatgpt.com/plugins", t: "Abrir complementos de ChatGPT" }],
+      ["Instálalo y pulsa «Permitir»", "Si no se instala solo, ábrelo en tus complementos y pulsa «+»."]] },
   { k: "codex", n: "Codex", sub: "OpenAI · app o CLI", logo: "codex.svg", c: "#7b6cf6",
     steps: (u) => [["Ejecuta en una terminal", "", `codex mcp add salud --url ${u}`, "codex mcp login salud"], ["Pulsa «Permitir»", ""]] },
   { k: "antigravity", n: "Antigravity", sub: "Google · IDE o CLI", logo: "antigravity.svg", c: "#4285f4",
@@ -2331,7 +2348,7 @@ function connectAgent() {
       h("div", { class: "agent-steps simple" },
         steps.map(([t, d, ...rest], i) => h("div", { class: "ast" }, h("span", { class: "n" }, String(i + 1)),
           h("div", null, h("b", null, t), d ? h("div", { class: "muted" }, d) : null, rest.map(extra)))),
-        h("div", { class: "ast" }, doneN, h("div", null, h("b", null, "Escríbele en cualquier chat"), h("div", { class: "muted" }, "«Apunta mi desayuno», «¿cuánto llevo hoy?», «cierra el día»…"), status)))],
+        h("div", { class: "ast" }, doneN, h("div", null, h("b", null, "Escríbele en cualquier chat"), h("div", { class: "muted" }, (ag.k === "chatgpt" ? "Con @Salud en el mensaje (y @Hevy para tus entrenos): " : "") + "«Apunta mi desayuno», «¿cuánto llevo hoy?», «cierra el día»…"), status)))],
       [h("span", { class: "grow" }), h("button", { class: "btn ghost sm no-mcp", onclick: noMcp }, "Mi agente no tiene conectores")],
       { back: step1, titleExtra: agentLogo(ag, 26) });
     watch(status, ag, doneN);

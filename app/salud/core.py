@@ -519,9 +519,11 @@ def create_food(conn, data, source="web"):
              _auto_reviewed(conn, data, source), ts(), ts()))
         fid = cur.lastrowid
         for i, v in enumerate(vals):
-            conn.execute(
+            pc = conn.execute(
                 "INSERT INTO portions(food_id,label,amount,unit,kcal,protein_g,carbs_g,fat_g,quality,source_type,note,is_default,sort) "
                 "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", (fid,) + v + (i,))
+            if portions[i].get("by_unit"):  # lo que se toma por unidad se apunta con esta ración
+                conn.execute("UPDATE foods SET default_unit=? WHERE id=?", ("p:%d" % pc.lastrowid, fid))
     return food_summary(conn, N.get_food(conn, fid))
 
 
@@ -557,10 +559,15 @@ def update_food(conn, food_id, data, source="web", apply_open_days=True):
                     conn.execute(
                         "UPDATE portions SET label=?,amount=?,unit=?,kcal=?,protein_g=?,carbs_g=?,fat_g=?,quality=?,"
                         "source_type=?,note=?,is_default=?,sort=? WHERE id=? AND food_id=?", v + (i, p["id"], food_id))
+                    pid = p["id"]
                 elif not p.get("deleted"):
-                    conn.execute(
+                    pid = conn.execute(
                         "INSERT INTO portions(food_id,label,amount,unit,kcal,protein_g,carbs_g,fat_g,quality,source_type,note,is_default,sort) "
-                        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", (food_id,) + _portion_values(p) + (i,))
+                        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", (food_id,) + _portion_values(p) + (i,)).lastrowid
+                else:
+                    continue
+                if p.get("by_unit"):
+                    conn.execute("UPDATE foods SET default_unit=? WHERE id=?", ("p:%d" % pid, food_id))
         if "items" in data and f["kind"] == "receta":
             _write_recipe_items(conn, food_id, data["items"])
         refreshed = refresh_open_entries(conn, [food_id]) if apply_open_days else 0
@@ -700,6 +707,10 @@ def find_template(conn, ref):
 def _write_template_items(conn, tid, items):
     if not items:
         raise ValidationError("Una comida habitual necesita al menos un alimento")
+    if len(items) < 2:
+        # Una comida habitual es un conjunto (desayuno, táper, batido); un producto suelto es un producto
+        raise ValidationError("Una comida habitual junta varios alimentos (un desayuno, un táper, un batido). "
+                              "Un producto suelto (una barrita, una lata, un yogur) va como producto y se apunta por unidad.")
     conn.execute("DELETE FROM template_items WHERE template_id=?", (tid,))
     for i, it in enumerate(items):
         q = _num(it.get("quantity"), "cantidad", 0.0001, 100000, allow_none=False)

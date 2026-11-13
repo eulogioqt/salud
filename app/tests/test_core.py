@@ -162,6 +162,23 @@ class TestRecipes(Base):
         self.assertEqual(es[0]["meal"], "desayuno"); self.assertAlmostEqual(es[0]["kcal"], 374 * 0.6)
         self.assertEqual(core.get_template(self.conn, t["id"])["items"][0]["quantity"], 50)  # plantilla intacta
 
+    def test_habitual_de_un_solo_alimento_no(self):
+        from salud.db import ValidationError
+        av = self.food("avena")
+        with self.assertRaises(ValidationError):
+            core.create_template(self.conn, {"name": "Barrita", "items": [{"food_id": av["id"], "unit_key": "g", "quantity": 23}]})
+
+    def test_por_unidad_al_crear_y_editar(self):
+        f = core.create_food(self.conn, {"name": "Barritas X", "status": "etiqueta", "portions": [
+            {"label": "100 g", "amount": 100, "unit": "g", "kcal": 400, "protein_g": 6, "carbs_g": 60, "fat_g": 14, "quality": "etiqueta", "is_default": True},
+            {"label": "1 unidad (23 g)", "amount": 23, "unit": "g", "kcal": 92, "protein_g": 1.4, "carbs_g": 13.8, "fat_g": 3.2, "quality": "etiqueta", "by_unit": True}]})
+        row = self.conn.execute("SELECT default_unit FROM foods WHERE id=?", (f["id"],)).fetchone()[0]
+        pid = self.conn.execute("SELECT id FROM portions WHERE food_id=? AND amount=23", (f["id"],)).fetchone()[0]
+        self.assertEqual(row, "p:%d" % pid)
+        core.update_food(self.conn, f["id"], {"default_unit": None, "portions": [{"id": pid, "label": "1 barrita (23 g)", "amount": 23, "unit": "g", "kcal": 92,
+            "protein_g": 1.4, "carbs_g": 13.8, "fat_g": 3.2, "quality": "etiqueta", "by_unit": True}]})
+        self.assertEqual(self.conn.execute("SELECT default_unit FROM foods WHERE id=?", (f["id"],)).fetchone()[0], "p:%d" % pid)
+
 
 class TestClose(Base):
     def test_close_requires_confirmation_then_protects(self):
@@ -633,3 +650,16 @@ class TestDynamicTarget(Base):
         from salud.db import ValidationError
         with self.assertRaises(ValidationError):
             core.set_target(self.conn, {"valid_from": D1, "kcal": 1200, "protein_g": 250, "fat_min_g": 60}, "test")
+
+
+class TestOffRacion(unittest.TestCase):
+    def test_raciones(self):
+        from salud.off import _serving
+        sv = lambda q, sq, ss, cats=(): _serving({"quantity": q, "serving_quantity": sq, "serving_size": ss, "categories_tags": list(cats)}, "g")
+        self.assertEqual(sv("150 g (6 x 25 g)", 25, "25g")["label"], "1 unidad (25 g)")
+        self.assertTrue(sv("150 g (6 x 25 g)", 25, "25g")["per_unit"])
+        self.assertEqual(sv("138 g", 23, "23 g", ["en:cereal-bars"])["label"], "1 unidad (23 g)")
+        self.assertEqual(sv("375 g", 30, "30 g")["label"], "1 ración (30 g)")
+        self.assertFalse(sv("375 g", 30, "30 g")["per_unit"])
+        self.assertEqual(sv("200 g", 23, "1 barrita (23 g)")["label"], "1 barrita (23 g)")
+        self.assertTrue(sv("200 g", 23, "1 barrita (23 g)")["per_unit"])

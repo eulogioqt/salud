@@ -2003,3 +2003,5 @@ img { -webkit-user-drag: none; user-select: none; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --e-bmr: #3fae84; --e-neat: #35906e; --e-steps: #2c7559; --e-ex: #245d48; --e-tef: #1d4a3a; --e-cal: #4a4740; } }
 .e-cal { background: var(--e-cal); }
 @media (max-width: 640px) { table.t.ptable td { border: 0; } table.t.ptable tr td.pt-x { padding: 0; } }
+/* Gráficas: en táctil el tooltip sigue al dedo de lado; en vertical, scroll */
+.sch, .swk, .sdays, .pbars, .dist, .lvg-dots, svg [data-tip] { touch-action: pan-y; }

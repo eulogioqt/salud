@@ -165,8 +165,10 @@ function showTip(text, x, y) {
 }
 function hideTip() { if (TIP.el) { TIP.el.style.display = "none"; TIP.el.classList.remove("anch", "below"); } }
 // Como en la mayoría de webs: el tooltip de un elemento sale anclado a él (centrado encima, con flecha; debajo si no cabe)
-function showTipAt(text, el) {
-  const r = el.getBoundingClientRect();
+function showTipAt(text, el, above) {
+  let r = el.getBoundingClientRect();
+  // En una gráfica tocada con el dedo: encima de toda la gráfica (el dedo tapa la barra)
+  if (above) { const a = above.getBoundingClientRect(); r = { left: r.left, width: r.width, top: Math.min(r.top, a.top), bottom: Math.min(r.top, a.top) }; }
   showTip(text, 0, 0);
   const t = TIP.el, w = t.offsetWidth, hh = t.offsetHeight;
   let L = r.left + r.width / 2 - w / 2, below = r.top - hh - 10 < 8, T = below ? r.bottom + 10 : r.top - hh - 10;
@@ -189,28 +191,49 @@ document.addEventListener("pointermove", (e) => {
     else if (!(e.target.closest && e.target.closest(".mchart.line, .wc svg, .rprog"))) hideTip();
     return;
   }
+  if (SCRUB && e.pointerId === SCRUB.id) {
+    const u = document.elementFromPoint(e.clientX, e.clientY);
+    let t = u && u.closest ? u.closest("[data-tip]") : null;
+    if (!t || !SCRUB.root.contains(t)) t = SCRUB.root.matches("svg") ? null : nearestTip(SCRUB.root, e.clientX);
+    if (t && t !== SCRUB.el && SCRUB.root.contains(t)) { SCRUB.el = t; showTipAt(t.dataset.tip, t, SCRUB.root); }
+    return;
+  }
   if (HOLD.t && Math.hypot(e.clientX - HOLD.x, e.clientY - HOLD.y) > 10) { clearTimeout(HOLD.t); HOLD.t = null; }
 });
+// En las gráficas, en cambio, como en casi todas las webs: sale al tocar, sigue al dedo si lo deslizas de lado y se quita al soltar
+// (deslizar en vertical hace scroll y lo quita).
+const CHART_SEL = ".sch, .swk, .sdays, .pbars, svg, .dist, .lvg-dots";
+const inChart = (t) => !!(t && t.closest && t.closest(CHART_SEL));
+let SCRUB = null;
+// La barra/día más cercano al dedo en horizontal (las barras pueden ser finísimas o estar vacías)
+function nearestTip(root, x) {
+  let best = null, bd = Infinity;
+  for (const el of root.querySelectorAll("[data-tip]")) { const r = el.getBoundingClientRect(); if (!r.width) continue; const d = Math.abs(r.left + r.width / 2 - x); if (d < bd) { bd = d; best = el; } }
+  return best;
+}
 document.addEventListener("pointerdown", (e) => {
   if (e.pointerType === "mouse") return;
   clearTimeout(HOLD.t); HOLD.t = null;
-  const t = tipTarget(e);
+  let t = tipTarget(e);
+  const root = e.target && e.target.closest ? e.target.closest(".sch, .swk, .sdays, .pbars, .dist, .lvg-dots") : null;
+  if (!t && root) t = nearestTip(root, e.clientX);
+  if (t && inChart(t)) { SCRUB = { id: e.pointerId, root: root || t.closest(CHART_SEL), el: t }; clearTimeout(TIP_T); showTipAt(t.dataset.tip, t, SCRUB.root); return; }
   if (!t) { if (!HOLD.shown) hideTip(); return; }
   HOLD.x = e.clientX; HOLD.y = e.clientY;
   HOLD.t = setTimeout(() => { HOLD.t = null; HOLD.shown = true; HOLD.eatClick = true; clearTimeout(TIP_T); showTipAt(t.dataset.tip, t); if (navigator.vibrate) navigator.vibrate(8); }, HOLD_MS);
 });
-const holdEnd = (e) => { if (e.pointerType === "mouse") return; clearTimeout(HOLD.t); HOLD.t = null; if (HOLD.shown) { HOLD.shown = false; clearTimeout(TIP_T); TIP_T = setTimeout(hideTip, 1500); setTimeout(() => { HOLD.eatClick = false; }, 450); } };
+const holdEnd = (e) => { if (e.pointerType === "mouse") return; if (SCRUB && e.pointerId === SCRUB.id) { SCRUB = null; hideTip(); return; } clearTimeout(HOLD.t); HOLD.t = null; if (HOLD.shown) { HOLD.shown = false; clearTimeout(TIP_T); TIP_T = setTimeout(hideTip, 1500); setTimeout(() => { HOLD.eatClick = false; }, 450); } };
 document.addEventListener("pointerup", holdEnd); document.addEventListener("pointercancel", holdEnd);
 document.addEventListener("click", (e) => { if (HOLD.eatClick) { HOLD.eatClick = false; e.preventDefault(); e.stopPropagation(); } }, true);
 document.addEventListener("contextmenu", (e) => { if (tipTarget(e) && e.pointerType !== "mouse") e.preventDefault(); });
-// Gráficas con su propio tooltip: en táctil, mantener pulsado para verlo y luego deslizar sin soltar para moverlo
+// Gráficas con su propio tooltip: en táctil sale al tocar, sigue al dedo deslizando de lado y se quita al soltar
 function touchHold(el, show, hide) {
-  let t = null, on = false, sx = 0, sy = 0;
-  el.addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") return; sx = e.clientX; sy = e.clientY; clearTimeout(t); const ev = { clientX: e.clientX, clientY: e.clientY }; t = setTimeout(() => { on = true; show(ev); }, HOLD_MS); });
-  el.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") return; if (on) show(e); else if (Math.hypot(e.clientX - sx, e.clientY - sy) > 10) clearTimeout(t); });
-  const end = (e) => { if (e.pointerType === "mouse") return; clearTimeout(t); if (on) { on = false; setTimeout(hide, 2000); } };
+  let on = false;
+  el.style.touchAction = "pan-y";
+  el.addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") return; on = true; show(e); });
+  el.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") return; if (on) show(e); });
+  const end = (e) => { if (e.pointerType === "mouse") return; if (on) { on = false; hide(); } };
   el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
-  el.addEventListener("touchmove", (e) => { if (on) e.preventDefault(); }, { passive: false });
   el.addEventListener("contextmenu", (e) => e.preventDefault());
 }
 window.addEventListener("blur", hideTip); document.addEventListener("visibilitychange", hideTip);
@@ -1306,7 +1329,8 @@ function levelSheet(name, L) {
       `Frente a ti | ${Math.abs(diff) < 0.5 ? "es tu marca" : (diff > 0 ? "+" : "−") + fmt(Math.abs(diff), Math.abs(diff) < 10 ? 1 : 0) + " " + unit}`,
       i < 5 ? `Siguiente rango | ${LVL[i + 1]} en ${fmtv(cuts[i + 1])}` : "Rango máximo"].join("\n"), ev.clientX, ev.clientY);
   };
-  hit.addEventListener("pointermove", mv); hit.addEventListener("pointerdown", mv);
+  hit.style.touchAction = "pan-y"; hit.addEventListener("pointermove", mv); hit.addEventListener("pointerdown", mv);
+  hit.addEventListener("pointerup", (e) => { if (e.pointerType !== "mouse") { gl.style.display = "none"; gd.style.display = "none"; hideTip(); } });
   hit.addEventListener("pointerleave", () => { gl.style.display = "none"; gd.style.display = "none"; hideTip(); });
   const rows = LVL.map((n, i) => (M.skill && i < M.skill ? null : (() => {
     const from = i ? cuts[i] : null, falta = from != null && L.raw < from ? from - L.raw : null;
