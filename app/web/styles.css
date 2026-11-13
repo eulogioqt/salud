@@ -1837,12 +1837,8 @@ img { -webkit-user-drag: none; user-select: none; }
 .lastw .lw-s { font-size: 13px; color: var(--muted); }
 .lastw .chev { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); display: inline-flex; color: var(--faint); } .lastw .chev svg { width: 18px; height: 18px; }
 /* Gasto del entreno (opción E): mismo tamaño que los demás chips, amarillo pálido con el rayo ámbar */
-.datec.kcalchip { gap: 4px; background: #fdf7dc; color: #5c5442; font-weight: 600; }
-.datec.kcalchip svg { width: 13px; height: 13px; flex: none; color: #d49a00; fill: currentColor; stroke: none; }
-@media (prefers-color-scheme: dark) { .datec.kcalchip { background: #3a3420; color: #e8dfc2; } .datec.kcalchip svg { color: #f0c040; } }
 /* Móvil: más aire entre la descripción del entreno y sus chips */
 @media (max-width: 640px) { .wchips { margin-top: 10px !important; } }
-.datec.kcalchip .tx { background: none !important; padding: 0 !important; color: inherit !important; }
 /* Gasto del entreno resumido: rayo + número (mismo tamaño que el chip de récords) */
 .kcc { flex: none; box-sizing: border-box; display: inline-flex; align-items: center; gap: 3px; height: 21px; padding: 1.5px 8px 0 6px; line-height: 1; border-radius: 99px; font-size: 11.5px; font-weight: 700; background: #fdf7dc; color: #5c5442; vertical-align: middle; white-space: nowrap; }
 .kcc svg { width: 12px; height: 12px; margin-top: -1.5px; flex: none; color: #d49a00; fill: currentColor; stroke: none; }
@@ -1913,5 +1909,9 @@ img { -webkit-user-drag: none; user-select: none; }
 /* Chip del rayo: el número del mismo color que el rayo */
 .kcc { color: #d49a00; }
 @media (prefers-color-scheme: dark) { .kcc { color: #f0c040; } }
-.datec.kcalchip { color: #d49a00; } .datec.kcalchip .tx { color: inherit !important; }
-@media (prefers-color-scheme: dark) { .datec.kcalchip { color: #f0c040; } }
+/* Chip del rayo grande (cabecera de la ficha del entreno): mismas medidas que los demás chips grandes */
+.kcc.lg { height: 26px; font-size: 13px; gap: 5px; padding: 0 11px 0 8px; }
+.kcc.lg svg { width: 15px; height: 15px; }
+/* El chip del rayo es el mismo en todas partes (la regla genérica «.wchips span» no lo pisa) */
+.wchips .kcc, .wk-hd .kcc { background: #fdf7dc; color: #d49a00; font-size: 13px; padding: 0 11px 0 8px; border-radius: 99px; }
+@media (prefers-color-scheme: dark) { .wchips .kcc, .wk-hd .kcc { background: #3a3420; color: #f0c040; } }

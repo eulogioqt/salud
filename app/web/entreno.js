@@ -830,8 +830,9 @@ function deltaOf(cur, prev, f = (x) => fmt(x)) {
 }
 
 // Gasto del entreno en versión resumida (rayo + número, sin «kcal»): Hoy, último entreno, historial
-function kcChip(v, what = "del entreno") {
-  return v == null ? null : h("span", { class: "kcc", title: `Gasto ${what}: ${fmt(v)} kcal` }, icon("bolt"), tx(fmt(v)));
+// (`lg`: la versión grande con «kcal», la de la cabecera de la ficha del entreno; mismo chip, mismos colores)
+function kcChip(v, what = "del entreno", lg = false) {
+  return v == null ? null : h("span", { class: "kcc" + (lg ? " lg" : ""), title: lg ? null : `Gasto ${what}: ${fmt(v)} kcal` }, icon("bolt"), tx(lg ? `${fmt(v)} kcal` : fmt(v)));
 }
 // Chips de un entreno juntos: si no caben al lado del título, bajan todos a la línea siguiente
 function chg(...c) { c = c.filter(Boolean); return c.length ? h("span", { class: "chg" }, ...c) : null; }
@@ -1453,7 +1454,7 @@ async function workoutSheet_(id) {
   const mkChips = (sm) => [
     wUps.length ? tip(h("span", { class: "upchip lg" }, icon("up"), ...(sm ? [tx(String(wUps.length))] : two(`${wUps.length} ${wUps.length === 1 ? "rango nuevo" : "rangos nuevos"}`, String(wUps.length)))), upTip) : null,
     nPR ? tip(h("span", { class: "prc lg" }, icon("trophy"), ...(sm ? [tx(String(nPR))] : two(`${nPR} ${nPR === 1 ? "récord" : "récords"}`, String(nPR)))), prTip) : null,
-    w.activity_id && w.kcal != null ? tip(h("span", { class: "datec kcalchip" }, icon("bolt"), tx(`${fmt(w.kcal)} kcal`)),
+    w.activity_id && w.kcal != null ? tip(kcChip(w.kcal, "del entreno", true),
       w.kcal_source === "agente" ? "Gasto del entreno (kcal netas, por encima del reposo): lo que suma al gasto del día. Lo ha estimado tu agente analizando los ejercicios, las series, las cargas y la duración."
         : `Gasto del entreno (kcal netas): lo que suma al gasto del día. Sale del tipo de entreno, la duración, tu peso y la intensidad (${w.intensity || "normal"}).`) : null,
     bwAt(w.date) ? tip(h("span", { class: "datec" }, tx(`${fmt(bwAt(w.date), 1)} kg`)), bwExact(w.date) ? "Tu peso ese día (pesaje)" : "Tu peso ese día (interpolado entre pesajes)") : null,
