@@ -1396,8 +1396,8 @@ function summaryView(s, extra) {
       sub("Grasas", v(t, "fat_g") + " g", tg.fat_mid_g != null ? og(tg.fat_mid_g, (t.fat_g || 0) - tg.fat_mid_g, (t.fat_g || 0) >= (tg.fat_min_g || 0) && (t.fat_g || 0) <= (tg.fat_max_g || 1e9)) : ""),
       gap(),
       main("Gasto estimado", fmt(en.total) + " kcal" + (en.complete ? "" : " *"), en.complete ? "" : "incompleto"),
-      sub("Metabolismo basal", fmt(en.bmr), ""), sub("Efecto térmico (TEF)", fmt(en.tef), ""), sub("NEAT sin pasos", fmt(en.neat), ""),
-      sub("Pasos", en.steps_kcal == null ? "?" : fmt(en.steps_kcal), ""), sub("Ejercicio neto", fmt(en.exercise_kcal), ""),
+      sub("Metabolismo basal", fmt(en.bmr), ""), sub("Digestión", fmt(en.tef), ""), sub("Día a día", fmt(en.neat), ""),
+      sub("Pasos", en.steps_kcal == null ? "?" : fmt(en.steps_kcal), ""), sub("Entrenos", fmt(en.exercise_kcal), ""),
       gap(),
       (() => { // el balance frente al que buscabas: según el gasto, la diferencia elegida; fijo, objetivo − gasto
         const objB = tg.dynamic ? tg.kcal_offset : tg.kcal && en.total != null ? tg.kcal - en.total : null;
@@ -1405,7 +1405,7 @@ function summaryView(s, extra) {
           h("td", { class: "r num faint" }, bal == null ? "" : objB != null ? h("span", { class: "og" }, signed(Math.round(objB)), h("span", { class: "ogd " + (Math.abs(bal - objB) <= 150 ? "ok" : "off") }, Math.abs(bal - objB) < 0.5 ? "✓" : signed(Math.round(bal - objB)))) : bal < 0 ? "déficit" : "superávit"));
       })(),
       gap(),
-      main("Peso", s.weight_kg != null ? fmt(s.weight_kg, 1) + " kg" : "—", s.avg7 != null ? "media 7 d " + fmt(s.avg7, 1) : ""),
+      main("Peso", s.weight_kg != null ? fmt(s.weight_kg, 1) + " kg" : "—", ""),
       main("Pasos", s.steps != null ? fmt(s.steps) : "—", ""),
       h("tr", { class: "main" }, h("td", null, "Entreno"), h("td", { class: "r wrapv", colspan: 2 }, s.activities.length ? s.activities.map((a) => `${a.description || (ACT_TYPES.find((x) => x[0] === a.type) || [0, a.type])[1]}${a.minutes ? " · " + fmt(a.minutes) + " min" : ""}`).join(", ") : "descanso"))),
     (t.missing || []).length ? h("div", { class: "note warn" }, "* Totales mínimos: hay valores desconocidos.") : null,
