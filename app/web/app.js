@@ -865,7 +865,12 @@ async function stepsConnectSheet(mode = "pasos") {
 // Hevy a través del agente: Salud no puede conectarse a Hevy (solo acepta apps dadas de alta por ellos); tu agente sí.
 // Sale «Conectado» en cuanto el agente sube un entreno tal cual viene de Hevy (no con capturas).
 // «Claude y ChatGPT»: los agentes que han avisado de que tienen Hevy
-const hevyVia = (d) => { const ks = Object.keys(d || {}).filter((k) => k !== "agente"); return ks.length ? ks.map((k) => agentOf(k).n).join(" y ") : "tu agente"; };
+// Sirve para cualquier agente (Claude, ChatGPT, Codex, Gemini…): logo pequeño + nombre de cada uno
+const hevyVia = (d) => { const ks = Object.keys(d || {}).filter((k) => k !== "agente");
+  if (!ks.length) return "tu agente";
+  // Uno: logo y nombre; varios: solo sus logos (cabe en una línea), con el nombre al pasar por encima
+  if (ks.length === 1) return h("span", { class: "via-ag" }, agentLogo(agentOf(ks[0]), 14), agentOf(ks[0]).n);
+  return h("span", { class: "via-ag" }, ks.map((k) => h("span", { title: agentOf(k).n }, agentLogo(agentOf(k), 14)))); };
 function hevyAgentSheet(ok, ags) {
   if (ok === undefined) ok = (S.pasos || {}).hevy_agente;
   if (!ags) ags = (S.pasos || {}).hevy_agentes || {};
@@ -921,7 +926,7 @@ async function connectionsSheet() {
         S.me ? row_("👟", "Pasos", st_("pasos", pasosOk, info.pasos_ultimo), info.pasos_ultimo && !isOff("pasos") ? `Último envío ${agoTxt(info.pasos_ultimo)}` : off_("del móvil"), btn_("pasos", info.pasos_ultimo)) : null,
         S.me ? row_("⚖", "Báscula", st_("bascula", !!info.bascula, info.bascula), info.bascula && !isOff("bascula") ? `Último pesaje ${whenTxt(info.bascula)}` : off_("cada pesaje, solo"), btn_("bascula", info.bascula)) : null,
         S.me ? row_("🏋", "Entrenos", st_("entreno", !!info.entreno_ultimo, info.entreno_ultimo), info.entreno_ultimo && !isOff("entreno") ? `Último ${whenTxt(info.entreno_ultimo)}` : off_("cuándo entrenas"), btn_("entreno", info.entreno_ultimo)) : null,
-        S.me ? row_("📋", "Hevy", info.hevy_agente ? "ok" : "off", info.hevy_agente ? "Series y pesos, vía " + hevyVia(info.hevy_agentes) : off_("series y pesos"),
+        S.me ? row_("📋", "Hevy", info.hevy_agente ? "ok" : "off", info.hevy_agente ? ["Series y pesos, vía ", hevyVia(info.hevy_agentes)] : off_("series y pesos"),
           info.hevy_agente ? unhevy : h("button", { class: "btn sm ghost", onclick: () => hevyAgentSheet(info.hevy_agente, info.hevy_agentes) }, "Conectar")) : null),
     ], S.me && info.configurado ? [h("button", { class: "btn sm ghost", onclick: () => mobileKeySheet(async () => { info = await api("GET", "/api/movil").catch(() => info); }) }, icon("key"), "Clave del móvil")] : null);
   };

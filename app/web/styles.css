@@ -2041,3 +2041,5 @@ img { -webkit-user-drag: none; user-select: none; }
 .act-raw summary { cursor: pointer; color: var(--muted); }
 .act-raw pre { margin: 6px 0 0; font-size: 11.5px; max-height: 240px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
 .act-when { font-size: 12px; }
+.via-ag { display: inline-flex; align-items: center; gap: 4px; vertical-align: -3px; white-space: nowrap; }
+.via-ag .ag-logo { border-radius: 4px; }
