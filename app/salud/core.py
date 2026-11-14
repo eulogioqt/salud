@@ -139,7 +139,7 @@ def supplements_counts(conn, d):
     """{id: [horas]} de cada suplemento apuntado ese día (la B12 de fiesta se toma dos veces)."""
     ids = {x["id"] for x in supplements(conn)}
     out = {}
-    for r in conn.execute("SELECT food_id, time FROM entries WHERE date=? AND deleted_at IS NULL AND food_id IS NOT NULL ORDER BY COALESCE(time,''), id", (d,)):
+    for r in conn.execute("SELECT food_id, time FROM entries WHERE date=? AND deleted_at IS NULL AND food_id IS NOT NULL ORDER BY id", (d,)):  # en el orden en que se apuntaron (la de «al volver» puede ser de madrugada)
         if r["food_id"] in ids:
             out.setdefault(r["food_id"], []).append(r["time"])
     return out

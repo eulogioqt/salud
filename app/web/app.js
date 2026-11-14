@@ -1056,7 +1056,7 @@ function suppReminders(st) {
   if (!due.length) return null;
   return h("div", { class: "remind-l" }, due.map((x) => h("div", { class: "remind" }, h("span", { class: "rm-ic" }, "💊"),
     h("div", { class: "grow" }, h("b", null, x.name), h("span", { class: "faint" }, `Tocaba a las ${x.supp_time} · ¿ya está?`)),
-    h("button", { class: "btn sm rm-ok", onclick: () => suppToggle(st, x) }, icon("check"), "Tomado"))));
+    h("button", { class: "btn sm rm-ok", onclick: () => suppToggle(st, x) }, "Marcar"))));
 }
 // Suplementos: solo los que tocan ese día (y los que ya has tomado); los demás, con «+ Otro»
 function suppBlock(st, closed) {
@@ -1077,8 +1077,8 @@ function suppBlock(st, closed) {
   return h("div", { class: "meal supp-b" }, head, h("div", { class: "list" }, sups.map((x) => {
     const n = nOf(x), need = x.doses || 1, on = n >= need, fo = foodOf(x.id), times = cnt[x.id] || [];
     // Dos tomas (B12 de fiesta): «antes de salir ✓ 21:30 · al volver»
-    const sub = x.dose_labels && x.due ? [x.dose, ...x.dose_labels.map((l, i) => i < n ? `${l} ✓${times[i] ? " " + times[i] : ""}` : l)]
-      : on ? [x.dose, times[0] ? "tomado a las " + times[0] : "tomado"] : [x.dose, x.when_txt];
+    const sub = on ? [x.dose, times.filter(Boolean).length ? "tomado a las " + times.filter(Boolean).join(" y ") : "tomado"]
+      : x.dose_labels && x.due ? [x.dose, ...x.dose_labels.map((l, i) => i < n ? `${l} ✓${times[i] ? " " + times[i] : ""}` : l)] : [x.dose, x.when_txt];
     return h("div", { class: "item b supp-it" + (on ? " on" : "") + (n && !on ? " half" : ""), onclick: closed ? null : () => suppToggle(st, x) },
       mono(x.name, fo.category, fo.image),
       h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, x.name)), h("div", { class: "sub" }, sub.filter(Boolean).join(" · "))),

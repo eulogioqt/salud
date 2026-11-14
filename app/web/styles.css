@@ -2114,3 +2114,8 @@ input[type=checkbox].mv-sw:checked::after { transform: translateX(16px); }
 .remind .rm-ok { background: var(--surface); color: var(--accent); border: 1px solid var(--line); font-weight: 600; }
 /* Dos tomas: media hecha */
 .supp-ck.half { border-color: var(--accent); color: var(--accent); font-size: 10.5px; font-weight: 700; }
+/* Aviso: «Marcar» en el naranja del aviso (se entiende que falta hacerlo) */
+.remind .rm-ok { background: var(--warn); color: #fff; border: 0; }
+/* Cerrado: gris oscuro */
+.dayhead .pill.locked { background: #e2e0da; color: #4a4843; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dayhead .pill.locked { background: #3a3b40; color: #d6d4cf; } }
