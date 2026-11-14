@@ -30,6 +30,7 @@ Reglas:
 - Antes de añadir, `buscar_alimento` para usar lo que ya existe (y su unidad). No inventes valores de productos de marca: pide la etiqueta o usa Open Food Facts citándolo. Lo que crees (productos, recetas, comidas habituales) queda «por revisar» hasta que la persona lo acepte en la pestaña Comida.
 - UNA ENTRADA POR ALIMENTO O BEBIDA, siempre: nunca juntes una comida entera (ni un menú) en una sola entrada. «Albóndigas, puré, patatas, donut y 2 vasos de Coca-Cola» son 5 entradas en el almuerzo; «pizza y Coca-Cola Zero» son 2 en la cena. Así se ven, se corrigen y se reutilizan por separado.
 - Comidas fuera: `estimar_comida` UNA VEZ POR CADA plato o bebida (con su cantidad, rango y supuestos en la nota). Si es un producto que ya existe o de marca conocida (Coca-Cola Zero, una lata…), mejor `buscar_alimento` + `anadir_alimento` que estimarlo.
+- Suplementos: cada uno tiene «cuándo se toma» (cada día, algunos días de la semana, días de fiesta, días de entreno o cuando lo apunte; hora, aviso y ciclo opcionales, p. ej. píldora 21+7). Para añadir uno, mira antes el catálogo (`api` GET /api/supplements/catalog) y créalo con `api` POST /api/supplements/catalog/<clave> (ya trae dosis, cuándo y dibujo); si no está, POST /api/foods con categoría «Suplemento» y supp_when/supp_days/supp_time/supp_notify/supp_cycle. Si dice que sale de fiesta, `dia_de_fiesta`.
 - Comida habitual = un conjunto de VARIOS alimentos que toma junto (su desayuno, un táper, un batido). Un producto suelto (una barrita, una lata de Coca-Cola, un yogur, un paquete) NUNCA es una comida habitual: es un producto (`api` POST /api/foods, con su ración «1 unidad (23 g)» y `default_unit` por unidad) y se apunta con `anadir_alimento`. El servidor rechaza comidas habituales de un solo alimento.
 - Comidas habituales: si apunta algo de varios alimentos que parece de siempre (su desayuno, un táper, un batido) y no venía de una comida habitual, pregúntale una vez al final: «¿lo guardo como comida habitual? La próxima vez bastará con decirme su nombre». Si dice que sí, créala con `api` POST /api/templates {name, meal, items:[{food_id, unit_key, quantity}]} y dibújale su ilustración. Cuando nombre una comida habitual, usa `comida_habitual` (con `cambios` si esta vez varía algo) en vez de volver a estimarla.
 - Aceite: una línea más en la comida (chorrito ≈ 8 g, cucharada ≈ 10 g; plancha/salteado cuenta 100 %, fritura ~10–15 % del peso del alimento).
@@ -177,6 +178,9 @@ TOOLS = [
     ("leer_contexto", "Notas personales de la persona: objetivos, perfil, cómo quiere usarlo y estilo de respuesta. Llámala al empezar "
      "(y si tienes herramientas de Hevy, llama también a `hevy_en_el_agente`).",
      _o({}), lambda a: ["contexto"], True),
+    ("dia_de_fiesta", "Marca (o desmarca) un día como día de fiesta («hoy salgo», «ayer salí»): así salen sus suplementos de fiesta (p. ej. la B12) ese día y el siguiente, y queda marcado en el historial.",
+     _o({"fecha": FECHA, "fiesta": {"type": "boolean"}}, ["fiesta"]),
+     lambda a: ["api", "PUT", "/api/days/" + (a.get("fecha") or _hoy()), json.dumps({"fiesta": bool(a["fiesta"])})], False),
     ("hevy_en_el_agente", "Dile a la web si TÚ tienes acceso a Hevy (el conector o la app de Hevy: herramientas como get_user_workouts o @Hevy). "
      "Llámala al empezar cada chat, junto a leer_contexto: conectado=true si ves herramientas de Hevy, false si no. "
      "Así la web sabe que tus entrenos pueden llegar solos y lo muestra como conectado.",

@@ -305,13 +305,14 @@ function viewHoy() {
     h("button", { class: "icon-btn", onclick: () => goDay(addDays(S.date, 1)), title: "Día siguiente", disabled: S.date >= st.today }, icon("right")),
     h("span", { class: "spacer" }),
     !isToday ? h("button", { class: "btn ghost sm", onclick: () => goDay(st.today) }, "Ir a hoy") : null,
+    partyBtn(st),
     closed ? h("span", { class: "pill closed", title: "Día cerrado" }, icon("lock"), h("span", { class: "pl-t" }, "Cerrado")) : h("span", { class: "pill" }, "Abierto"));
   // Días anteriores sin cerrar: aviso en el propio día (no al añadir, que suele hacerlo el agente)
   const prev = (st.open_days || []).filter((d) => d < st.date);
   const warn = prev.length ? h("div", { class: "openwarn" }, icon("lock"),
     h("span", null, prev.length === 1 ? "Sin cerrar:" : `${prev.length} días sin cerrar:`),
     prev.map((d) => h("button", { class: "ow-d", onclick: () => goDay(d) }, tx(dateLabel(d, { weekday: "short", day: "numeric", month: "short" }))))) : null;
-  const wrap = h("div", { class: closed ? "locked" : "" }, head, warn, summaryCard(st), bodyStrip(st));
+  const wrap = h("div", { class: closed ? "locked" : "" }, head, suppReminders(st), warn, summaryCard(st), bodyStrip(st));
   for (const [m] of MEALS) { const mb = mealBlock(st, m, closed); if (mb) wrap.append(mb); }
   const sb = suppBlock(st, closed); if (sb) wrap.append(sb);
   wrap.append(h("div", { class: "closebar" }, closed
@@ -1029,24 +1030,49 @@ async function hevySync(full) {
 // Se apuntan como una entrada más (franja «otro»); al cerrar el día se pregunta por los que falten.
 const suppPortion = (f) => (f.portions || []).find((p) => p.is_default) || (f.portions || [])[0];
 const isSupp = (f) => { const p = f && suppPortion(f); return !!(f && !f.deleted && !f.hidden && /suplement/i.test(f.category || "") && p && p.kcal != null && p.kcal < 20); };
+// Día de fiesta: 🎉 en la cabecera del día (en el móvil solo el emoji). Hace que salgan los suplementos «de fiesta» ese día y el siguiente.
+function partyBtn(st) {
+  const on = !!(st.day && st.day.party);
+  return h("button", { class: "party-btn" + (on ? " on" : ""), title: on ? "Día de fiesta · toca para quitarlo" : "Marcar como día de fiesta",
+    onclick: () => act(() => api("PUT", "/api/days/" + st.date, { fiesta: !on }), on ? "Ya no es día de fiesta" : "Día de fiesta 🎉") }, "🎉", h("span", { class: "pb-t" }, "Fiesta"));
+}
+const nowHHMM = () => { const d = new Date(); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
+async function suppToggle(st, x, on) {
+  const ent = Object.values(st.meals).flatMap((m) => m.entries).find((e) => e.food_id === x.id);
+  if (on && ent) return act(() => api("DELETE", "/api/entries/" + ent.id), x.name + " quitado");
+  if (!on && !ent) return act(() => api("POST", "/api/entries", { date: st.date, food_id: x.id, unit_key: x.portion_id ? "p:" + x.portion_id : "g", quantity: x.portion_id ? 1 : 5, meal: "otro", time: st.date === st.today ? nowHHMM() : null }), x.name + " apuntado");
+}
+// Aviso arriba en Hoy: lo que tocaba a una hora que ya ha pasado y aún no está marcado
+function suppReminders(st) {
+  if (st.date !== st.today || st.status === "cerrado") return null;
+  const taken = st.supplements_taken || {}, now = nowHHMM();
+  const due = (st.supplements || []).filter((x) => x.due && x.supp_time && x.supp_notify && !(x.id in taken) && x.supp_time <= now);
+  if (!due.length) return null;
+  return h("div", { class: "remind-l" }, due.map((x) => h("div", { class: "remind" }, h("span", { class: "rm-ic" }, "💊"),
+    h("div", { class: "grow" }, h("b", null, x.name), h("span", { class: "faint" }, `Tocaba a las ${x.supp_time} · ¿ya está?`)),
+    h("button", { class: "btn sm primary", onclick: () => suppToggle(st, x, false) }, icon("check"), "Tomado"))));
+}
+// Suplementos: solo los que tocan ese día (y los que ya has tomado); los demás, con «+ Otro»
 function suppBlock(st, closed) {
-  const sups = st.supplements || [];
+  const all = st.supplements || [];
   const taken = st.supplements_taken || {};
-  if (!sups.length) return null;
-  const ent = (id) => Object.values(st.meals).flatMap((m) => m.entries).find((e) => e.food_id === id);
-  const nowT = () => { const d = new Date(); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
+  if (!all.length) return null;
+  const sups = all.filter((x) => x.due || x.id in taken), rest = all.filter((x) => !sups.includes(x));
   const foodOf = (id) => (S.catalog && S.catalog.foods || []).find((f) => f.id === id) || {};
-  const toggle = async (x) => {
-    const e = ent(x.id);
-    if (e) await act(() => api("DELETE", "/api/entries/" + e.id), x.name + " quitado");
-    else await act(() => api("POST", "/api/entries", { date: S.date, food_id: x.id, unit_key: x.portion_id ? "p:" + x.portion_id : "g", quantity: x.portion_id ? 1 : 5, meal: "otro", time: st.date === st.today ? nowT() : null }), x.name + " apuntado");
-  };
-  const head = h("div", { class: "meal-h" }, h("h3", null, "Suplementos"), h("span", { class: "mt num" }, `${Object.keys(taken).length} de ${sups.length}`));
+  const nDue = sups.filter((x) => x.due).length, nTaken = sups.filter((x) => x.due && x.id in taken).length;
+  const other = () => { const sh = sheet("Otro suplemento", h("div", { class: "list" }, rest.map((x) => { const fo = foodOf(x.id);
+    return h("div", { class: "item b supp-it", onclick: async () => { sh.close(); await suppToggle(st, x, false); } }, mono(x.name, fo.category, fo.image),
+      h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, x.name)), h("div", { class: "sub" }, [x.dose, x.when_txt].filter(Boolean).join(" · "))),
+      h("div", { class: "supp-ck" })); })), null, { sub: "No tocaban hoy: toca uno para apuntarlo" }); };
+  const head = h("div", { class: "meal-h" }, h("h3", null, "Suplementos"), nDue ? h("span", { class: "mt num" }, `${nTaken} de ${nDue}`) : null,
+    !closed && rest.length ? h("button", { class: "add-btn add", onclick: other }, "+ Otro") : null);
+  if (!sups.length) return closed ? null : h("div", { class: "meal supp-b" }, head);
   return h("div", { class: "meal supp-b" }, head, h("div", { class: "list" }, sups.map((x) => {
     const on = x.id in taken, fo = foodOf(x.id);
-    return h("div", { class: "item b supp-it" + (on ? " on" : ""), onclick: closed ? null : () => toggle(x) },
+    const sub = on ? [x.dose, taken[x.id] ? "tomado a las " + taken[x.id] : "tomado"] : [x.dose, x.when_txt];
+    return h("div", { class: "item b supp-it" + (on ? " on" : ""), onclick: closed ? null : () => suppToggle(st, x, on) },
       mono(x.name, fo.category, fo.image),
-      h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, x.name)), h("div", { class: "sub" }, [x.dose, on && taken[x.id] ? "tomado a las " + taken[x.id] : on ? "tomado" : "sin tomar"].filter(Boolean).join(" · "))),
+      h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, x.name)), h("div", { class: "sub" }, sub.filter(Boolean).join(" · "))),
       h("div", { class: "supp-ck" + (on ? " on" : "") }, on ? icon("check") : null));
   })));
 }
@@ -1568,7 +1594,7 @@ function viewLibrary() {
     const sups = prods.filter(isSupp), plain = prods.filter((f) => !isSupp(f));
     if (sups.length && ["todo", "supl", "revisar", "oculto", "pendiente"].includes(F)) secs.push(["Suplementos", sups.map((f) => foodTile(f, () => foodEditor(f)))]);
     if (plain.length && !["habitual", "supl"].includes(F)) secs.push(["Productos", plain.map((f) => foodTile(f, () => foodEditor(f)))]);
-    if (F === "supl" && !sups.length) secs.push(["Suplementos", [h("button", { class: "tile add-supp", onclick: () => foodEditor(null, { supp: true }) }, h("b", null, "+ Añadir un suplemento"), h("span", { class: "faint" }, "creatina, vitaminas… (la dosis como ración)"))]]);
+    if (F === "supl" && !sups.length) secs.push(["Suplementos", [h("button", { class: "tile add-supp", onclick: () => suppCatalogSheet() }, h("b", null, "+ Añadir un suplemento"), h("span", { class: "faint" }, "creatina, vitaminas… (la dosis como ración)"))]]);
     grid.replaceChildren(...(secs.length ? secs.map(([t, tiles]) => [h("div", { class: "sec-t" }, `${t} · ${tiles.length}`), h("div", { class: "tiles" }, tiles)]).flat()
       : [h("div", { class: "muted", style: { padding: "20px 0" } }, "Nada por aquí.")]));
   };
@@ -1580,7 +1606,7 @@ function viewLibrary() {
       h("button", { class: "btn", onclick: () => foodEditor(null) }, "+ Producto"),
       h("button", { class: "btn", onclick: () => recipeEditor(null) }, "+ Receta"),
       h("button", { class: "btn", onclick: () => templateEditor(null) }, "+ Comida habitual"),
-      S.libFilter === "supl" ? h("button", { class: "btn", onclick: () => foodEditor(null, { supp: true }) }, "+ Suplemento") : null),
+      S.libFilter === "supl" ? h("button", { class: "btn", onclick: () => suppCatalogSheet() }, "+ Suplemento") : null),
     chips,
     S.libFilter === "revisar" && nRev ? h("div", { class: "rev-bar" }, h("span", { class: "faint" }, "Lo que ha creado tu agente. Al aceptarlo aparece al añadir comida."), h("span", { class: "grow" }),
       h("button", { class: "btn sm", onclick: async () => { if (!confirm(`¿Aceptar las ${nRev} cosas por revisar?`)) return; await act(() => api("POST", "/api/revisar/aceptar-todo", {}), "Aceptado"); S.libFilter = "todo"; refresh(); } }, "Aceptar todo")) : null,
@@ -1589,6 +1615,51 @@ function viewLibrary() {
 
 const numIn = (val, ph = "?") => h("input", { class: "input num", inputMode: "decimal", value: val == null ? "" : String(val).replace(".", ","), placeholder: ph });
 
+// ---- Suplementos: cuándo se toma cada uno (cada día, algunos días, de fiesta, de entreno o cuando lo apunte), hora y aviso, y ciclo
+const WD = ["L", "M", "X", "J", "V", "S", "D"];
+const SUPP_OPTS = [["diario", "Cada día"], ["dias", "Algunos días de la semana"], ["fiesta", "Los días de fiesta", "Antes de salir y al día siguiente"],
+  ["entreno", "Los días de entreno"], ["manual", "Cuando yo lo apunte", "Sin recordatorio"]];
+function suppSchedule(f) {
+  let when = f.supp_when || "diario", days = new Set(String(f.supp_days || "").split(",").filter((x) => x !== "").map(Number));
+  const time = h("input", { class: "input", type: "time", value: f.supp_time || "" });
+  const notify = h("input", { type: "checkbox", class: "mv-sw", checked: f.supp_notify == null ? true : !!f.supp_notify });
+  const cyc = /^(\d+)\+(\d+)$/.exec(f.supp_cycle || "");
+  const cycOn = h("input", { type: "checkbox", class: "mv-sw", checked: !!cyc });
+  const cOn = h("input", { class: "input num", inputMode: "numeric", value: cyc ? cyc[1] : "21" }), cOff = h("input", { class: "input num", inputMode: "numeric", value: cyc ? cyc[2] : "7" });
+  const cStart = h("input", { class: "input", type: "date", value: f.supp_cycle_start || todayISO() });
+  const box = h("div", { class: "supp-sched" });
+  const draw = () => box.replaceChildren(...[
+    h("div", { class: "sec-t" }, "Cuándo se toma"),
+    SUPP_OPTS.map(([k, t, d]) => h("div", { class: "opt" + (when === k ? " on" : ""), onclick: (e) => { if (e.target.closest(".wd")) return; when = k; draw(); } },
+      h("span", { class: "rd" }), h("span", { class: "grow" }, h("b", null, t), d ? h("span", { class: "faint" }, d) : null,
+        k === "dias" && when === "dias" ? h("span", { class: "wd" }, WD.map((x, i) => h("button", { type: "button", class: days.has(i) ? "on" : "", onclick: () => { days.has(i) ? days.delete(i) : days.add(i); draw(); } }, x))) : null))),
+    when !== "manual" ? h("div", { class: "grid2", style: { marginTop: "4px" } },
+      h("div", null, h("label", { class: "f" }, "Hora (opcional)"), time),
+      h("label", { class: "mv-type", style: { alignSelf: "end" } }, h("span", { class: "grow" }, h("b", null, "Avisarme"), h("span", { class: "faint sm" }, "A su hora y al cerrar el día")), notify)) : null,
+    when !== "manual" ? h("label", { class: "mv-type", style: { marginTop: "8px" } }, h("span", { class: "grow" }, h("b", null, "Con días de descanso"), h("span", { class: "faint sm" }, "Por ejemplo la píldora: 21 días sí y 7 no")), cycOn) : null,
+    when !== "manual" && cycOn.checked ? h("div", { class: "grid3", style: { marginTop: "8px" } }, field("Días de toma", cOn), field("De descanso", cOff), field("Empezó el", cStart)) : null].flat().filter(Boolean));
+  cycOn.addEventListener("change", draw);
+  draw();
+  return { el: box, data: () => ({ supp_when: when, supp_days: [...days].sort().join(","), supp_time: time.value || null, supp_notify: notify.checked,
+    supp_cycle: cycOn.checked && parseInt(cOn.value) > 0 && parseInt(cOff.value) > 0 ? `${parseInt(cOn.value)}+${parseInt(cOff.value)}` : null, supp_cycle_start: cycOn.checked ? cStart.value || null : null }) };
+}
+// Añadir un suplemento: del catálogo (con su dosis, cuándo y su dibujo) o a mano
+async function suppCatalogSheet() {
+  const list = await api("GET", "/api/supplements/catalog").catch((e) => { toast(e.message, { error: true }); return null; });
+  if (!list) return;
+  let q = "";
+  const inp = h("input", { class: "input", placeholder: "Buscar: creatina, B12, hierro…", oninput: (e) => { q = e.target.value.trim().toLowerCase(); draw(); } });
+  const box = h("div", { class: "catl" });
+  const add = async (x) => { const f = await act(() => api("POST", "/api/supplements/catalog/" + x.key, {}), x.name + " añadido"); if (f) { sh.close(); } };
+  const draw = () => box.replaceChildren(...list.filter((x) => !q || (x.name + " " + x.notes).toLowerCase().includes(q)).map((x) =>
+    h("div", { class: "cat" }, h("img", { class: "cat-img", src: x.img, alt: "" }), h("span", { class: "grow" }, h("b", null, x.name), h("span", { class: "faint" }, `${x.dose} · ${x.when_txt}`)),
+      x.added ? h("span", { class: "faint sm" }, "Ya lo tienes") : h("button", { class: "btn sm", onclick: () => add(x) }, "Añadir"))));
+  draw();
+  const sh = sheet("Añadir suplemento", [inp, h("div", { class: "sec-t" }, "Del catálogo"), box,
+    h("button", { class: "btn ghost", style: { marginTop: "12px" }, onclick: () => { sh.close(); foodEditor(null, { supp: true }); } }, "+ Crear uno a mano")], null,
+    { sub: "Ya viene con su dosis, cuándo se toma y un dibujo; luego lo cambias a tu gusto" });
+  setTimeout(() => inp.focus(), 50);
+}
 function foodEditor(f, opt = {}) {
   const isNew = !f;
   f = f || (opt.supp ? { name: "", status: "etiqueta", category: "Suplemento", brand: "", source: "", notes: "", portions: [{ label: "1 dosis", amount: 5, unit: "g", kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, quality: "etiqueta", is_default: 1 }] }
@@ -1699,6 +1770,10 @@ function foodEditor(f, opt = {}) {
     const m = sheet("Completar producto", offChooser((o) => { m.close(); applyOff(o); }), null, { sub: "Con el código de barras o el enlace de Open Food Facts: valores, ración y foto" });
   } }, h("span", { class: "off-ic" }, icon("barcode")), h("span", null, h("b", null, "Completar con código de barras"), h("small", null, "Valores, ración y foto de Open Food Facts")), h("span", { class: "chev" }, icon("right"))) : null;
   const credit = f.image_source ? h("div", { class: "note", style: { marginTop: "-8px", marginBottom: "10px" } }, "Foto: ", f.image_source.startsWith("http") ? h("a", { href: f.image_source, target: "_blank", rel: "noopener" }, "Open Food Facts (CC BY-SA)") : f.image_source, " · cámbiala por la tuya cuando quieras") : null;
+  // Suplementos: «Cuándo se toma» (sale si la categoría es Suplemento)
+  const sched = suppSchedule(f);
+  const showSched = () => sched.el.classList.toggle("hidden", !/suplement/i.test(cat.value));
+  cat.addEventListener("input", showSched); showSched();
   const body = [dl, fileIn, completeBtn, offNote, photoBox, credit,
     h("div", { class: "grid2" }, h("div", null, h("label", { class: "f" }, "Nombre", h("i", { class: "req" }, " *")), name), h("div", null, h("label", { class: "f" }, "Estado del dato"), status)),
     h("div", { class: "grid3 src-grid", style: { marginTop: "10px" } }, h("div", null, h("label", { class: "f" }, "Categoría"), cat), h("div", null, h("label", { class: "f" }, "Marca"), brand), h("div", null, h("label", { class: "f" }, "Fuente"), source)),
@@ -1707,6 +1782,7 @@ function foodEditor(f, opt = {}) {
     ptable,
     h("div", { class: "row", style: { marginTop: "6px" } }, h("button", { class: "btn sm", onclick: () => { const r = prow({ quality: status.value }); prows.push(r); tbody.append(r.el); r.label.focus(); } }, "+ Ración"),
       h("span", { class: "note", style: { margin: 0 } }, h("i", { class: "req" }, "*"), " obligatorio. Valores vacíos = desconocidos (no cuentan como 0). «Base» fija qué ración se usa para escalar por gramos.")),
+    sched.el,
     h("div", { style: { marginTop: "10px" } }, h("label", { class: "f" }, "Notas"), notes),
     !isNew ? h("label", { class: "note row", style: { gap: "6px" } }, applyOpen, "Corregir también lo ya apuntado (todos los días, también los cerrados)") : null,
     orig];
@@ -1718,7 +1794,7 @@ function foodEditor(f, opt = {}) {
       if (Object.values(vals).some(Number.isNaN)) return toast("Hay un número no válido", { error: true });
       portions.push({ id: r.id, label: r.label.value.trim(), unit: r.unit.value || null, quality: r.q.value, is_default: r.def.checked, ...(r.byUnit && (!duSel || !r.id || duSel.value === "p:" + r.id) ? { by_unit: true } : {}), ...vals });
     }
-    const data = { name: name.value.trim(), category: cat.value.trim() || null, brand: brand.value.trim() || null, status: status.value, source: sourceText(), notes: notes.value.trim() || null, portions, ...(accept === true ? { reviewed: true } : {}), ...(!isNew ? { default_unit: duSel.value || null } : {}) };
+    const data = { ...(/suplement/i.test(cat.value) ? sched.data() : {}), name: name.value.trim(), category: cat.value.trim() || null, brand: brand.value.trim() || null, status: status.value, source: sourceText(), notes: notes.value.trim() || null, portions, ...(accept === true ? { reviewed: true } : {}), ...(!isNew ? { default_unit: duSel.value || null } : {}) };
     if (isNew) {
       const created = await act(() => api("POST", "/api/foods", data), "Producto creado");
       if (pendingImg && created) await act(() => offImg && pendingImg === offImg ? api("POST", `/api/foods/${created.id}/image-url`, { url: offImg, image_source: offImg })

@@ -404,6 +404,48 @@ def _hevy_key(c, q, b, s):
     return H.set_key(c, b.get("api_key"), s)
 
 
+@route("GET", r"/api/supplements/catalog")
+def _supp_catalog(c, q, b, s):
+    from . import supp_catalog as SC
+    have = {r[0] for r in c.execute("SELECT supp_key FROM foods WHERE deleted=0 AND supp_key IS NOT NULL")}
+    return [dict(x, added=x["key"] in have) for x in SC.listing()]
+
+
+@route("POST", r"/api/supplements/catalog/(\w+)")
+def _supp_add(c, q, b, s, key):
+    """Añade un suplemento del catálogo (con su dosis, cuándo se toma y su dibujo); lo que venga en el cuerpo lo cambia."""
+    from . import supp_catalog as SC
+    from . import training as T
+    if key not in SC.BY_KEY:
+        raise NotFound("No está en el catálogo: %s" % key)
+    data = dict(SC.food_data(key), **(b or {}))
+    if data.get("supp_cycle") and not data.get("supp_cycle_start"):
+        data["supp_cycle_start"] = today()
+    f = core.create_food(c, data, s)
+    T.set_food_image(c, f["id"], data_url=SC.svg_data_url(key), source=s)
+    return core.food_summary(c, core.N.get_food(c, f["id"]))
+
+
+@route("POST", r"/api/supplements/illustrate")
+def _supp_illustrate(c, q, b, s):
+    """A los suplementos que ya tenías sin foto les pone el dibujo del catálogo que les corresponde (y su clave)."""
+    from . import supp_catalog as SC
+    from . import training as T
+    done = []
+    for x in core.supplements(c):
+        f = core.N.get_food(c, x["id"])
+        key = f["supp_key"] or SC.match(f["name"])
+        if not key:
+            continue
+        if not f["supp_key"]:
+            with tx(c, "update_food", s, ref=f["id"], payload={"supp_key": key}):
+                core.set_supp_schedule(c, f["id"], {"supp_key": key}, s)
+        if not f["image"]:
+            T.set_food_image(c, f["id"], data_url=SC.svg_data_url(key), source=s)
+            done.append(f["name"])
+    return {"ok": True, "con_dibujo": done}
+
+
 @route("GET", r"/api/activity")
 def _activity(c, q, b, s):
     from . import activity as A

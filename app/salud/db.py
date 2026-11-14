@@ -295,6 +295,18 @@ MIGRATIONS = [
     """
     ALTER TABLE entries ADD COLUMN qty_est INTEGER NOT NULL DEFAULT 0;
     """,
+    # v17 — días de fiesta y cuándo se toma cada suplemento (cada día, días de la semana, de fiesta, de entreno o cuando lo apunte),
+    # con hora y aviso opcionales y ciclo (p. ej. la píldora: 21 días + 7 de descanso)
+    """
+    ALTER TABLE days ADD COLUMN party INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE foods ADD COLUMN supp_when TEXT;
+    ALTER TABLE foods ADD COLUMN supp_days TEXT;
+    ALTER TABLE foods ADD COLUMN supp_time TEXT;
+    ALTER TABLE foods ADD COLUMN supp_notify INTEGER NOT NULL DEFAULT 1;
+    ALTER TABLE foods ADD COLUMN supp_cycle TEXT;
+    ALTER TABLE foods ADD COLUMN supp_cycle_start TEXT;
+    ALTER TABLE foods ADD COLUMN supp_key TEXT;
+    """,
 ]
 
 

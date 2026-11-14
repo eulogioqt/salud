@@ -70,14 +70,66 @@ def neat_label(kcal):
     return None
 
 
-def supplements(conn):
-    """Suplementos de la persona: productos con categoría «Suplemento» y dosis sin apenas kcal (creatina, vitaminas…)."""
+SUPP_WHEN = ("diario", "dias", "fiesta", "entreno", "manual")
+SUPP_FIELDS = ("supp_when", "supp_days", "supp_time", "supp_notify", "supp_cycle", "supp_cycle_start", "supp_key")
+_WD = ["L", "M", "X", "J", "V", "S", "D"]
+
+
+def _supp_due(conn, x, d):
+    """¿Toca ese día? → (sí/no, por qué). Cada día · algunos días de la semana · días de fiesta (ese día y el siguiente) ·
+    días de entreno · cuando lo apunte (nunca se recuerda). El ciclo (p. ej. «21+7») descansa los días de pausa."""
+    when = x.get("supp_when") or "diario"
+    dd = parse_date(d)
+    if x.get("supp_cycle") and x.get("supp_cycle_start"):
+        try:
+            on, off = [int(v) for v in x["supp_cycle"].split("+")]
+            k0 = (dd - parse_date(x["supp_cycle_start"])).days
+            if k0 < 0:
+                return False, "empieza el %s" % x["supp_cycle_start"][8:10].lstrip("0") + "/" + x["supp_cycle_start"][5:7].lstrip("0")
+            k = k0 % (on + off)
+            if k >= on:
+                return False, "descanso del ciclo (día %d de %d)" % (k - on + 1, off)
+            cyc = " · día %d de %d" % (k + 1, on)
+        except (ValueError, TypeError, ZeroDivisionError):
+            cyc = ""
+    else:
+        cyc = ""
+    at = (" a las " + x["supp_time"]) if x.get("supp_time") else ""
+    if when == "manual":
+        return False, "cuando lo apuntes"
+    if when == "dias":
+        days = [int(v) for v in (x.get("supp_days") or "").split(",") if v.strip().isdigit()]
+        names = "".join(_WD[i] for i in sorted(days) if 0 <= i < 7) or "—"
+        return dd.weekday() in days, "los %s%s%s" % (names, at, cyc)
+    if when == "fiesta":
+        today_p = bool((conn.execute("SELECT party FROM days WHERE date=?", (d,)).fetchone() or [0])[0])
+        prev = (dd - timedelta(days=1)).isoformat()
+        prev_p = bool((conn.execute("SELECT party FROM days WHERE date=?", (prev,)).fetchone() or [0])[0])
+        if today_p:
+            return True, "día de fiesta · antes de salir"
+        if prev_p:
+            return True, "después de la fiesta"
+        return False, "los días de fiesta"
+    if when == "entreno":
+        trained = conn.execute("SELECT 1 FROM workouts WHERE date=? AND deleted_at IS NULL UNION SELECT 1 FROM activities WHERE date=? AND deleted_at IS NULL "
+                               "AND type<>'caminata' UNION SELECT 1 FROM hc_sessions WHERE substr(start,1,10)=?", (d, d, d)).fetchone()
+        return bool(trained), "los días de entreno" + at
+    return True, "cada día" + at + cyc
+
+
+def supplements(conn, d=None):
+    """Suplementos de la persona: productos con categoría «Suplemento» y dosis sin apenas kcal (creatina, vitaminas…),
+    con cuándo se toman y, si se pasa el día, si tocan ese día (`due`) y por qué (`when_txt`)."""
     out = []
-    for r in conn.execute("SELECT f.id, f.name, p.id AS pid, p.label, p.kcal FROM foods f LEFT JOIN portions p ON p.food_id=f.id AND p.is_default=1 "
+    for r in conn.execute("SELECT f.*, p.id AS pid, p.label, p.kcal AS pkcal FROM foods f LEFT JOIN portions p ON p.food_id=f.id AND p.is_default=1 "
                           "WHERE f.deleted=0 AND f.hidden=0 AND lower(COALESCE(f.category,'')) LIKE '%suplement%' ORDER BY f.name"):
-        if r["kcal"] is not None and r["kcal"] < 20 and not re.search(r"prote|whey|case[ií]n|gainer|ganador", r["name"].lower()):
+        if r["pkcal"] is not None and r["pkcal"] < 20 and not re.search(r"prote|whey|case[ií]n|gainer|ganador", r["name"].lower()):
             # (la proteína en polvo no es suplemento aquí: se apunta en su comida con sus gramos)
-            out.append({"id": r["id"], "name": r["name"], "portion_id": r["pid"], "dose": r["label"]})
+            x = {"id": r["id"], "name": r["name"], "portion_id": r["pid"], "dose": r["label"], **{k: r[k] for k in SUPP_FIELDS}}
+            x["supp_when"] = x["supp_when"] or "diario"
+            if d:
+                x["due"], x["when_txt"] = _supp_due(conn, x, d)
+            out.append(x)
     return out
 
 
@@ -85,6 +137,35 @@ def supplements_taken(conn, d):
     ids = {x["id"] for x in supplements(conn)}
     return {r["food_id"]: r["time"] for r in conn.execute("SELECT food_id, time FROM entries WHERE date=? AND deleted_at IS NULL AND food_id IS NOT NULL", (d,))
             if r["food_id"] in ids}
+
+
+def set_supp_schedule(conn, food_id, data, source="web"):
+    """Cuándo se toma un suplemento (lo que no venga, no se toca)."""
+    fields = {}
+    if "supp_when" in data:
+        if data["supp_when"] not in SUPP_WHEN:
+            raise ValidationError("Cuándo: %s" % ", ".join(SUPP_WHEN))
+        fields["supp_when"] = data["supp_when"]
+    if "supp_days" in data:
+        v = data["supp_days"]
+        days = sorted({int(x) for x in (v if isinstance(v, list) else str(v or "").split(",")) if str(x).strip().isdigit() and 0 <= int(x) <= 6})
+        fields["supp_days"] = ",".join(map(str, days)) or None
+    if "supp_time" in data:
+        fields["supp_time"] = _time(data["supp_time"]) if data["supp_time"] else None
+    if "supp_notify" in data:
+        fields["supp_notify"] = 1 if data["supp_notify"] else 0
+    if "supp_cycle" in data:
+        c = (data["supp_cycle"] or "").replace(" ", "")
+        if c and not re.fullmatch(r"\d{1,3}\+\d{1,3}", c):
+            raise ValidationError("Ciclo: días de toma + días de descanso, p. ej. 21+7")
+        fields["supp_cycle"] = c or None
+    if "supp_cycle_start" in data:
+        fields["supp_cycle_start"] = _date(data["supp_cycle_start"]) if data["supp_cycle_start"] else None
+    if "supp_key" in data:
+        fields["supp_key"] = data["supp_key"]
+    if fields:
+        conn.execute("UPDATE foods SET %s, updated_at=? WHERE id=?" % ", ".join("%s=?" % k for k in fields), list(fields.values()) + [ts(), food_id])
+    return fields
 
 
 def accept_all_review(conn, source="web"):
@@ -518,6 +599,7 @@ def create_food(conn, data, source="web"):
              data.get("historical_text"), 1 if data.get("favorite") else 0, data.get("image"), data.get("image_source"),
              _auto_reviewed(conn, data, source), ts(), ts()))
         fid = cur.lastrowid
+        set_supp_schedule(conn, fid, data, source)
         for i, v in enumerate(vals):
             pc = conn.execute(
                 "INSERT INTO portions(food_id,label,amount,unit,kcal,protein_g,carbs_g,fat_g,quality,source_type,note,is_default,sort) "
@@ -547,6 +629,7 @@ def update_food(conn, food_id, data, source="web", apply_open_days=True):
                 sets.append("%s=?" % k)
                 args.append(_num(data[k], k, 0.01, 100000))
     with tx(conn, "update_food", source, ref=food_id, payload=data):
+        set_supp_schedule(conn, food_id, data, source)
         if sets:
             conn.execute("UPDATE foods SET %s, updated_at=? WHERE id=?" % ", ".join(sets), args + [ts(), food_id])
         if "portions" in data and f["kind"] == "producto":
@@ -960,10 +1043,15 @@ def update_day(conn, d, data, source="web"):
         if k in data:
             v = _num(data[k], k, 1, 5)
             fields[k] = None if v is None else int(v)
+    party_only = False
+    if "fiesta" in data or "party" in data:
+        fields["party"] = 1 if data.get("fiesta", data.get("party")) else 0
+        party_only = len(fields) == 1
     if not fields:
         raise ValidationError("Nada que actualizar")
     with tx(conn, "update_day", source, d, payload=data):
-        ensure_open(conn, d)
+        if not party_only:  # marcar un día de fiesta se puede también con el día cerrado (no cambia lo apuntado)
+            ensure_open(conn, d)
         _ensure_day(conn, d)
         conn.execute("UPDATE days SET %s, updated_at=? WHERE date=?" % ", ".join("%s=?" % k for k in fields),
                      list(fields.values()) + [ts(), d])
@@ -1199,7 +1287,7 @@ def day_state(conn, d=None):
         "weight_est_fit": day["weight_kg"] is None and any(k > d for k in weights_between(conn, d, "9999-12-31")),
         "approx_kcal": round(sum(e["kcal"] or 0 for e in entries if e["quality"] not in ("etiqueta", "historico"))),
         "entry_count": len(entries), "open_days": open_days(conn), "today_entry_count": len(entries) if d == today() else conn.execute("SELECT COUNT(*) FROM entries WHERE date=? AND deleted_at IS NULL", (today(),)).fetchone()[0], "closure": closure, "closure_count": n_closures, "rev": rev(conn),
-        "steps_hours": steps_hours(conn, d), "supplements": supplements(conn), "supplements_taken": supplements_taken(conn, d), "sessions": hc_sessions(conn, d), "neat_levels": [{"key": k, "label": l, "kcal": v, "kcal_adj": round(v * (en.get("neat_factor") or 1))} for k, l, v in NEAT_LEVELS],
+        "steps_hours": steps_hours(conn, d), "supplements": supplements(conn, d), "supplements_taken": supplements_taken(conn, d), "party": bool(day.get("party")) if isinstance(day, dict) else False, "sessions": hc_sessions(conn, d), "neat_levels": [{"key": k, "label": l, "kcal": v, "kcal_adj": round(v * (en.get("neat_factor") or 1))} for k, l, v in NEAT_LEVELS],
     }
 
 
@@ -1232,12 +1320,12 @@ def close_check(conn, d):
         miss = ", ".join({"kcal": "kcal", "protein_g": "P", "carbs_g": "C", "fat_g": "G"}[f] for f in e["missing"])
         w.append({"level": "importante" if "kcal" in e["missing"] else "info", "code": "incompleto",
                   "text": "%s: faltan %s" % (e["name"], miss), "entry_id": e["id"]})
-    sups = supplements(conn)
+    sups = [x for x in supplements(conn, d) if x.get("due")]  # solo los que tocaban ese día
     if sups:
         taken = supplements_taken(conn, d)
         miss = [x for x in sups if x["id"] not in taken]
         if miss:
-            for x in miss:  # suplementos diarios: lo normal es que sí, se pregunta uno a uno
+            for x in miss:  # lo normal es que sí, se pregunta uno a uno
                 w.append({"level": "info", "code": "suplementos", "text": "¿Has tomado %s hoy?" % x["name"].lower(), "supplements": [x]})
     # (los productos «sin datos oficiales» o aproximados no son un aviso: muchos nunca tendrán etiqueta)
     auto = st["energy"].get("steps_auto_sessions") or {}

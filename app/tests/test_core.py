@@ -718,3 +718,20 @@ class TestIphoneConduit(Base):
         self.assertAlmostEqual(bm["weight_kg"], 57.2); self.assertAlmostEqual(bm["fat_pct"], 20.7)
         se = self.conn.execute("SELECT type, title, duration_s FROM hc_sessions").fetchone()
         self.assertEqual(se["title"], "Pierna"); self.assertEqual(core._hc_type(se["type"]), "fuerza")
+
+
+class TestSuplementos(Base):
+    def test_cuando_toca(self):
+        from salud import supp_catalog as SC
+        b12 = core.create_food(self.conn, SC.food_data("b12"), "web")
+        pil = core.create_food(self.conn, dict(SC.food_data("pildora"), supp_cycle_start="2026-11-01"), "web")
+        cre = core.create_food(self.conn, SC.food_data("creatina"), "web")
+        core.update_day(self.conn, "2026-11-14", {"fiesta": True})
+        due = lambda d: {x["name"]: x["due"] for x in core.supplements(self.conn, d)}
+        self.assertTrue(due("2026-11-14")["Vitamina B12"]); self.assertTrue(due("2026-11-15")["Vitamina B12"]); self.assertFalse(due("2026-11-16")["Vitamina B12"])
+        self.assertTrue(due("2026-11-21")["Píldora anticonceptiva"])   # día 21 del ciclo
+        self.assertFalse(due("2026-11-22")["Píldora anticonceptiva"])  # descanso
+        self.assertTrue(due("2026-11-16")["Creatina monohidrato"])
+        w = [x["text"] for x in core.close_check(self.conn, "2026-11-16")["warnings"] if x["code"] == "suplementos"]
+        self.assertTrue(any("creatina" in t for t in w)); self.assertFalse(any("b12" in t for t in w))
+        self.assertEqual(len(SC.listing()), len(SC.CATALOG))
