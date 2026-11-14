@@ -687,7 +687,7 @@ async function stepsStatsSheet(st) {
   const en = st.energy, steps = st.day.steps || 0, today = st.date === st.today, now = new Date().getHours(), goal = d.goal;
   const hrs = d.hours || Array(24).fill(0), avg = d.avg_hours;
   const km = en.stride_m ? (Math.max(0, steps - (en.steps_in_activities || 0)) * en.stride_m) / 1000 : null;
-  const R = 79, W = 20, C = 2 * Math.PI * R, p = goal ? steps / goal : 0, frac = Math.min(1, p);
+  const R = 80, W = 17, C = 2 * Math.PI * R, p = goal ? steps / goal : 0, frac = Math.min(1, p);
   const ring = svgE("svg", { width: 180, height: 180, viewBox: "-90 -90 180 180", class: "sring" + (steps >= goal ? " done" : "") });
   ring.append(svgE("circle", { r: R, fill: "none", "stroke-width": W, class: "rg-bg" }));
   if (frac > 0) ring.append(svgE("circle", { r: R, fill: "none", "stroke-width": W, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${C * frac} ${C}`, transform: "rotate(-90)" }));
