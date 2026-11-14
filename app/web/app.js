@@ -1093,7 +1093,7 @@ function mealBlock(st, meal, closed) {
     return h("div", { class: "item b" + (child ? " child" : ""), onclick: closed ? null : (ev) => { ev.stopPropagation(); entrySheet(e); } },
       mono(e.name, fo.category, fo.image),
       h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, e.name), estTag(e)),
-        h("div", { class: "sub" }, estTag(e), [e.time, e.kind === "estimacion" && e.unit_label === "ración estimada" ? null : e.unit_label, e.kind === "estimacion" && e.kcal_min != null ? `rango ${fmt(e.kcal_min)}–${fmt(e.kcal_max)}` : null].filter(Boolean).join(" · ")), chips(e)),
+        h("div", { class: "sub" }, estTag(e), [e.time, e.kind === "estimacion" && e.unit_label === "ración estimada" ? null : e.unit_label, e.kind === "estimacion" && e.note ? e.note : null, e.kind === "estimacion" && e.kcal_min != null ? `rango ${fmt(e.kcal_min)}–${fmt(e.kcal_max)}` : null].filter(Boolean).join(" · ")), chips(e)),
       h("div", { class: "kc num" }, v(e, "kcal"), h("small", null, "kcal"))); };
   // Las comidas habituales se muestran como un solo plato (desplegable con sus ingredientes)
   const es = m.entries;
