@@ -2068,3 +2068,10 @@ input[type=checkbox].mv-sw:checked::after { transform: translateX(16px); }
 .mv-fields > .btn { justify-self: start; }
 .mv-fields .copy-line { min-width: 0; }
 .mv-fields .copy-line code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Pasos: vuelta extra al pasar el objetivo, más oscura */
+.sring .rg-ov1 { stroke: #145a41; } .sring .rg-ov2 { stroke: #0b3a29; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sring .rg-ov1 { stroke: #2b8763; } :root:not([data-theme="light"]) .sring .rg-ov2 { stroke: #1b5e44; } }
+/* Badges de «a ojo»: juntos, sin el margen de cada uno */
+.item .sub .estb .q { margin-right: 0; }
+.estb { gap: 3px; }
+@media (max-width: 640px) { .sh2-in b { font-size: 22px; } }

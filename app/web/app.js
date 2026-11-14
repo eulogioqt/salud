@@ -687,10 +687,17 @@ async function stepsStatsSheet(st) {
   const en = st.energy, steps = st.day.steps || 0, today = st.date === st.today, now = new Date().getHours(), goal = d.goal;
   const hrs = d.hours || Array(24).fill(0), avg = d.avg_hours;
   const km = en.stride_m ? (Math.max(0, steps - (en.steps_in_activities || 0)) * en.stride_m) / 1000 : null;
-  const C = 2 * Math.PI * 80, frac = Math.min(1, steps / goal);
+  const R = 80, W = 14, C = 2 * Math.PI * R, p = goal ? steps / goal : 0, frac = Math.min(1, p);
   const ring = svgE("svg", { width: 180, height: 180, viewBox: "-90 -90 180 180", class: "sring" + (steps >= goal ? " done" : "") });
-  ring.append(svgE("circle", { r: 80, fill: "none", "stroke-width": 10, class: "rg-bg" }));
-  if (frac > 0) ring.append(svgE("circle", { r: 80, fill: "none", "stroke-width": 10, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${C * frac} ${C}`, transform: "rotate(-90)" }));
+  ring.append(svgE("circle", { r: R, fill: "none", "stroke-width": W, class: "rg-bg" }));
+  if (frac > 0) ring.append(svgE("circle", { r: R, fill: "none", "stroke-width": W, class: "rg-fg", "stroke-linecap": "round", "stroke-dasharray": `${C * frac} ${C}`, transform: "rotate(-90)" }));
+  if (p > 1) {
+    // Pasado el objetivo: otra vuelta encima más oscura (y otra más si pasas del doble), con sombrita donde empieza
+    const id = "ss" + Math.random().toString(36).slice(2, 7), defs = svgE("defs", {}), f = svgE("filter", { id, x: "-30%", y: "-30%", width: "160%", height: "160%" });
+    f.append(svgE("feDropShadow", { dx: 0, dy: 0, stdDeviation: 2, "flood-opacity": 0.35 })); defs.append(f); ring.prepend(defs);
+    for (let k = 1; k < 3 && p > k; k++)
+      ring.append(svgE("circle", { r: R, fill: "none", "stroke-width": W, class: "rg-ov" + k, "stroke-linecap": "round", "stroke-dasharray": `${C * Math.min(1, p - k)} ${C}`, transform: "rotate(-90)", filter: `url(#${id})` }));
+  }
   const accNow = hrs.slice(0, today ? now + 1 : 24).reduce((a, x) => a + x, 0), accAvg = avg ? avg.slice(0, today ? now + 1 : 24).reduce((a, x) => a + x, 0) : null;
   const diff = accAvg != null ? accNow - accAvg : null;
   const kv = (ic, l, v) => h("div", { class: "sh2-kv" }, h("span", null, h("span", { class: "kvi" }, icon(ic)), l), h("b", null, v));
@@ -1060,7 +1067,7 @@ function mealBlock(st, meal, closed) {
     return h("div", { class: "item b" + (child ? " child" : ""), onclick: closed ? null : (ev) => { ev.stopPropagation(); entrySheet(e); } },
       mono(e.name, fo.category, fo.image),
       h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, e.name), estTag(e)),
-        h("div", { class: "sub" }, estTag(e), [e.time, e.unit_label, e.kind === "estimacion" && e.kcal_min != null ? `rango ${fmt(e.kcal_min)}–${fmt(e.kcal_max)}` : null].filter(Boolean).join(" · ")), chips(e)),
+        h("div", { class: "sub" }, estTag(e), [e.time, e.kind === "estimacion" && e.unit_label === "ración estimada" ? null : e.unit_label, e.kind === "estimacion" && e.kcal_min != null ? `rango ${fmt(e.kcal_min)}–${fmt(e.kcal_max)}` : null].filter(Boolean).join(" · ")), chips(e)),
       h("div", { class: "kc num" }, v(e, "kcal"), h("small", null, "kcal"))); };
   // Las comidas habituales se muestran como un solo plato (desplegable con sus ingredientes)
   const es = m.entries;
