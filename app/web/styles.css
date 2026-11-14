@@ -2101,3 +2101,5 @@ input[type=checkbox].mv-sw:checked::after { transform: translateX(16px); }
 .cat { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; }
 .cat .grow { display: flex; flex-direction: column; gap: 2px; min-width: 0; } .cat .faint { font-size: 12.5px; }
 .cat-img { width: 52px; height: 52px; border-radius: 10px; object-fit: cover; flex: none; }
+.supp-sched .grid3 { grid-template-columns: 1fr 1fr 1.5fr; }
+.supp-sched input[type=date], .supp-sched input[type=time] { min-width: 0; }
