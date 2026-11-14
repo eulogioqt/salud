@@ -36,6 +36,9 @@ const nowHM = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d
 const addDays = (iso, n) => { const [y, m, d] = iso.split("-").map(Number); return isoLocal(new Date(y, m - 1, d + n)); };
 const dateLabel = (iso, opts = { weekday: "long", day: "numeric", month: "short" }) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString("es-ES", opts); };
 const norm = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+// Nombre que se ve en las listas: «Cerveza (Cruzcampo)» (lo calcula el servidor); al buscar cuenta también la marca
+const dname = (f) => (f && (f.display || f.name)) || "";
+const foodText = (f) => norm([f.name, f.original_name, f.brand].filter(Boolean).join(" "));
 const FIELDS = ["kcal", "protein_g", "carbs_g", "fat_g"];
 const MEALS = [["desayuno", "Desayuno"], ["almuerzo", "Almuerzo"], ["merienda", "Merienda"], ["cena", "Cena"], ["otro", "Otro"]];
 // Lo que no viene de una etiqueta o del histórico es «Aprox.» (aproximado, estimación de comida fuera o sin datos oficiales)
@@ -186,7 +189,7 @@ function sheet(title, body, footer, opts = {}) {
   if (skey) { const i = SHEET_STACK.findIndex((x) => x.key === skey); if (i >= 0) SHEET_STACK.slice(i).reverse().forEach((x) => x.close(true)); }
   S.sheetOpen++;
   document.body.classList.add("modal-open");
-  const bd = h("div", { class: "backdrop" });
+  const bd = h("div", { class: "backdrop" + (opts.center ? " center" : "") });
   const close = (instant) => {
     if (!bd.isConnected || bd.classList.contains("closing")) return;
     OPEN_SHEETS.delete(close);
@@ -256,7 +259,7 @@ function icon(name) {
     x: "M6 6l12 12M18 6L6 18", back: "M15 18l-6-6 6-6", left: "M15 18l-6-6 6-6", right: "M9 18l6-6-6-6",
     plus: "M12 5v14M5 12h14", key: "M7.5 15a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7zM11 11.5h10M18 11.5v3M15 11.5v2", edit: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4", search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3", lock: "M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z",
     star: "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z", chev: "M6 9l6 6 6-6",
-    minus: "M5 12h14", barcode: "M4 5v14M7 5v14M10 5v14M14 5v14M16 5v14M20 5v14", camera: "M4 8h3l2-3h6l2 3h3v11H4zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", out: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6",
+    minus: "M5 12h14", bars: "M5 20v-7M12 20V5M19 20v-11", barcode: "M4 5v14M7 5v14M10 5v14M14 5v14M16 5v14M20 5v14", camera: "M4 8h3l2-3h6l2 3h3v11H4zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", out: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6",
     phone: "M8 2.5h8a1.5 1.5 0 0 1 1.5 1.5v16a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 20V4A1.5 1.5 0 0 1 8 2.5zM11 18.5h2",
     activity: "M4 6h3M4 12h3M4 18h3M10 6h10M10 12h10M10 18h10",
     gear: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z",
@@ -1030,10 +1033,9 @@ async function hevySync(full) {
 // Se apuntan como una entrada más (franja «otro»); al cerrar el día se pregunta por los que falten.
 const suppPortion = (f) => (f.portions || []).find((p) => p.is_default) || (f.portions || [])[0];
 const isSupp = (f) => { const p = f && suppPortion(f); return !!(f && !f.deleted && !f.hidden && /suplement/i.test(f.category || "") && p && p.kcal != null && p.kcal < 20); };
-// Día de fiesta: 🎉 en la cabecera del día (en el móvil solo el emoji). Hace que salgan los suplementos «de fiesta» ese día y el siguiente.
+// Día de fiesta: 🎉 en la cabecera del día (en el móvil solo el emoji). Hace que salgan los suplementos «de fiesta» ese día (se puede poner o quitar también con el día cerrado).
 function partyBtn(st) {
   const on = !!(st.day && st.day.party);
-  if (!on && st.status === "cerrado") return null;  // en un día cerrado solo se ve si lo es (desmarcar sí se puede)
   return h("button", { class: "party-btn" + (on ? " on" : ""), title: on ? "Día de fiesta · toca para quitarlo" : "Marcar como día de fiesta",
     onclick: () => act(() => api("PUT", "/api/days/" + st.date, { fiesta: !on }), on ? "Ya no es día de fiesta" : "Día de fiesta 🎉") }, "🎉");
 }
@@ -1072,7 +1074,8 @@ function suppBlock(st, closed) {
       h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, x.name)), h("div", { class: "sub" }, [x.dose, x.when_txt].filter(Boolean).join(" · "))),
       h("div", { class: "supp-ck" })); })), null, { sub: "No tocaban hoy: toca uno para apuntarlo" }); };
   const head = h("div", { class: "meal-h" }, h("h3", null, "Suplementos"), nDue ? h("span", { class: "mt num" }, `${nTaken} de ${nDue}`) : null,
-    !closed && rest.length ? h("button", { class: "add-btn add", onclick: other }, "+ Otro") : null);
+    h("button", { class: "add-btn add sst-btn", title: "Constancia: qué días los has tomado", "aria-label": "Constancia", onclick: suppStatsSheet }, icon("bars"), h("span", null, "Constancia")),
+    !closed && rest.length ? h("button", { class: "add-btn", onclick: other }, "+ Otro") : null);
   if (!sups.length) return closed ? null : h("div", { class: "meal supp-b" }, head);
   return h("div", { class: "meal supp-b" }, head, h("div", { class: "list" }, sups.map((x) => {
     const n = nOf(x), need = x.doses || 1, on = n >= need, fo = foodOf(x.id), times = cnt[x.id] || [];
@@ -1084,6 +1087,41 @@ function suppBlock(st, closed) {
       h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, x.name)), h("div", { class: "sub" }, sub.filter(Boolean).join(" · "))),
       h("div", { class: "supp-ck" + (on ? " on" : n ? " half" : "") }, on ? icon("check") : n ? h("span", { class: "ck-n" }, `${n}/${need}`) : null));
   })));
+}
+// Constancia de los suplementos: calendario de las últimas semanas (tomado, faltó, no tocaba), % de 30 días y rachas
+const SST_TXT = { ok: "tomado", half: "le faltó una toma", miss: "no lo tomaste", extra: "tomado (no tocaba)", off: "no tocaba", hoy: "toca hoy", none: "" };
+async function suppStatsSheet() {
+  const sh = sheet("Constancia", h("div", { class: "muted", style: { padding: "20px 0" } }, "Cargando…"), null, { sub: "Qué días has tomado cada suplemento" });
+  try { const L = await api("GET", "/api/supplements/stats?days=56"); sh.set("Constancia", L.length ? [h("div", { class: "sst-l" }, L.map((x) => suppStatsCard(x, sh))), sstLegend()] : h("div", { class: "muted" }, "Aún no tienes suplementos."), null, { sub: "Qué días has tomado cada suplemento" }); }
+  catch (e) { sh.set("Constancia", h("div", { class: "note warn" }, e.message), null); }
+}
+function suppStatsCard(x, sh) {
+  const fo = (S.catalog && S.catalog.foods || []).find((f) => f.id === x.id) || {};
+  const today = todayISO(), cells = x.days.filter((c) => c.s !== "none");
+  const pctCls = x.pct30 == null ? "" : x.pct30 >= 85 ? " good" : x.pct30 >= 60 ? " mid" : " low";
+  const facts = [x.streak ? `racha de ${x.streak} ${x.streak === 1 ? "día" : "días"}` : null, x.best > x.streak ? `mejor ${x.best}` : null,
+    x.usual_time ? `sueles a las ${x.usual_time}` : null].filter(Boolean);
+  // Semanas de lunes a domingo, desde la de su primer día
+  const first = cells.length ? cells[0].date : today, by = Object.fromEntries(x.days.map((c) => [c.date, c]));
+  const dow = (iso) => (new Date(iso + "T12:00").getDay() + 6) % 7;
+  const grid = h("div", { class: "sst-cal" }, ["L", "M", "X", "J", "V", "S", "D"].map((d) => h("span", { class: "sst-wd" }, d)));
+  for (let d = addDays(first, -dow(first)); d <= addDays(today, 6 - dow(today)); d = addDays(d, 1)) {
+    const c = by[d], st = d > today ? "fut" : c ? c.s : "none", n = +d.slice(8);
+    grid.append(h("span", { class: "sst-d " + st, title: `${dateLabel(d)}${SST_TXT[st] ? " · " + SST_TXT[st] : ""}`,
+      onclick: st === "fut" || st === "none" ? null : () => { if (sh) sh.close(); goDay(d); } }, n === 1 ? h("b", null, dateLabel(d, { month: "short" }).replace(".", "")) : String(n)));
+  }
+  return h("div", { class: "sst" },
+    h("div", { class: "sst-h" }, mono(x.name, fo.category, fo.image),
+      h("div", { class: "grow" }, h("b", null, x.name), h("span", { class: "faint" }, [x.dose, facts.join(" · ")].filter(Boolean).join(" · "))),
+      x.supp_when === "manual" ? h("div", { class: "sst-pct num" }, String(x.days.filter((c) => c.n && c.date > addDays(today, -30)).length), h("small", null, "días en 30"))
+        : h("div", { class: "sst-pct num" + pctCls }, x.pct30 == null ? "—" : x.pct30 + " %", h("small", null, x.due30 ? `${x.ok30} de ${x.due30} días` : "aún sin días"))),
+    grid);
+}
+const sstLegend = () => h("div", { class: "sst-leg" }, [["ok", "Tomado"], ["half", "A medias"], ["miss", "Faltó"], ["off", "No tocaba"]].map(([k, l]) => h("span", null, h("i", { class: "sst-d " + k }), l)));
+function suppStatsPanel(L) {
+  if (!L || !L.length) return null;
+  return h("div", { class: "card panel" }, h("h3", null, "Suplementos", h("span", { class: "faint", style: { fontWeight: 400 } }, " · % de los días que tocaba, últimos 30 días")),
+    h("div", { class: "sst-l grid" }, L.map((x) => suppStatsCard(x))), sstLegend());
 }
 function mealBlock(st, meal, closed) {
   const supIds = new Set((st.supplements || []).map((x) => x.id));
@@ -1101,7 +1139,7 @@ function mealBlock(st, meal, closed) {
   const itemEl = (e, child) => { const fo = foodOf(e.food_id);
     return h("div", { class: "item b" + (child ? " child" : ""), onclick: closed ? null : (ev) => { ev.stopPropagation(); entrySheet(e); } },
       mono(e.name, fo.category, fo.image),
-      h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, e.name), estTag(e)),
+      h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, fo.id && e.name === fo.name ? dname(fo) : e.name), estTag(e)),
         h("div", { class: "sub" }, estTag(e), [e.time, e.kind === "estimacion" && e.unit_label === "ración estimada" ? null : e.unit_label, e.kind === "estimacion" && e.note ? e.note : null, e.kind === "estimacion" && e.kcal_min != null ? `rango ${fmt(e.kcal_min)}–${fmt(e.kcal_max)}` : null].filter(Boolean).join(" · ")), chips(e)),
       h("div", { class: "kc num" }, v(e, "kcal"), h("small", null, "kcal"))); };
   // Las comidas habituales se muestran como un solo plato (desplegable con sus ingredientes)
@@ -1190,7 +1228,7 @@ function foodTile(f, onclick) {
   const [n, lbl] = foodBasis(f);
   const tag = !f.reviewed ? h("span", { class: "rev" }, "Por revisar") : (["pendiente", "provisional", "estimacion"].includes(f.status) ? h("span", { class: "miss", title: "Los valores no son de la etiqueta: estimados o sin confirmar" }, "Valores a ojo") : null);
   return h("button", { class: "tile", onclick, type: "button" }, tilePhoto(f.name, cat, f.image),
-    h("div", { class: "tile-tx" }, h("div", { class: "tn" }, f.name), h("div", { class: "ts" }, tag, tag && f.kind === "receta" ? " · " : "", f.kind === "receta" ? "Receta" : "", !tag && f.kind !== "receta" ? (f.brand || f.category || "") : ""),
+    h("div", { class: "tile-tx" }, h("div", { class: "tn" }, dname(f)), h("div", { class: "ts" }, tag, tag && f.kind === "receta" ? " · " : "", f.kind === "receta" ? "Receta" : "", !tag && f.kind !== "receta" ? (dname(f) !== f.name ? f.category || "" : f.brand || f.category || "") : ""),
       macroBadges(n, lbl)));
 }
 function tplTile(t, onclick) {
@@ -1215,14 +1253,14 @@ function addSheet(meal) {
     const secs = [];
     if (q) {
       const ft = tpls.filter((t) => norm(t.name).includes(q));
-      const ff = foods.filter((f) => norm(f.name).includes(q) || norm(f.original_name).includes(q));
+      const ff = foods.filter((f) => foodText(f).includes(q));
       if (ft.length) secs.push(["Comidas habituales", ft.map((t) => tplTile(t, () => pickTemplate(t)))]);
       secs.push([ff.length ? "Alimentos" : "Sin resultados", ff.map((f) => foodTile(f, () => pickFood(f)))]);
     } else {
       if (tpls.length) secs.push(["Comidas habituales", tpls.map((t) => tplTile(t, () => pickTemplate(t)))]);
       const freq = foods.filter((f) => f.uses_60d > 0).sort((a, b) => b.uses_60d - a.uses_60d).slice(0, 8);
       if (freq.length) secs.push(["Frecuentes", freq.map((f) => foodTile(f, () => pickFood(f)))]);
-      const rest = foods.slice().sort((a, b) => (b.favorite - a.favorite) || a.name.localeCompare(b.name, "es"));
+      const rest = foods.slice().sort((a, b) => (b.favorite - a.favorite) || dname(a).localeCompare(dname(b), "es"));
       secs.push(["Todos", rest.map((f) => foodTile(f, () => pickFood(f)))]);
     }
     list.replaceChildren(...secs.map(([t, tiles]) => [h("div", { class: "sec-t" }, t), h("div", { class: "tiles" }, tiles)]).flat());
@@ -1247,7 +1285,7 @@ function addSheet(meal) {
     async function submit() {
       const d = form.value(); if (!d) return;
       Object.assign(ctx, { meal: d.meal, time: d.time });
-      await act(() => api("POST", "/api/entries", { date: S.date, food_id: f.id, ...d }), `${f.name} añadido`);
+      await act(() => api("POST", "/api/entries", { date: S.date, food_id: f.id, ...d }), `${dname(f)} añadido`);
       sh.close();
     }
   };
@@ -1590,15 +1628,24 @@ function viewLibrary() {
   const filters = [...(nRev ? [["revisar", `Por revisar · ${nRev}`]] : []), ["todo", "Todo"], ["producto", "Productos"], ["receta", "Recetas"], ["habitual", "Comidas habituales"], ["supl", "Suplementos"], ["pendiente", "Aproximados"]];
   const search = h("input", { class: "input", placeholder: "Buscar", value: S.libQuery, oninput: (e) => { S.libQuery = e.target.value; drawGrid(); } });
   const grid = h("div");
+  // Orden: lo último que has añadido o cambiado primero (por defecto), lo que más apuntas (60 días) o por nombre
+  if (!S.libSort) { try { S.libSort = localStorage.getItem("libSort") || "reciente"; } catch (e) { S.libSort = "reciente"; } }
+  const when = (x) => x.updated_at || x.created_at || "";
+  const byName = (a, b) => (b.favorite - a.favorite) || a.name.localeCompare(b.name, "es");
+  const order = (L) => [...L].sort(S.libSort === "uso" ? (a, b) => (b.uses_60d || 0) - (a.uses_60d || 0) || when(b).localeCompare(when(a))
+    : S.libSort === "nombre" ? byName : (a, b) => when(b).localeCompare(when(a)) || byName(a, b));
+  const sortSeg = h("div", { class: "seg lib-sort" }, [["reciente", "Recientes"], ["uso", "Más usados"], ["nombre", "A–Z"]].map(([k, l]) =>
+    h("button", { class: S.libSort === k ? "on" : "", onclick: (e) => { S.libSort = k; try { localStorage.setItem("libSort", k); } catch (er) { /* sin almacenamiento */ }
+      [...sortSeg.children].forEach((b) => b.classList.toggle("on", b === e.currentTarget)); drawGrid(); } }, l)));
   const drawGrid = () => {
     const q = norm(S.libQuery), F = S.libFilter;
     const match = (n) => !q || norm(n).includes(q);
-    const foods = c.foods.filter((f) => !f.deleted && match(f.name + " " + (f.original_name || "")) && (F === "oculto" ? f.hidden : !f.hidden) &&
+    const foods = c.foods.filter((f) => !f.deleted && match(f.name + " " + (f.original_name || "") + " " + (f.brand || "")) && (F === "oculto" ? f.hidden : !f.hidden) &&
       (F === "todo" || F === "oculto" || (F === "supl" && isSupp(f)) || (F === "revisar" && !f.reviewed) || (F === "producto" && f.kind === "producto") || (F === "receta" && f.kind === "receta") || (F === "pendiente" && ["pendiente", "provisional"].includes(f.status) || (F === "pendiente" && (f.units || []).every((u) => (u.per.missing || []).length === 4)))));
-    const tpls = c.templates.filter((t) => !t.deleted && match(t.name) && (F === "oculto" ? t.hidden : !t.hidden) && (["todo", "habitual", "oculto"].includes(F) || (F === "revisar" && !t.reviewed))).sort((a, b) => (b.favorite - a.favorite) || a.name.localeCompare(b.name, "es"));
+    const tpls = c.templates.filter((t) => !t.deleted && match(t.name) && (F === "oculto" ? t.hidden : !t.hidden) && (["todo", "habitual", "oculto"].includes(F) || (F === "revisar" && !t.reviewed)));
     const secs = [];
-    if (tpls.length) secs.push(["Comidas habituales", tpls.map((t) => tplTile(t, () => templateEditor(t)))]);
-    const recs = foods.filter((f) => f.kind === "receta"), prods = foods.filter((f) => f.kind === "producto");
+    if (tpls.length) secs.push(["Comidas habituales", order(tpls).map((t) => tplTile(t, () => templateEditor(t)))]);
+    const recs = order(foods.filter((f) => f.kind === "receta")), prods = order(foods.filter((f) => f.kind === "producto"));
     if (recs.length) secs.push(["Recetas", recs.map((f) => foodTile(f, () => recipeEditor(f)))]);
     const sups = prods.filter(isSupp), plain = prods.filter((f) => !isSupp(f));
     if (sups.length && ["todo", "supl", "revisar", "oculto", "pendiente"].includes(F)) secs.push(["Suplementos", sups.map((f) => foodTile(f, () => foodEditor(f)))]);
@@ -1616,7 +1663,7 @@ function viewLibrary() {
       h("button", { class: "btn", onclick: () => recipeEditor(null) }, "+ Receta"),
       h("button", { class: "btn", onclick: () => templateEditor(null) }, "+ Comida habitual"),
       S.libFilter === "supl" ? h("button", { class: "btn", onclick: () => suppCatalogSheet() }, "+ Suplemento") : null),
-    chips,
+    h("div", { class: "lib-bar" }, chips, sortSeg),
     S.libFilter === "revisar" && nRev ? h("div", { class: "rev-bar" }, h("span", { class: "faint" }, "Lo que ha creado tu agente. Al aceptarlo aparece al añadir comida."), h("span", { class: "grow" }),
       h("button", { class: "btn sm", onclick: async () => { if (!confirm(`¿Aceptar las ${nRev} cosas por revisar?`)) return; await act(() => api("POST", "/api/revisar/aceptar-todo", {}), "Aceptado"); S.libFilter = "todo"; refresh(); } }, "Aceptar todo")) : null,
     grid);
@@ -1748,6 +1795,7 @@ function foodEditor(f, opt = {}) {
     if (!name.value.trim() || isNew) name.value = o.name || name.value;
     if (!brand.value.trim() && o.brand) brand.value = o.brand;
     offCode = o.code; srcSel.value = "off"; srcOther.classList.add("hidden");
+    if (completeBtn) completeBtn.remove();
     const q = o.complete ? "etiqueta" : "provisional";
     status.value = q;
     const setRow = (r, v, label, amount, unit) => { r.label.value = label; r.amount.value = String(amount).replace(".", ","); r.unit.value = unit;
@@ -1775,8 +1823,9 @@ function foodEditor(f, opt = {}) {
     if (o.image_url && hadPhoto) offNote.append(h("div", { class: "off-photo" }, h("img", { src: o.image_url, alt: "" }), h("span", null, "Ya tiene foto. ¿Usar la de Open Food Facts?"),
       h("button", { type: "button", class: "btn sm", onclick: (e) => { offImg = o.image_url; pendingImg = o.image_url; drawPhoto(); e.currentTarget.parentNode.remove(); toast("Se cambiará al guardar"); } }, "Usar esta foto")));
   };
-  completeBtn = !isNew ? h("button", { type: "button", class: "off-cta", onclick: () => {
-    const m = sheet("Completar producto", offChooser((o) => { m.close(); applyOff(o); }), null, { sub: "Con el código de barras o el enlace de Open Food Facts: valores, ración y foto" });
+  // Solo si aún no viene de Open Food Facts (al completarlo, desaparece)
+  completeBtn = !isNew && !offCode ? h("button", { type: "button", class: "off-cta", onclick: () => {
+    const m = sheet("Completar producto", offChooser((o) => { m.close(); applyOff(o); }, false, null, f.id), null, { sub: "Con el código de barras o el enlace de Open Food Facts: valores, ración y foto" });
   } }, h("span", { class: "off-ic" }, icon("barcode")), h("span", null, h("b", null, "Completar con código de barras"), h("small", null, "Valores, ración y foto de Open Food Facts")), h("span", { class: "chev" }, icon("right"))) : null;
   const credit = f.image_source ? h("div", { class: "note", style: { marginTop: "-8px", marginBottom: "10px" } }, "Foto: ", f.image_source.startsWith("http") ? h("a", { href: f.image_source, target: "_blank", rel: "noopener" }, "Open Food Facts (CC BY-SA)") : f.image_source, " · cámbiala por la tuya cuando quieras") : null;
   // Suplementos: «Cuándo se toma» (sale si la categoría es Suplemento)
@@ -1834,14 +1883,30 @@ function foodEditor(f, opt = {}) {
 }
 
 // Elegir cómo traer un producto de Open Food Facts: cámara o código/enlace escrito
-function offChooser(onFound, big, onManual) {
+// Si ese código ya es de un producto tuyo, lo dice antes de seguir (para no tenerlo dos veces): abrir el tuyo o crear otro igualmente.
+// `selfId`: el producto que se está completando (ese no cuenta).
+function offChooser(onFound, big, onManual, selfId) {
   const inp = h("input", { class: "input", placeholder: "Código de barras o enlace de Open Food Facts", inputMode: "text" });
   const note = h("div", { class: "note hidden" });
+  const dup = h("div", { class: "off-dup hidden" });
   const find = async (q) => {
     q = (q || inp.value).trim(); if (!q) { inp.focus(); return; }
-    note.className = "note"; note.textContent = "Buscando en Open Food Facts…";
-    try { onFound(await api("GET", "/api/off?q=" + encodeURIComponent(q))); }
-    catch (e) { note.className = "note warn"; note.textContent = e.message + (onManual ? ". Puedes rellenarlo a mano con la etiqueta (botón de abajo)." : "."); }
+    note.className = "note"; note.textContent = "Buscando en Open Food Facts…"; dup.classList.add("hidden");
+    try {
+      const o = await api("GET", "/api/off?q=" + encodeURIComponent(q));
+      const mine = (o.existing || []).filter((x) => x.id !== selfId);
+      if (!mine.length) { if (o.missing) throw new Error("Ese código no está en Open Food Facts (" + o.code + ")"); return onFound(o); }
+      note.className = "note hidden";
+      const foodOf = (id) => (S.catalog && S.catalog.foods || []).find((f) => f.id === id) || {};
+      const close = () => { const top = SHEET_STACK[SHEET_STACK.length - 1]; if (top) top.close(); };
+      dup.replaceChildren(h("b", null, mine.length === 1 ? "Ya tienes este producto" : `Ya tienes ${mine.length} productos con este código`),
+        h("div", { class: "list" }, mine.map((x) => { const fo = foodOf(x.id);
+          return h("div", { class: "item b", onclick: () => { close(); foodEditor(fo.id ? fo : null); } }, mono(x.name, fo.category, fo.image),
+            h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, x.name)), h("div", { class: "sub" }, "Toca para abrirlo")),
+            h("span", { class: "chev" }, icon("right"))); })),
+        o.missing ? null : h("button", { type: "button", class: "btn ghost sm", onclick: () => onFound(o) }, "Crear otro igualmente"));
+      dup.classList.remove("hidden");
+    } catch (e) { note.className = "note warn"; note.textContent = e.message + (onManual ? ". Puedes rellenarlo a mano con la etiqueta (botón de abajo)." : "."); }
   };
   inp.addEventListener("keydown", (e) => { if (e.key === "Enter") find(); });
   return h("div", { class: "offc" + (big ? " big" : "") },
@@ -1850,7 +1915,7 @@ function offChooser(onFound, big, onManual) {
     h("div", { class: "offc-or" }, h("span", null, "o")),
     h("div", { class: "offc-man" }, h("label", { class: "f" }, "Escribe el código o pega el enlace"),
       h("div", { class: "off-row" }, h("span", { class: "off-ic" }, icon("barcode")), inp, h("button", { type: "button", class: "btn primary", onclick: () => find() }, "Buscar"))),
-    note);
+    note, dup);
 }
 let ZX_LOAD = null;
 const loadZxing = () => ZX_LOAD || (ZX_LOAD = new Promise((ok, ko) => { const s = document.createElement("script"); s.src = "/vendor/zxing.min.js"; s.onload = () => ok(window.ZXing); s.onerror = () => { ZX_LOAD = null; ko(new Error("No se pudo cargar el lector")); }; document.head.append(s); }));
@@ -1886,7 +1951,7 @@ async function scanBarcode(onCode) {
   let stream = null, stop = false;
   const video = h("video", { class: "scan-v", playsInline: true, muted: true, autoplay: true });
   const msg = h("div", { class: "note" }, "Apunta al código de barras del envase");
-  const sh = sheet("Escanear código", [h("div", { class: "scan-w" }, video, h("i", { class: "scan-line" })), msg], null, { onClose: () => { stop = true; if (stream) stream.getTracks().forEach((t) => t.stop()); } });
+  const sh = sheet("Escanear código", [h("div", { class: "scan-w" }, video, h("i", { class: "scan-line" })), msg], null, { center: true, onClose: () => { stop = true; if (stream) stream.getTracks().forEach((t) => t.stop()); } });
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: SCAN_VIDEO });
     video.srcObject = stream; await video.play(); tuneScanTrack(stream);
@@ -1903,7 +1968,7 @@ async function scanZxing(onCode) {
   let reader = null;
   const video = h("video", { class: "scan-v", playsInline: true, muted: true, autoplay: true });
   const msg = h("div", { class: "note" }, "Apunta al código de barras del envase");
-  const sh = sheet("Escanear código", [h("div", { class: "scan-w" }, video, h("i", { class: "scan-line" })), msg], null, { onClose: () => { if (reader) reader.reset(); } });
+  const sh = sheet("Escanear código", [h("div", { class: "scan-w" }, video, h("i", { class: "scan-line" })), msg], null, { center: true, onClose: () => { if (reader) reader.reset(); } });
   try {
     const ZX = await loadZxing();
     reader = new ZX.BrowserMultiFormatReader();
@@ -2157,6 +2222,7 @@ function viewProgress() {
     balancePanel(P.history),
     calPanel(cal),
     stepsPanel(P.history, P.steps_goal),
+    suppStatsPanel(P.supplements),
     bodyPanel(P.body || [], P.weights || []),
     h("div", { class: "card panel" }, h("h3", null, "Semanas", h("span", { class: "only-m faint" }, " · desliza →")), weeksTable(P.weeks)),
     h("div", { class: "card panel" }, h("h3", null, "Días", h("span", { class: "only-m faint" }, " · desliza →")), daysTable(P.history)));

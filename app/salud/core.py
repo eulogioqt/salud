@@ -76,7 +76,7 @@ _WD = ["L", "M", "X", "J", "V", "S", "D"]
 
 
 def _supp_due(conn, x, d):
-    """¿Toca ese día? → (sí/no, por qué). Cada día · algunos días de la semana · días de fiesta (ese día y el siguiente) ·
+    """¿Toca ese día? → (sí/no, por qué). Cada día · algunos días de la semana · días de fiesta (dos tomas ese día) ·
     días de entreno · cuando lo apunte (nunca se recuerda). El ciclo (p. ej. «21+7») descansa los días de pausa."""
     when = x.get("supp_when") or "diario"
     dd = parse_date(d)
@@ -145,6 +145,52 @@ def supplements_counts(conn, d):
     return out
 
 
+def supplements_stats(conn, days=56, ref=None):
+    """Constancia de cada suplemento en los últimos `days` días (desde que empezó a usarse): un estado por día
+    (ok: tomado · half: le falta una toma · miss: tocaba y no · extra: tomado sin tocar · off: no tocaba · hoy: toca hoy y aún no ·
+    none: antes de empezar), % de los últimos 30 días, racha actual y mejor, y la hora a la que se suele tomar."""
+    end = ref or today()
+    start = max(tracking_start(conn), shift(end, -(days - 1)))
+    cnt, hours = {}, {}
+    for r in conn.execute("SELECT food_id, date, time FROM entries WHERE deleted_at IS NULL AND food_id IS NOT NULL AND date BETWEEN ? AND ?", (start, end)):
+        cnt[(r["food_id"], r["date"])] = cnt.get((r["food_id"], r["date"]), 0) + 1
+        if r["time"]:
+            hours.setdefault(r["food_id"], []).append(r["time"][:5])
+    out = []
+    for x in supplements(conn):
+        first = conn.execute("SELECT min(date) FROM entries WHERE food_id=? AND deleted_at IS NULL", (x["id"],)).fetchone()[0]
+        created = (conn.execute("SELECT created_at FROM foods WHERE id=?", (x["id"],)).fetchone()[0] or end)[:10]
+        s0 = max(start, min(first or created, created))
+        cells, d = [], start
+        while d <= end:
+            n = cnt.get((x["id"], d), 0)
+            if d < s0:
+                st = "none"
+            else:
+                due, _w = _supp_due(conn, x, d)
+                need = x["doses"] if due else 1
+                st = ("ok" if due else "extra") if n >= need else "half" if n else ("hoy" if d == end else "miss") if due else "off"
+            cells.append({"date": d, "s": st, "n": n})
+            d = shift(d, 1)
+        last30 = [c for c in cells if c["date"] > shift(end, -30)]
+        due30 = [c for c in last30 if c["s"] in ("ok", "miss") or (c["s"] == "half" and c["date"] != end)]  # hoy, aún a tiempo
+        ok30 = sum(1 for c in due30 if c["s"] == "ok")
+        streak = best = run = 0
+        for c in cells:
+            if c["s"] == "ok":
+                run += 1
+                best = max(best, run)
+            elif c["s"] == "miss" or (c["s"] == "half" and c["date"] != end):
+                run = 0
+        streak = run
+        hs = sorted(hours.get(x["id"], []))
+        usual = hs[len(hs) // 2] if len(hs) >= 3 and x["doses"] == 1 else None
+        out.append({"id": x["id"], "name": x["name"], "dose": x["dose"], "supp_when": x["supp_when"], "since": s0,
+                    "pct30": round(100 * ok30 / len(due30)) if due30 else None, "ok30": ok30, "due30": len(due30),
+                    "streak": streak, "best": best, "usual_time": usual, "days": cells})
+    return out
+
+
 def set_supp_schedule(conn, food_id, data, source="web"):
     """Cuándo se toma un suplemento (lo que no venga, no se toca)."""
     fields = {}
@@ -194,6 +240,28 @@ def _auto_reviewed(conn, data, source):
 def _norm(s):
     s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode().lower()
     return re.sub(r"\s+", " ", s).strip()
+
+
+_CORP = re.compile(r"[\s,]+(ltd|limited|s\.?\s?a\.?\s?u?|s\.?\s?l\.?\s?u?|inc|gmbh|co|corp|b\.?\s?v|plc|llc|ag|spa|srl)\.?$", re.I)
+
+
+def brand_short(brand):
+    """«Monster Energy Ltd» → «Monster Energy» (sin la forma de la empresa)."""
+    b, prev = (brand or "").strip(), None
+    while b and b != prev:
+        prev, b = b, _CORP.sub("", b).strip(" ,.")
+    return b
+
+
+def display_name(name, brand):
+    """Cómo se ve un producto en las listas: «Cerveza (Cruzcampo)». Si el nombre ya lleva la marca, tal cual."""
+    b = brand_short(brand)
+    if not b or not name:
+        return name
+    n = _norm(name)
+    if any(w in n for w in re.findall(r"\w+", _norm(b)) if len(w) >= 3):
+        return name
+    return "%s (%s)" % (name, b)
 
 
 def _num(v, name, lo=None, hi=None, allow_none=True):
@@ -514,6 +582,7 @@ def set_target(conn, data, source="web"):
 
 def food_summary(conn, f, with_options=True):
     out = dict(f)
+    out["display"] = display_name(f["name"], f.get("brand"))
     if with_options:
         try:
             opts = N.unit_options(conn, f)
@@ -556,7 +625,7 @@ def find_food(conn, ref):
     if r:
         return row(r)
     q = _norm(ref)
-    cands = [f for f in rows(conn.execute("SELECT * FROM foods WHERE deleted=0")) if q in _norm(f["name"])]
+    cands = [f for f in rows(conn.execute("SELECT * FROM foods WHERE deleted=0")) if q in _norm(f["name"]) or q in _norm(f["brand"])]
     if len(cands) == 1:
         return cands[0]
     if not cands:
@@ -738,7 +807,7 @@ def refresh_open_entries(conn, food_ids):
         food = N.get_food(conn, e["food_id"])
         conn.execute("UPDATE entries SET name=?,unit_label=?,kcal=?,protein_g=?,carbs_g=?,fat_g=?,missing=?,quality=?,"
                      "snapshot=?,updated_at=? WHERE id=?",
-                     (food["name"], label, nu["kcal"], nu["protein_g"], nu["carbs_g"], nu["fat_g"],
+                     (display_name(food["name"], food.get("brand")), label, nu["kcal"], nu["protein_g"], nu["carbs_g"], nu["fat_g"],
                       json.dumps(nu["missing"]), qual, json.dumps(snap, ensure_ascii=False), ts(), e["id"]))
         n += 1
     return n
@@ -749,8 +818,10 @@ def refresh_open_entries(conn, food_ids):
 def list_templates(conn, include_hidden=False):
     q = "SELECT * FROM templates WHERE deleted=0" + ("" if include_hidden else " AND hidden=0") + " ORDER BY name COLLATE NOCASE"
     out = []
+    freq = {r[0]: r[1] for r in conn.execute(  # veces que se ha apuntado en 60 días (cada día que sale cuenta una)
+        "SELECT template_id, COUNT(DISTINCT date) FROM entries WHERE deleted_at IS NULL AND template_id IS NOT NULL AND date>=? GROUP BY template_id", (shift(today(), -60),))}
     for t in rows(conn.execute(q)):
-        out.append(template_detail(conn, t))
+        out.append(dict(template_detail(conn, t), uses_60d=freq.get(t["id"], 0)))
     return out
 
 
@@ -877,7 +948,7 @@ def _insert_food_entry(conn, d, meal, food_id, unit_key, quantity, time=None, no
         "INSERT INTO entries(date,meal,time,sort,food_id,template_id,name,kind,unit_key,unit_label,quantity,factor,"
         "kcal,protein_g,carbs_g,fat_g,missing,quality,note,snapshot,created_at,updated_at) "
         "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (d, meal, time, _next_sort(conn, d, meal), food_id, template_id, food["name"], food["kind"], unit_key, label,
+        (d, meal, time, _next_sort(conn, d, meal), food_id, template_id, display_name(food["name"], food.get("brand")), food["kind"], unit_key, label,
          quantity, quantity, nu["kcal"], nu["protein_g"], nu["carbs_g"], nu["fat_g"], json.dumps(nu["missing"]),
          qual, note, json.dumps(snap, ensure_ascii=False), ts(), ts()))
     return cur.lastrowid

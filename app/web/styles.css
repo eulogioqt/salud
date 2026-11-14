@@ -2119,3 +2119,62 @@ input[type=checkbox].mv-sw:checked::after { transform: translateX(16px); }
 /* Cerrado: gris oscuro */
 .dayhead .pill.locked { background: #e2e0da; color: #4a4843; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dayhead .pill.locked { background: #3a3b40; color: #d6d4cf; } }
+
+/* Hoja centrada en la pantalla (la cámara del escáner): no pegada abajo en el móvil */
+.backdrop.center { align-items: center; }
+@media (max-width: 640px) {
+  .backdrop.center { padding: 16px; }
+  .backdrop.center .sheet { border-radius: 22px; border-bottom: 1px solid var(--line); max-height: calc(100vh - 32px); animation: pop .18s ease; }
+  .backdrop.center .sheet .grab { display: none; }
+  .backdrop.center .sheet-h { padding-top: 14px; }
+}
+/* «Ya tienes este producto» al buscar un código */
+.off-dup { margin-top: 14px; padding: 12px; border-radius: 14px; background: var(--warn-soft, #fbeee2); display: grid; gap: 8px; }
+.off-dup > b { font-size: 14px; }
+.off-dup .list { background: var(--surface); border-radius: 12px; }
+.off-dup .btn { justify-self: start; }
+
+/* Constancia de los suplementos */
+.meal-h .sst-btn { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-weight: 560; font-size: 13px; }
+.meal-h .sst-btn svg { width: 15px; height: 15px; stroke-width: 2.4; }
+.meal-h .sst-btn:hover { color: var(--accent); }
+.meal-h .sst-btn + .add-btn { margin-left: 0; }
+@media (max-width: 400px) { .meal-h .sst-btn span { display: none; } }
+.sst-l { display: grid; gap: 12px; }
+.sst-l.grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.sst { border: 1px solid var(--line); border-radius: 16px; padding: 12px; background: var(--surface); }
+.sst-h { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.sst-h .grow { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.sst-h .grow b { font-size: 14.5px; font-weight: 640; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sst-h .grow .faint { font-size: 12.5px; }
+.sst-pct { text-align: right; font-size: 22px; font-weight: 720; line-height: 1.05; flex: none; }
+.sst-pct small { display: block; font-size: 11.5px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+.sst-pct.good { color: var(--accent); } .sst-pct.mid { color: var(--warn); } .sst-pct.low { color: var(--danger); }
+.sst-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.sst-wd { text-align: center; font-size: 11px; font-weight: 600; color: var(--faint, var(--muted)); padding-bottom: 1px; }
+.sst-d { height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;
+  font-variant-numeric: tabular-nums; background: var(--surface-2); color: var(--muted); border: 1.5px solid transparent; cursor: pointer; }
+.sst-d b { font-size: 10.5px; font-weight: 700; text-transform: lowercase; }
+.sst-d.ok { background: var(--accent); color: #fff; }
+.sst-d.extra { background: var(--accent-soft); color: var(--accent); }
+.sst-d.half { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.sst-d.miss { background: var(--danger-soft); color: var(--danger); }
+.sst-d.hoy { background: transparent; border: 1.5px dashed var(--accent); color: var(--accent); }
+.sst-d.off { opacity: .75; }
+.sst-d.none, .sst-d.fut { background: transparent; color: var(--line-2); cursor: default; }
+.sst-d:not(.none):not(.fut):hover { filter: brightness(.96); }
+.sst-leg { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font-size: 12px; color: var(--muted); }
+.sst-leg span { display: inline-flex; align-items: center; gap: 6px; }
+.sst-leg i.sst-d { width: 14px; height: 14px; border-radius: 4px; cursor: default; display: inline-block; }
+/* Biblioteca: filtros y orden en la misma barra (el orden, a la derecha; en el móvil, debajo) */
+.lib-bar { display: flex; align-items: flex-start; gap: 10px 14px; flex-wrap: wrap; margin-bottom: 4px; }
+.lib-bar .chips { flex: 1 1 auto; min-width: 0; }
+.lib-bar .lib-sort { flex: none; flex-wrap: nowrap; margin-left: auto; }
+.lib-bar .lib-sort button { padding: 5px 10px; font-size: 13px; white-space: nowrap; }
+@media (max-width: 640px) { .lib-bar .lib-sort { margin-left: 0; } }
+.sst-d.off { opacity: 1; background: transparent; color: var(--faint); }
+.sst-d.none, .sst-d.fut { color: var(--line-2); }
+.lib .lib-bar { margin-bottom: 18px; } .lib .lib-bar .chips { margin-bottom: 0; }
+/* el nombre y lo de debajo juntos arriba; los macros, abajo */
+.tile .tn, .tile .ts { min-height: 0; }
+.tile .ts:empty { display: none; }

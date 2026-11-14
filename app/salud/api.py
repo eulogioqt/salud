@@ -76,7 +76,7 @@ def _food(c, q, b, s, fid):
 @route("GET", r"/api/foods/search")
 def _search(c, q, b, s):
     term = core._norm(q.get("q", ""))
-    return [f for f in core.list_foods(c, True) if term in core._norm(f["name"]) or term in core._norm(f.get("original_name") or "")]
+    return [f for f in core.list_foods(c, True) if term in core._norm(f["name"]) or term in core._norm(f.get("original_name") or "") or term in core._norm(f.get("brand") or "")]
 
 
 @route("POST", r"/api/foods")
@@ -206,7 +206,8 @@ def _progress(c, q, b, s):
         w["expected"] = exp.get(w["date"])
     return {"weights": ws, "history": hist,
             "weeks": core.weekly(c, int(q.get("weeks", 12))), "calibration": core.calibration(c, apply=False),
-            "body": T.list_body(c, a, b_), "steps_goal": int(float(core.settings(c).get("objetivo_pasos") or 8000)), "rev": rev(c)}
+            "body": T.list_body(c, a, b_), "steps_goal": int(float(core.settings(c).get("objetivo_pasos") or 8000)),
+            "supplements": core.supplements_stats(c, 56), "rev": rev(c)}
 
 
 @route("GET", r"/api/calibration")
@@ -328,8 +329,20 @@ def _body_del(c, q, b, s, bid):
 # ---- Open Food Facts (código de barras o enlace)
 @route("GET", r"/api/off")
 def _off(c, q, b, s):
+    """Producto de Open Food Facts por su código o enlace, y si ya lo tienes (`existing`), para no crearlo dos veces."""
     from . import off
-    return off.lookup(q.get("q", ""))
+    code = off.parse_code(q.get("q", ""))
+    like = "%" + code + "%" if code else None
+    existing = [dict(r) for r in c.execute(
+        "SELECT id, name, brand FROM foods WHERE deleted=0 AND (code=? OR source LIKE ? OR image_source LIKE ?) ORDER BY hidden, id", (code, like, like))] if code else []
+    try:
+        r = off.lookup(q.get("q", ""))
+    except (NotFound, ValidationError):
+        if not existing:
+            raise
+        r = {"code": code, "missing": True}
+    r["existing"] = existing
+    return r
 
 
 @route("POST", r"/api/foods/(\d+)/image-url")
@@ -424,6 +437,11 @@ def _supp_add(c, q, b, s, key):
     f = core.create_food(c, data, s)
     T.set_food_image(c, f["id"], data_url=SC.svg_data_url(key), source=s)
     return core.food_summary(c, core.N.get_food(c, f["id"]))
+
+
+@route("GET", r"/api/supplements/stats")
+def _supp_stats(c, q, b, s):
+    return core.supplements_stats(c, int(q.get("days", 56)))
 
 
 @route("POST", r"/api/supplements/illustrate")

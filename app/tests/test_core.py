@@ -735,3 +735,16 @@ class TestSuplementos(Base):
         w = [x["text"] for x in core.close_check(self.conn, "2026-11-16")["warnings"] if x["code"] == "suplementos"]
         self.assertTrue(any("creatina" in t for t in w)); self.assertFalse(any("b12" in t for t in w))
         self.assertEqual(len(SC.listing()), len(SC.CATALOG))
+
+    def test_constancia(self):
+        from salud import supp_catalog as SC
+        cre = core.create_food(self.conn, SC.food_data("creatina"), "web")
+        self.conn.execute("UPDATE foods SET created_at='2026-11-09 10:00:00' WHERE id=?", (cre["id"],))
+        pid = self.conn.execute("SELECT id FROM portions WHERE food_id=?", (cre["id"],)).fetchone()[0]
+        for d in ("2026-11-09", "2026-11-10", "2026-11-12", "2026-11-13"):
+            core.add_entry(self.conn, {"date": d, "food_id": cre["id"], "unit_key": "p:%d" % pid, "quantity": 1, "meal": "otro", "time": "14:00"}, "web")
+        st = [x for x in core.supplements_stats(self.conn, 56, ref="2026-11-14") if x["id"] == cre["id"]][0]
+        by = {c["date"]: c["s"] for c in st["days"]}
+        self.assertEqual(by["2026-11-11"], "miss"); self.assertEqual(by["2026-11-14"], "hoy"); self.assertEqual(by["2026-11-09"], "ok")
+        self.assertEqual((st["ok30"], st["due30"], st["pct30"], st["streak"], st["best"]), (4, 5, 80, 2, 2))
+        self.assertEqual(st["usual_time"], "14:00")
