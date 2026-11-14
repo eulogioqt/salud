@@ -306,7 +306,7 @@ function viewHoy() {
     h("span", { class: "spacer" }),
     !isToday ? h("button", { class: "btn ghost sm", onclick: () => goDay(st.today) }, "Ir a hoy") : null,
     partyBtn(st),
-    closed ? h("span", { class: "pill closed", title: "Día cerrado" }, icon("lock"), h("span", { class: "pl-t" }, "Cerrado")) : h("span", { class: "pill" }, "Abierto"));
+    closed ? h("span", { class: "pill locked", title: "Día cerrado" }, icon("lock"), h("span", { class: "pl-t" }, "Cerrado")) : h("span", { class: "pill open" }, "Abierto"));
   // Días anteriores sin cerrar: aviso en el propio día (no al añadir, que suele hacerlo el agente)
   const prev = (st.open_days || []).filter((d) => d < st.date);
   const warn = prev.length ? h("div", { class: "openwarn" }, icon("lock"),
@@ -1033,24 +1033,30 @@ const isSupp = (f) => { const p = f && suppPortion(f); return !!(f && !f.deleted
 // Día de fiesta: 🎉 en la cabecera del día (en el móvil solo el emoji). Hace que salgan los suplementos «de fiesta» ese día y el siguiente.
 function partyBtn(st) {
   const on = !!(st.day && st.day.party);
+  if (!on && st.status === "cerrado") return null;  // en un día cerrado solo se ve si lo es (desmarcar sí se puede)
   return h("button", { class: "party-btn" + (on ? " on" : ""), title: on ? "Día de fiesta · toca para quitarlo" : "Marcar como día de fiesta",
-    onclick: () => act(() => api("PUT", "/api/days/" + st.date, { fiesta: !on }), on ? "Ya no es día de fiesta" : "Día de fiesta 🎉") }, "🎉", h("span", { class: "pb-t" }, "Fiesta"));
+    onclick: () => act(() => api("PUT", "/api/days/" + st.date, { fiesta: !on }), on ? "Ya no es día de fiesta" : "Día de fiesta 🎉") }, "🎉");
 }
 const nowHHMM = () => { const d = new Date(); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
-async function suppToggle(st, x, on) {
-  const ent = Object.values(st.meals).flatMap((m) => m.entries).find((e) => e.food_id === x.id);
-  if (on && ent) return act(() => api("DELETE", "/api/entries/" + ent.id), x.name + " quitado");
-  if (!on && !ent) return act(() => api("POST", "/api/entries", { date: st.date, food_id: x.id, unit_key: x.portion_id ? "p:" + x.portion_id : "g", quantity: x.portion_id ? 1 : 5, meal: "otro", time: st.date === st.today ? nowHHMM() : null }), x.name + " apuntado");
+// Tocar: apunta una toma más hasta completar las del día (la B12 de fiesta son dos); con todas hechas, quita la última
+async function suppToggle(st, x) {
+  const ents = Object.values(st.meals).flatMap((m) => m.entries).filter((e) => e.food_id === x.id);
+  const need = x.doses || 1;
+  if (ents.length >= need && ents.length) { const last = ents[ents.length - 1]; return act(() => api("DELETE", "/api/entries/" + last.id), x.name + " quitado"); }
+  const lab = x.dose_labels && x.dose_labels[ents.length];
+  return act(() => api("POST", "/api/entries", { date: st.date, food_id: x.id, unit_key: x.portion_id ? "p:" + x.portion_id : "g", quantity: x.portion_id ? 1 : 5, meal: "otro",
+    time: st.date === st.today ? nowHHMM() : null, ...(lab ? { note: lab } : {}) }), x.name + (lab ? " · " + lab : " apuntado"));
 }
 // Aviso arriba en Hoy: lo que tocaba a una hora que ya ha pasado y aún no está marcado
 function suppReminders(st) {
   if (st.date !== st.today || st.status === "cerrado") return null;
   const taken = st.supplements_taken || {}, now = nowHHMM();
-  const due = (st.supplements || []).filter((x) => x.due && x.supp_time && x.supp_notify && !(x.id in taken) && x.supp_time <= now);
+  const cnt = st.supplements_counts || {};
+  const due = (st.supplements || []).filter((x) => x.due && x.supp_time && x.supp_notify && (cnt[x.id] || []).length < (x.doses || 1) && x.supp_time <= now);
   if (!due.length) return null;
   return h("div", { class: "remind-l" }, due.map((x) => h("div", { class: "remind" }, h("span", { class: "rm-ic" }, "💊"),
     h("div", { class: "grow" }, h("b", null, x.name), h("span", { class: "faint" }, `Tocaba a las ${x.supp_time} · ¿ya está?`)),
-    h("button", { class: "btn sm primary", onclick: () => suppToggle(st, x, false) }, icon("check"), "Tomado"))));
+    h("button", { class: "btn sm rm-ok", onclick: () => suppToggle(st, x) }, icon("check"), "Tomado"))));
 }
 // Suplementos: solo los que tocan ese día (y los que ya has tomado); los demás, con «+ Otro»
 function suppBlock(st, closed) {
@@ -1059,21 +1065,24 @@ function suppBlock(st, closed) {
   if (!all.length) return null;
   const sups = all.filter((x) => x.due || x.id in taken), rest = all.filter((x) => !sups.includes(x));
   const foodOf = (id) => (S.catalog && S.catalog.foods || []).find((f) => f.id === id) || {};
-  const nDue = sups.filter((x) => x.due).length, nTaken = sups.filter((x) => x.due && x.id in taken).length;
+  const cnt = st.supplements_counts || {}, nOf = (x) => (cnt[x.id] || []).length, full = (x) => nOf(x) >= (x.doses || 1);
+  const nDue = sups.filter((x) => x.due).length, nTaken = sups.filter((x) => x.due && full(x)).length;
   const other = () => { const sh = sheet("Otro suplemento", h("div", { class: "list" }, rest.map((x) => { const fo = foodOf(x.id);
-    return h("div", { class: "item b supp-it", onclick: async () => { sh.close(); await suppToggle(st, x, false); } }, mono(x.name, fo.category, fo.image),
+    return h("div", { class: "item b supp-it", onclick: async () => { sh.close(); await suppToggle(st, x); } }, mono(x.name, fo.category, fo.image),
       h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, x.name)), h("div", { class: "sub" }, [x.dose, x.when_txt].filter(Boolean).join(" · "))),
       h("div", { class: "supp-ck" })); })), null, { sub: "No tocaban hoy: toca uno para apuntarlo" }); };
   const head = h("div", { class: "meal-h" }, h("h3", null, "Suplementos"), nDue ? h("span", { class: "mt num" }, `${nTaken} de ${nDue}`) : null,
     !closed && rest.length ? h("button", { class: "add-btn add", onclick: other }, "+ Otro") : null);
   if (!sups.length) return closed ? null : h("div", { class: "meal supp-b" }, head);
   return h("div", { class: "meal supp-b" }, head, h("div", { class: "list" }, sups.map((x) => {
-    const on = x.id in taken, fo = foodOf(x.id);
-    const sub = on ? [x.dose, taken[x.id] ? "tomado a las " + taken[x.id] : "tomado"] : [x.dose, x.when_txt];
-    return h("div", { class: "item b supp-it" + (on ? " on" : ""), onclick: closed ? null : () => suppToggle(st, x, on) },
+    const n = nOf(x), need = x.doses || 1, on = n >= need, fo = foodOf(x.id), times = cnt[x.id] || [];
+    // Dos tomas (B12 de fiesta): «antes de salir ✓ 21:30 · al volver»
+    const sub = x.dose_labels && x.due ? [x.dose, ...x.dose_labels.map((l, i) => i < n ? `${l} ✓${times[i] ? " " + times[i] : ""}` : l)]
+      : on ? [x.dose, times[0] ? "tomado a las " + times[0] : "tomado"] : [x.dose, x.when_txt];
+    return h("div", { class: "item b supp-it" + (on ? " on" : "") + (n && !on ? " half" : ""), onclick: closed ? null : () => suppToggle(st, x) },
       mono(x.name, fo.category, fo.image),
       h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, x.name)), h("div", { class: "sub" }, sub.filter(Boolean).join(" · "))),
-      h("div", { class: "supp-ck" + (on ? " on" : "") }, on ? icon("check") : null));
+      h("div", { class: "supp-ck" + (on ? " on" : n ? " half" : "") }, on ? icon("check") : n ? h("span", { class: "ck-n" }, `${n}/${need}`) : null));
   })));
 }
 function mealBlock(st, meal, closed) {
@@ -1617,7 +1626,7 @@ const numIn = (val, ph = "?") => h("input", { class: "input num", inputMode: "de
 
 // ---- Suplementos: cuándo se toma cada uno (cada día, algunos días, de fiesta, de entreno o cuando lo apunte), hora y aviso, y ciclo
 const WD = ["L", "M", "X", "J", "V", "S", "D"];
-const SUPP_OPTS = [["diario", "Cada día"], ["dias", "Algunos días de la semana"], ["fiesta", "Los días de fiesta", "Antes de salir y al día siguiente"],
+const SUPP_OPTS = [["diario", "Cada día"], ["dias", "Algunos días de la semana"], ["fiesta", "Los días de fiesta", "Dos tomas: antes de salir y al volver"],
   ["entreno", "Los días de entreno"], ["manual", "Cuando yo lo apunte", "Sin recordatorio"]];
 function suppSchedule(f) {
   let when = f.supp_when || "diario", days = new Set(String(f.supp_days || "").split(",").filter((x) => x !== "").map(Number));

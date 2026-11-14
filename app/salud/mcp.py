@@ -195,7 +195,7 @@ TOOLS = [
     ("leer_contexto", "Notas personales de la persona: objetivos, perfil, cómo quiere usarlo y estilo de respuesta. Llámala al empezar "
      "(y si tienes herramientas de Hevy, llama también a `hevy_en_el_agente`).",
      _o({}), lambda a: ["contexto"], True),
-    ("dia_de_fiesta", "Marca (o desmarca) un día como día de fiesta («hoy salgo», «ayer salí»): así salen sus suplementos de fiesta (p. ej. la B12) ese día y el siguiente, y queda marcado en el historial.",
+    ("dia_de_fiesta", "Marca (o desmarca) un día como día de fiesta («hoy salgo», «ayer salí»): así salen sus suplementos de fiesta (p. ej. la B12: una antes de salir y otra al volver, las dos en ese día) y queda marcado en el historial.",
      _o({"fecha": FECHA, "fiesta": {"type": "boolean"}}, ["fiesta"]),
      lambda a: ["api", "PUT", "/api/days/" + (a.get("fecha") or _hoy()), json.dumps({"fiesta": bool(a["fiesta"])})], False),
     ("hevy_en_el_agente", "Dile a la web si TÚ tienes acceso a Hevy (el conector o la app de Hevy: herramientas como get_user_workouts o @Hevy). "

@@ -101,14 +101,9 @@ def _supp_due(conn, x, d):
         days = [int(v) for v in (x.get("supp_days") or "").split(",") if v.strip().isdigit()]
         names = "".join(_WD[i] for i in sorted(days) if 0 <= i < 7) or "—"
         return dd.weekday() in days, "los %s%s%s" % (names, at, cyc)
-    if when == "fiesta":
-        today_p = bool((conn.execute("SELECT party FROM days WHERE date=?", (d,)).fetchone() or [0])[0])
-        prev = (dd - timedelta(days=1)).isoformat()
-        prev_p = bool((conn.execute("SELECT party FROM days WHERE date=?", (prev,)).fetchone() or [0])[0])
-        if today_p:
-            return True, "día de fiesta · antes de salir"
-        if prev_p:
-            return True, "después de la fiesta"
+    if when == "fiesta":  # dos tomas ese día: antes de salir y al volver (aunque sea pasada la medianoche, cuenta para ese día)
+        if (conn.execute("SELECT party FROM days WHERE date=?", (d,)).fetchone() or [0])[0]:
+            return True, "antes de salir y al volver"
         return False, "los días de fiesta"
     if when == "entreno":
         trained = conn.execute("SELECT 1 FROM workouts WHERE date=? AND deleted_at IS NULL UNION SELECT 1 FROM activities WHERE date=? AND deleted_at IS NULL "
@@ -127,6 +122,7 @@ def supplements(conn, d=None):
             # (la proteína en polvo no es suplemento aquí: se apunta en su comida con sus gramos)
             x = {"id": r["id"], "name": r["name"], "portion_id": r["pid"], "dose": r["label"], **{k: r[k] for k in SUPP_FIELDS}}
             x["supp_when"] = x["supp_when"] or "diario"
+            x["doses"], x["dose_labels"] = (2, ["antes de salir", "al volver"]) if x["supp_when"] == "fiesta" else (1, None)
             if d:
                 x["due"], x["when_txt"] = _supp_due(conn, x, d)
             out.append(x)
@@ -137,6 +133,16 @@ def supplements_taken(conn, d):
     ids = {x["id"] for x in supplements(conn)}
     return {r["food_id"]: r["time"] for r in conn.execute("SELECT food_id, time FROM entries WHERE date=? AND deleted_at IS NULL AND food_id IS NOT NULL", (d,))
             if r["food_id"] in ids}
+
+
+def supplements_counts(conn, d):
+    """{id: [horas]} de cada suplemento apuntado ese día (la B12 de fiesta se toma dos veces)."""
+    ids = {x["id"] for x in supplements(conn)}
+    out = {}
+    for r in conn.execute("SELECT food_id, time FROM entries WHERE date=? AND deleted_at IS NULL AND food_id IS NOT NULL ORDER BY COALESCE(time,''), id", (d,)):
+        if r["food_id"] in ids:
+            out.setdefault(r["food_id"], []).append(r["time"])
+    return out
 
 
 def set_supp_schedule(conn, food_id, data, source="web"):
@@ -1287,7 +1293,7 @@ def day_state(conn, d=None):
         "weight_est_fit": day["weight_kg"] is None and any(k > d for k in weights_between(conn, d, "9999-12-31")),
         "approx_kcal": round(sum(e["kcal"] or 0 for e in entries if e["quality"] not in ("etiqueta", "historico"))),
         "entry_count": len(entries), "open_days": open_days(conn), "today_entry_count": len(entries) if d == today() else conn.execute("SELECT COUNT(*) FROM entries WHERE date=? AND deleted_at IS NULL", (today(),)).fetchone()[0], "closure": closure, "closure_count": n_closures, "rev": rev(conn),
-        "steps_hours": steps_hours(conn, d), "supplements": supplements(conn, d), "supplements_taken": supplements_taken(conn, d), "party": bool(day.get("party")) if isinstance(day, dict) else False, "sessions": hc_sessions(conn, d), "neat_levels": [{"key": k, "label": l, "kcal": v, "kcal_adj": round(v * (en.get("neat_factor") or 1))} for k, l, v in NEAT_LEVELS],
+        "steps_hours": steps_hours(conn, d), "supplements": supplements(conn, d), "supplements_taken": supplements_taken(conn, d), "supplements_counts": supplements_counts(conn, d), "party": bool(day.get("party")) if isinstance(day, dict) else False, "sessions": hc_sessions(conn, d), "neat_levels": [{"key": k, "label": l, "kcal": v, "kcal_adj": round(v * (en.get("neat_factor") or 1))} for k, l, v in NEAT_LEVELS],
     }
 
 
@@ -1322,11 +1328,12 @@ def close_check(conn, d):
                   "text": "%s: faltan %s" % (e["name"], miss), "entry_id": e["id"]})
     sups = [x for x in supplements(conn, d) if x.get("due")]  # solo los que tocaban ese día
     if sups:
-        taken = supplements_taken(conn, d)
-        miss = [x for x in sups if x["id"] not in taken]
-        if miss:
-            for x in miss:  # lo normal es que sí, se pregunta uno a uno
-                w.append({"level": "info", "code": "suplementos", "text": "¿Has tomado %s hoy?" % x["name"].lower(), "supplements": [x]})
+        cnt = supplements_counts(conn, d)
+        for x in sups:  # lo normal es que sí, se pregunta uno a uno (y por cada toma si son dos)
+            n = len(cnt.get(x["id"], []))
+            if n < x["doses"]:
+                when = (" " + x["dose_labels"][n]) if x["dose_labels"] else " hoy"
+                w.append({"level": "info", "code": "suplementos", "text": "¿Has tomado %s%s?" % (x["name"].lower(), when), "supplements": [x]})
     # (los productos «sin datos oficiales» o aproximados no son un aviso: muchos nunca tendrán etiqueta)
     auto = st["energy"].get("steps_auto_sessions") or {}
     for a in st["activities"]:

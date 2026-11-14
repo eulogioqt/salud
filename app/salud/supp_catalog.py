@@ -87,7 +87,7 @@ def sachet(c, c2):
 CATALOG = [
     ("creatina", "Creatina monohidrato", ("5 g", 5, "g"), "diario", {}, "3–5 g al día, cualquier hora; no hace falta cargar.",
      lambda: tub("#2f6fb3", "#3f86d0"), r"creatin"),
-    ("b12", "Vitamina B12", ("1 cápsula", 1, "ud"), "fiesta", {}, "Los días de fiesta: antes de salir y al día siguiente.",
+    ("b12", "Vitamina B12", ("1 cápsula", 1, "ud"), "fiesta", {}, "Los días de fiesta: una antes de salir y otra al volver.",
      lambda: capsules("#d9473f", "#f3efe9"), r"\bb\s?12|cobalamina"),
     ("hierro", "Hierro", ("1 comprimido", 1, "ud"), "diario", {}, "Mejor con vitamina C y lejos del café, el té y los lácteos.",
      lambda: tablets("#9b3a2f", "#7a2c23"), r"hierro|\biron\b|ferro"),
@@ -109,7 +109,7 @@ CATALOG = [
      lambda: tablets("#c9d6ef", "#9fb2d6"), r"melatonin"),
 ]
 BY_KEY = {c[0]: c for c in CATALOG}
-WHEN_TXT = {"diario": "cada día", "fiesta": "días de fiesta (antes y después)", "entreno": "días de entreno", "manual": "cuando lo apuntes", "dias": "algunos días"}
+WHEN_TXT = {"diario": "cada día", "fiesta": "días de fiesta (antes de salir y al volver)", "entreno": "días de entreno", "manual": "cuando lo apuntes", "dias": "algunos días"}
 
 
 def svg_data_url(key):

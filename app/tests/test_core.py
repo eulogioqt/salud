@@ -728,7 +728,7 @@ class TestSuplementos(Base):
         cre = core.create_food(self.conn, SC.food_data("creatina"), "web")
         core.update_day(self.conn, "2026-11-14", {"fiesta": True})
         due = lambda d: {x["name"]: x["due"] for x in core.supplements(self.conn, d)}
-        self.assertTrue(due("2026-11-14")["Vitamina B12"]); self.assertTrue(due("2026-11-15")["Vitamina B12"]); self.assertFalse(due("2026-11-16")["Vitamina B12"])
+        self.assertTrue(due("2026-11-14")["Vitamina B12"]); self.assertFalse(due("2026-11-15")["Vitamina B12"])
         self.assertTrue(due("2026-11-21")["Píldora anticonceptiva"])   # día 21 del ciclo
         self.assertFalse(due("2026-11-22")["Píldora anticonceptiva"])  # descanso
         self.assertTrue(due("2026-11-16")["Creatina monohidrato"])
