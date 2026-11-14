@@ -2075,3 +2075,8 @@ input[type=checkbox].mv-sw:checked::after { transform: translateX(16px); }
 .item .sub .estb .q { margin-right: 0; }
 .estb { gap: 3px; }
 @media (max-width: 640px) { .sh2-in b { font-size: 22px; } }
+/* Rosco de pasos grueso: el contenido con aire respecto al borde */
+.sh2-in { padding: 0 26px; }
+.sh2-in b { font-size: 26px; }
+.sh2 .sgoal { font-size: 12px; padding: 3px 9px; }
+@media (max-width: 640px) { .sh2 { grid-template-columns: 140px minmax(0, 1fr); } .sh2-ring { width: 140px; height: 140px; } .sh2-in { padding: 0 12px; } .sh2-in b { font-size: 19px; } .sh2-in span { font-size: 11px; } .sh2 .sgoal { font-size: 10.5px; padding: 2px 7px; margin-top: 3px; } }
