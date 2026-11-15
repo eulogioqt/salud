@@ -1044,7 +1044,8 @@ const nowHHMM = () => { const d = new Date(); return String(d.getHours()).padSta
 async function suppToggle(st, x) {
   const ents = Object.values(st.meals).flatMap((m) => m.entries).filter((e) => e.food_id === x.id);
   const need = x.doses || 1;
-  if (ents.length >= need && ents.length) { const last = ents[ents.length - 1]; return act(() => api("DELETE", "/api/entries/" + last.id), x.name + " quitado"); }
+  // Con todas las tomas hechas, tocar lo deja a cero (0 → 1/2 → hecha → 0…)
+  if (ents.length >= need && ents.length) return act(async () => { for (const e of ents) await api("DELETE", "/api/entries/" + e.id); }, x.name + " desmarcado");
   const lab = x.dose_labels && x.dose_labels[ents.length];
   return act(() => api("POST", "/api/entries", { date: st.date, food_id: x.id, unit_key: x.portion_id ? "p:" + x.portion_id : "g", quantity: x.portion_id ? 1 : 5, meal: "otro",
     time: st.date === st.today ? nowHHMM() : null, ...(lab ? { note: lab } : {}) }), x.name + (lab ? " · " + lab : " apuntado"));
@@ -1693,8 +1694,27 @@ function suppSchedule(f) {
       h("div", null, h("label", { class: "f" }, "Hora (opcional)"), time),
       h("label", { class: "mv-type", style: { alignSelf: "end" } }, h("span", { class: "grow" }, h("b", null, "Avisarme"), h("span", { class: "faint sm" }, "A su hora y al cerrar el día")), notify)) : null,
     when !== "manual" ? h("label", { class: "mv-type", style: { marginTop: "8px" } }, h("span", { class: "grow" }, h("b", null, "Con días de descanso"), h("span", { class: "faint sm" }, "Por ejemplo la píldora: 21 días sí y 7 no")), cycOn) : null,
-    when !== "manual" && cycOn.checked ? h("div", { class: "grid3", style: { marginTop: "8px" } }, field("Días de toma", cOn), field("De descanso", cOff), field("Empezó el", cStart)) : null].flat().filter(Boolean));
+    when !== "manual" && cycOn.checked ? h("div", { class: "grid3", style: { marginTop: "8px" } }, field("Días de toma", cOn), field("De descanso", cOff), field("Empezó el", cStart)) : null,
+    when !== "manual" && cycOn.checked ? cyclePreview() : null].flat().filter(Boolean));
+  // Las próximas semanas: qué días toca y cuáles son de descanso. Tocando un día, el descanso empieza ese día.
+  function cyclePreview() {
+    const on = parseInt(cOn.value), off = parseInt(cOff.value), st = cStart.value;
+    if (!(on > 0 && off > 0 && st)) return null;
+    const t = todayISO(), dow = (iso) => (new Date(iso + "T12:00").getDay() + 6) % 7, diff = (a, b) => Math.round((new Date(a + "T12:00") - new Date(b + "T12:00")) / 864e5);
+    const state = (d) => { const k = diff(d, st); if (k < 0) return "pre"; const m = k % (on + off); return m < on ? "take" : "rest"; };
+    const wdOk = (d) => when !== "dias" || days.has(dow(d));
+    const g = h("div", { class: "sst-cal cyc" }, ["L", "M", "X", "J", "V", "S", "D"].map((d) => h("span", { class: "sst-wd" }, d)));
+    const first = addDays(t, -dow(t));
+    for (let i = 0; i < 35; i++) {
+      const d = addDays(first, i), s_ = state(d), n = +d.slice(8);
+      g.append(h("span", { class: "sst-d " + (s_ === "take" && wdOk(d) ? "ok" : s_ === "rest" ? "rest" : "off") + (d === t ? " today" : ""), title: dateLabel(d) + (s_ === "rest" ? " · descanso" : s_ === "take" ? " · toca" : ""),
+        onclick: () => { cStart.value = addDays(d, -on); draw(); } }, n === 1 ? h("b", null, dateLabel(d, { month: "short" }).replace(".", "")) : String(n)));
+    }
+    return h("div", { class: "cyc-prev" }, g, h("div", { class: "sst-leg" }, h("span", null, h("i", { class: "sst-d ok" }), "Toca"), h("span", null, h("i", { class: "sst-d rest" }), "Descanso"),
+      h("span", { class: "faint" }, "Toca el día en que empieza el descanso para moverlo")));
+  }
   cycOn.addEventListener("change", draw);
+  for (const el of [cOn, cOff, cStart]) el.addEventListener("change", draw);
   draw();
   return { el: box, data: () => ({ supp_when: when, supp_days: [...days].sort().join(","), supp_time: time.value || null, supp_notify: notify.checked,
     supp_cycle: cycOn.checked && parseInt(cOn.value) > 0 && parseInt(cOff.value) > 0 ? `${parseInt(cOn.value)}+${parseInt(cOff.value)}` : null, supp_cycle_start: cycOn.checked ? cStart.value || null : null }) };
@@ -1824,7 +1844,7 @@ function foodEditor(f, opt = {}) {
       h("button", { type: "button", class: "btn sm", onclick: (e) => { offImg = o.image_url; pendingImg = o.image_url; drawPhoto(); e.currentTarget.parentNode.remove(); toast("Se cambiará al guardar"); } }, "Usar esta foto")));
   };
   // Solo si aún no viene de Open Food Facts (al completarlo, desaparece)
-  completeBtn = !isNew && !offCode ? h("button", { type: "button", class: "off-cta", onclick: () => {
+  completeBtn = !isNew && !offCode && !/suplement/i.test(f.category || "") ? h("button", { type: "button", class: "off-cta", onclick: () => {
     const m = sheet("Completar producto", offChooser((o) => { m.close(); applyOff(o); }, false, null, f.id), null, { sub: "Con el código de barras o el enlace de Open Food Facts: valores, ración y foto" });
   } }, h("span", { class: "off-ic" }, icon("barcode")), h("span", null, h("b", null, "Completar con código de barras"), h("small", null, "Valores, ración y foto de Open Food Facts")), h("span", { class: "chev" }, icon("right"))) : null;
   const credit = f.image_source ? h("div", { class: "note", style: { marginTop: "-8px", marginBottom: "10px" } }, "Foto: ", f.image_source.startsWith("http") ? h("a", { href: f.image_source, target: "_blank", rel: "noopener" }, "Open Food Facts (CC BY-SA)") : f.image_source, " · cámbiala por la tuya cuando quieras") : null;

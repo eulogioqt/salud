@@ -2178,3 +2178,9 @@ input[type=checkbox].mv-sw:checked::after { transform: translateX(16px); }
 /* el nombre y lo de debajo juntos arriba; los macros, abajo */
 .tile .tn, .tile .ts { min-height: 0; }
 .tile .ts:empty { display: none; }
+/* Ciclo de un suplemento (píldora): las próximas 5 semanas */
+.cyc-prev { margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; }
+.sst-cal.cyc .sst-d { height: 28px; }
+.sst-d.rest { background: var(--warn-soft); color: var(--warn); }
+.sst-d.today { box-shadow: inset 0 0 0 2px var(--text); }
+.cyc-prev .sst-leg { margin-top: 10px; }
