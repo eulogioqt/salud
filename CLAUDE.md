@@ -85,7 +85,7 @@ Pesos (para rangos y 1RM): mancuernas = el peso de las dos; a un brazo = peso no
 
 - `null` = desconocido, nunca 0. Si falta un dato relevante: preguntar UNA cosa concreta o dejarlo pendiente.
 - Calidad: `etiqueta` > `historico` > `provisional` > `estimacion` > `pendiente`. No inventar valores de productos de marca: pedir la etiqueta o usar Open Food Facts indicándolo como fuente.
-- Lo que Claude crea (productos, recetas, comidas habituales) queda **por revisar** hasta que el usuario lo acepta en Biblioteca.
+- Lo que Claude crea se usa directamente (no hay «por revisar»). Poner siempre la fuente de los valores (`source`: «Etiqueta», «Open Food Facts · <código>» o «Estimación»): en Comida se puede filtrar por fuente para repasar lo que no viene de una etiqueta.
 - Comida habitual = varios alimentos que se toman juntos (desayuno, táper, batido). Un producto suelto (barrita, lata, yogur) es un **producto** con su ración por unidad, nunca una comida habitual (el servidor las rechaza con un solo alimento).
 - Fotos: preferir Open Food Facts por URL con `image_source`.
 - Lo que se toma por unidad (lata, yogur, pack) se registra por unidad (`default_unit`); lo demás por peso.

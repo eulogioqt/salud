@@ -49,7 +49,6 @@ DEFAULT_SETTINGS = {
     "factor_zancada": ("0.415", "Zancada = altura × factor"),
     "tef_pct": ("0.10", "Efecto térmico ≈ 10 % de la ingesta registrada"),
     "objetivo_pasos": ("8000", "Pasos al día que cuentan como objetivo cumplido (rachas)"),
-    "revisar_agente": ("0", "1 = lo que crea el agente (productos, recetas, comidas habituales) queda «por revisar» en la Biblioteca"),
     # Calibración: corrige el gasto del modelo con lo que dicen la báscula y lo que se come (ver calibration())
     "cal_ajuste_kcal": ("0", "Ajuste del gasto base (metabolismo + día a día), kcal/día"),
     "cal_pasos_factor": ("1", "Multiplica las kcal de los pasos"),
@@ -116,7 +115,9 @@ def supplements(conn, d=None):
     """Suplementos de la persona: productos con categoría «Suplemento» y dosis sin apenas kcal (creatina, vitaminas…),
     con cuándo se toman y, si se pasa el día, si tocan ese día (`due`) y por qué (`when_txt`)."""
     out = []
-    for r in conn.execute("SELECT f.*, p.id AS pid, p.label, p.kcal AS pkcal FROM foods f LEFT JOIN portions p ON p.food_id=f.id AND p.is_default=1 "
+    # la dosis: la medida con la que se apunta (default_unit) o, si no hay, la ración base
+    for r in conn.execute("SELECT f.*, p.id AS pid, p.label, p.kcal AS pkcal FROM foods f LEFT JOIN portions p ON p.food_id=f.id AND p.deleted=0 AND "
+                          "(CASE WHEN f.default_unit LIKE 'p:%' THEN p.id=CAST(substr(f.default_unit,3) AS INTEGER) ELSE p.is_default=1 END) "
                           "WHERE f.deleted=0 AND f.hidden=0 AND lower(COALESCE(f.category,'')) LIKE '%suplement%' ORDER BY f.name"):
         if r["pkcal"] is not None and r["pkcal"] < 20 and not re.search(r"prote|whey|case[ií]n|gainer|ganador", r["name"].lower()):
             # (la proteína en polvo no es suplemento aquí: se apunta en su comida con sus gramos)
@@ -230,12 +231,8 @@ def accept_all_review(conn, source="web"):
 
 
 def _auto_reviewed(conn, data, source):
-    """Lo creado en la web ya está aceptado; lo del agente solo queda por revisar si la persona lo pidió en Ajustes."""
-    if "reviewed" in data:
-        return 1 if data["reviewed"] else 0
-    if source == "web":
-        return 1
-    return 0 if settings(conn).get("revisar_agente") == "1" else 1
+    """Ya no hay «por revisar»: todo se usa directamente (lo que falte por confirmar se ve por la fuente de los valores)."""
+    return 1
 
 
 def _norm(s):
@@ -1364,6 +1361,7 @@ def day_state(conn, d=None):
         "balance": None if totals["kcal"] is None or en["total"] is None else round(totals["kcal"] - en["total"]),
         "activities": acts, "avg7": None if a7 is None else round(a7, 2), "avg7_n": n7,
         "weight_interp": None if west is None else round(west, 1),
+        "weights14": [{"date": w["date"], "w": w["weight_kg"], "a": w["avg7"]} for w in weight_series(conn, shift(d, -13), d)],
         "weight_est_fit": day["weight_kg"] is None and any(k > d for k in weights_between(conn, d, "9999-12-31")),
         "approx_kcal": round(sum(e["kcal"] or 0 for e in entries if e["quality"] not in ("etiqueta", "historico"))),
         "entry_count": len(entries), "open_days": open_days(conn), "today_entry_count": len(entries) if d == today() else conn.execute("SELECT COUNT(*) FROM entries WHERE date=? AND deleted_at IS NULL", (today(),)).fetchone()[0], "closure": closure, "closure_count": n_closures, "rev": rev(conn),
@@ -1943,7 +1941,8 @@ def ingest_health(conn, payload, source="health"):
     ses = 0 if "entreno" in off else _ingest_sessions(conn, payload)
     recs = [] if "pasos" in off else (payload.get("steps") or [])
     days, n = set(), 0
-    with tx(conn, "health_sync", source, payload={"steps": len(recs), "app": payload.get("app_version")}):
+    ev = {"steps": len(recs), "app": payload.get("app_version")}
+    with tx(conn, "health_sync", source, payload=ev):
         for r in recs:
             try:
                 start, end, cnt = _local_dt(r["start_time"]), _local_dt(r.get("end_time") or r["start_time"]), int(r["count"])
@@ -1971,6 +1970,13 @@ def ingest_health(conn, payload, source="health"):
             _ensure_day(conn, d)
             conn.execute("UPDATE days SET steps=?, steps_auto=1, updated_at=? WHERE date=?", (int(tot), ts(), d))
             out.append({"fecha": d, "pasos": int(tot), "guardado": True})
+        # Para Actividad: qué trajo cada envío
+        ev["dias"] = [{"fecha": x["fecha"], "pasos": x["pasos"]} for x in out]
+        nb = [{"fecha": x["fecha"], "hora": x["hora"], "peso": x.get("weight_kg"), "grasa": x.get("fat_pct")} for x in (body or []) if x.get("nuevo")]
+        if nb:
+            ev["bascula"] = nb
+        if ses:
+            ev["sesiones"] = ses
     return {"ok": True, "tramos": n, "dias": out, "bascula": body, "sesiones": ses}
 
 

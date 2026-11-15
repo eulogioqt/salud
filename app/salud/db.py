@@ -307,6 +307,12 @@ MIGRATIONS = [
     ALTER TABLE foods ADD COLUMN supp_cycle_start TEXT;
     ALTER TABLE foods ADD COLUMN supp_key TEXT;
     """,
+    # v18 — sin «por revisar»: lo que crea el agente se usa directamente (se revisa por la fuente de los valores)
+    """
+    UPDATE foods SET reviewed=1 WHERE reviewed=0;
+    UPDATE templates SET reviewed=1 WHERE reviewed=0;
+    DELETE FROM settings WHERE key='revisar_agente';
+    """,
 ]
 
 

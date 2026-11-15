@@ -212,6 +212,21 @@ def describe(ev, N):
         return (t[0] if p.get("value") else t[1]), "plug", []
     if a == "health_sync":
         return "mandó tus pasos", "steps", []
+
+
+def sync_txt(p):
+    """Qué trajo un envío del móvil, en una línea: «hoy 8.931 pasos · pesaje 58,6 kg»."""
+    parts = []
+    for x in p.get("dias") or []:
+        parts.append("%s: %s pasos" % (_date(x["fecha"]), _n(x["pasos"])))
+    for b in p.get("bascula") or []:
+        parts.append("pesaje %s kg" % _n(b.get("peso"), 1) if b.get("peso") else "medida de la báscula")
+    if p.get("sesiones"):
+        parts.append("%s %s" % (p["sesiones"], "entreno" if p["sesiones"] == 1 else "entrenos"))
+    if not parts:
+        n = p.get("steps") or 0
+        parts.append("sin pasos nuevos" if not n else "%s %s de pasos" % (n, "tramo" if n == 1 else "tramos"))
+    return " · ".join(parts)
     if a == "import_catalog":
         return "importó %s alimentos" % _n(p.get("n")), "plus", [("Archivo", p.get("file"))]
     if a == "accept_all_review":
@@ -262,6 +277,8 @@ def feed(conn, before=None, limit=60, who=None):
             # Pasos del móvil: uno por día («mandó tus pasos · 12 veces»)
             if ev["action"] == "health_sync" and prev and prev["action"] == "health_sync" and prev["ts"][:10] == ev["ts"][:10]:
                 prev["count"] += 1
+                if len(prev["sends"]) < 60:
+                    prev["sends"].append([ev["ts"][11:16], sync_txt(ev["payload"])])
                 continue
             # Lo que se hizo de golpe (una comida con varias cosas, pasos de varios días): una línea con «y N más»
             if prev and prev["who"] == w and prev["action"] == ev["action"] and prev["ts"][:16] == ev["ts"][:16] and ev["action"] != "health_sync":
@@ -276,6 +293,7 @@ def feed(conn, before=None, limit=60, who=None):
             raw = ev["payload"] if len(json.dumps(ev["payload"], default=str)) < 6000 else None
             out.append({"id": ev["id"], "ts": ev["ts"], "who": w, "action": ev["action"], "text": text, "icon": ic, "count": 1,
                         "date": ev["date"], "raw": raw, "more": [],
+                        "sends": [[ev["ts"][11:16], sync_txt(ev["payload"])]] if ev["action"] == "health_sync" else [],
                         "detail": [[k, v if isinstance(v, (str, int, float)) else json.dumps(v, ensure_ascii=False)] for k, v in det if v not in (None, "", [], {})]})
         else:
             continue

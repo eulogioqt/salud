@@ -2169,7 +2169,7 @@ input[type=checkbox].mv-sw:checked::after { transform: translateX(16px); }
 /* Biblioteca: filtros y orden en la misma barra (el orden, a la derecha; en el móvil, debajo) */
 .lib-bar { display: flex; align-items: flex-start; gap: 10px 14px; flex-wrap: wrap; margin-bottom: 4px; }
 .lib-bar .chips { flex: 1 1 auto; min-width: 0; }
-.lib-bar .lib-sort { flex: none; flex-wrap: nowrap; margin-left: auto; }
+.lib-bar .lib-sort { flex: none; flex-wrap: nowrap; }
 .lib-bar .lib-sort button { padding: 5px 10px; font-size: 13px; white-space: nowrap; }
 @media (max-width: 640px) { .lib-bar .lib-sort { margin-left: 0; } }
 .sst-d.off { opacity: 1; background: transparent; color: var(--faint); }
@@ -2312,3 +2312,58 @@ body.rp-on { overflow: hidden; }
 .sst-strip .s-none { background: transparent; }
 .sst-pc { font-size: 16px; font-weight: 700; min-width: 48px; text-align: right; }
 .sst-pc.good { color: var(--accent); } .sst-pc.mid { color: var(--warn); } .sst-pc.low { color: var(--danger); }
+.act-sends ul { list-style: none; margin: 6px 0 4px; padding: 0; display: grid; gap: 4px; }
+.act-sends li { display: flex; gap: 10px; font-size: 13px; } .act-sends li b { font-weight: 600; min-width: 42px; color: var(--muted); }
+.lib-tools { display: flex; gap: 8px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+.lib-tools .lib-src { width: auto; min-width: 0; padding: 6px 30px 6px 10px; font-size: 13px; height: 34px; }
+@media (max-width: 640px) { .lib-tools { margin-left: 0; width: 100%; } .lib-tools .lib-src { flex: 1; } }
+/* Valores (por 100 g/ml o por unidad) y medidas (su peso) */
+.mx { display: grid; gap: 10px; }
+.mx-h { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; } .mx-h > b { font-size: 14px; }
+.mx-h .seg { flex: 1; min-width: 220px; }
+.mx-h2 { margin-top: 8px; align-items: baseline; gap: 8px; }
+.meds { display: grid; gap: 8px; }
+.med { border: 1px solid var(--line); border-radius: 14px; padding: 10px; display: grid; gap: 8px; background: var(--surface); }
+.med.def { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.med-top { display: flex; gap: 8px; align-items: center; }
+.med-top > .input { flex: 1; min-width: 0; }
+.med-w { display: flex; align-items: center; gap: 6px; flex: none; } .med-w .input { width: 82px; } .med-w span { color: var(--muted); font-size: 13px; width: 20px; }
+.med-x { flex: none; }
+.med-v { font-size: 13px; color: var(--muted); padding: 0 2px; }
+.med-own .grid4 { margin-top: 4px; }
+.med-empty { padding: 4px 2px; }
+.mx-add { margin-top: -2px; }
+.mx-add .btn svg { width: 14px; height: 14px; }
+@media (max-width: 640px) { .med-w .input { width: 70px; } }
+/* Escáner: la cámara ocupa casi toda la pantalla (así se ve claro dónde apuntar) */
+.backdrop.full { align-items: center; }
+.backdrop.full .sheet { height: min(860px, 88vh); max-width: 720px; }
+.backdrop.full .sheet-b { flex: 1; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.backdrop.full .scan-w { flex: 1; aspect-ratio: auto; min-height: 0; }
+.backdrop.full .scan-line { left: 8%; right: 8%; height: 3px; }
+@media (max-width: 640px) {
+  .backdrop.full { padding: 0; align-items: stretch; }
+  .backdrop.full .sheet { height: 100%; max-height: none; border-radius: 0; border: 0; animation: fade .15s ease; }
+  .backdrop.full .sheet .grab { display: none; }
+  .backdrop.full .sheet-h { padding-top: calc(12px + env(safe-area-inset-top)); }
+  .backdrop.full .scan-w { border-radius: 16px; }
+}
+.offc-photo { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 8px; padding: 10px; border: 1px dashed var(--line-2); border-radius: 12px; background: none; color: var(--text); font: inherit; font-size: 14px; font-weight: 560; cursor: pointer; }
+.offc-photo svg, .sheet-f .btn svg { width: 16px; height: 16px; }
+.offc-photo:hover { border-color: var(--accent); color: var(--accent); }
+/* La hoja abierta siempre dentro de lo visible (con el teclado abierto, encima de él) */
+.backdrop { inset: auto 0; top: var(--vvt, 0px); height: var(--vvh, 100%); }
+@media (max-width: 640px) {
+  .sheet { max-height: calc(var(--vvh, 100vh) * 0.92); }
+  .backdrop.full .sheet { max-height: none; }
+}
+/* Hoy: mini gráfica del peso (como las barras de los pasos) */
+.wspark { margin-top: 8px; height: 34px; color: var(--accent); }
+.wspark svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.wspark .wd { stroke: var(--muted); stroke-width: 5; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.acts .a.wk .wk-d { margin-top: 2px !important; }
+.acts .a.wk .wk-t { line-height: 1.2; }
+/* el texto de cada parte del gasto, entero (en dos líneas si hace falta) */
+.bd-pl small { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.35; }
+.bd-focus { animation: bdfocus 1.6s ease; border-radius: 12px; }
+@keyframes bdfocus { 0%, 40% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); } 100% { box-shadow: none; } }
