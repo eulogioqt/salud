@@ -408,30 +408,37 @@ SESSION_PRS = ("vol", "sreps")  # como Hevy: récord en la ficha del ejercicio, 
 
 
 def pr_map(conn):
-    """{exercise_id: [tipos de récord batidos en esa sesión]} recorriendo todo el historial en orden."""
+    """{exercise_id: [tipos de récord batidos en esa sesión]} recorriendo todo el historial en orden.
+    Como Hevy: en cada entreno cuenta lo mejor de ese ejercicio en todo el entreno (aunque salga en varios bloques)
+    frente a los entrenos anteriores; el trofeo va al bloque que lo consigue, y uno mismo no se bate dentro del entreno."""
     best, out = {}, {}
-    q = ("SELECT e.id, e.name, e.kind FROM workout_exercises e JOIN workouts w ON w.id=e.workout_id "
+    q = ("SELECT e.id, e.name, e.kind, w.id AS wid FROM workout_exercises e JOIN workouts w ON w.id=e.workout_id "
          "WHERE w.deleted_at IS NULL ORDER BY w.date, COALESCE(w.start_time,''), w.id, e.sort, e.id")
     sets_by = {}
     for s in rows(conn.execute("SELECT * FROM workout_sets ORDER BY exercise_id, idx, id")):
         sets_by.setdefault(s["exercise_id"], []).append(s)
     cn = _canon(conn)
+    by_w = {}
     for e in rows(conn.execute(q)):
-        key = ex_key(conn, e["name"], cn)
-        b = best.setdefault(key, {})
-        rs = _recs(e["kind"], sets_by.get(e["id"], []))
-        hit = []
-        for t in PR_KINDS.get(e["kind"], ()):
-            v = rs.get(t)
-            if v is None:
-                continue
-            if t in b and v > b[t] + 1e-9:
-                hit.append(t)
-            if v > b.get(t, 0):
-                b[t] = v
-        hit = [t for t in hit if t not in SESSION_PRS]
-        if hit:
-            out[e["id"]] = hit
+        by_w.setdefault(e["wid"], []).append(e)
+    for wid in by_w:  # en el orden del historial (los dict guardan el orden de inserción)
+        blocks = {}
+        for e in by_w[wid]:
+            blocks.setdefault(ex_key(conn, e["name"], cn), []).append((e, _recs(e["kind"], sets_by.get(e["id"], []))))
+        for key, bl in blocks.items():
+            b = best.setdefault(key, {})
+            for t in set(t for e, _ in bl for t in PR_KINDS.get(e["kind"], ())):
+                cands = [(rs.get(t), e["id"]) for e, rs in bl if rs.get(t) is not None]
+                if not cands:
+                    continue
+                v, eid = max(cands, key=lambda c: c[0])  # el primero que lo consigue, si hay empate
+                if t in b and v > b[t] + 1e-9 and t not in SESSION_PRS:
+                    out.setdefault(eid, []).append(t)
+                if v > b.get(t, 0):
+                    b[t] = v
+    for eid in out:  # mismo orden que los tipos de récord
+        kinds = [k for ks in PR_KINDS.values() for k in ks]
+        out[eid].sort(key=lambda t: kinds.index(t) if t in kinds else 99)
     return out
 
 

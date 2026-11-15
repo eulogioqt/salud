@@ -213,6 +213,7 @@ function nearestTip(root, x) {
 }
 document.addEventListener("pointerdown", (e) => {
   if (e.pointerType === "mouse") return;
+  if (e.target && e.target.closest && e.target.closest("[data-hold]")) return;  // gráficas con su propio tooltip (touchHold): no lo quites al tocar
   clearTimeout(HOLD.t); HOLD.t = null;
   let t = tipTarget(e);
   const root = e.target && e.target.closest ? e.target.closest(".sch, .swk, .sdays, .pbars, .bal-bars, .dist, .lvg-dots") : null;
@@ -229,7 +230,7 @@ document.addEventListener("contextmenu", (e) => { if (tipTarget(e) && e.pointerT
 // Gráficas con su propio tooltip: en táctil sale al tocar, sigue al dedo deslizando de lado y se quita al soltar
 function touchHold(el, show, hide) {
   let on = false;
-  el.style.touchAction = "pan-y";
+  el.style.touchAction = "pan-y"; el.setAttribute("data-hold", "1");
   el.addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") return; on = true; show(e); });
   el.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") return; if (on) show(e); });
   const end = (e) => { if (e.pointerType === "mouse") return; if (on) { on = false; hide(); } };

@@ -1541,7 +1541,7 @@ def history(conn, a, b):
             "entries": st["entry_count"], "approx_kcal": st["approx_kcal"], "weight_kg": st["day"]["weight_kg"], "avg7": st["avg7"],
             "steps": st["day"]["steps"], "tdee": st["energy"]["total"], "tdee_complete": st["energy"]["complete"],
             "balance": st["balance"], "target_kcal": (st["target"] or {}).get("kcal"),
-            "training": ", ".join(x["type"] for x in st["activities"]),
+            "training": ", ".join(x["type"] for x in st["activities"]), "party": bool(st.get("party")),
         })
     return out
 

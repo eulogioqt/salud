@@ -308,6 +308,14 @@ class TestTraining(Base):
         T.delete_workout(self.conn, w["id"])
         self.assertEqual(core.day_activities(self.conn, D1), [])
 
+    def test_records_una_vez_por_entreno(self):
+        from salud import training as T
+        remo = lambda m, s: {"name": "Máquina de Remo", "kind": "cardio", "sets": [{"distance_m": m, "seconds": s}]}
+        T.create_workout(self.conn, {"date": "2026-11-02", "title": "A", "activity_type": "hyrox", "exercises": [remo(500, 120)]})
+        w = T.create_workout(self.conn, {"date": D1, "title": "B", "activity_type": "hyrox", "exercises": [remo(700, 240), remo(1000, 343), remo(400, 120)]})
+        got = [ex["prs"] for ex in w["exercises"]]
+        self.assertEqual(got[0], []); self.assertIn("dist", got[1]); self.assertIn("secs", got[1]); self.assertEqual(got[2], [])
+
     def test_previous_and_history(self):
         from salud import training as T
         T.create_workout(self.conn, dict(self.W, date="2026-11-02"))
