@@ -700,7 +700,7 @@ async function stepsData(st) {
   for (const x of d.days) { run = x.steps >= goal ? (prev && addDays(prev, 1) === x.date && run ? run + 1 : 1) : 0; prev = x.date; bestStreak = Math.max(bestStreak, run); }
   return Object.assign(d, { goal, byDate, streak: cur, bestStreak });
 }
-const agoTxt = (ts) => { if (!ts) return "—"; const m = Math.round((Date.now() - new Date(ts.replace(" ", "T"))) / 60000); return m < 1 ? "ahora" : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : dateLabel(ts.slice(0, 10), { day: "numeric", month: "short" }); };
+const agoTxt = (ts) => { if (!ts) return "—"; const m = Math.round((Date.now() - new Date(ts.replace(" ", "T"))) / 60000); if (Number.isNaN(m)) return "—"; return m < 1 ? "ahora" : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : dateLabel(ts.slice(0, 10), { day: "numeric", month: "short" }); };
 // Pie común de las fichas que llegan del móvil: estado del último envío + Conexiones + Ver todo en Progreso
 // Conectado: estado del último envío + Conexiones + Ver todo. Sin conectar: «Sin conectar» + Conectar (verde) + Ver todo.
 function sheetFoot(status, mode = null, label = "Ver todo en Progreso", hash = "#/progress") {
@@ -710,13 +710,13 @@ function sheetFoot(status, mode = null, label = "Ver todo en Progreso", hash = "
     h("div", { class: "sf-b" },
       !S.me ? null : off ? h("button", { class: "btn sm primary", onclick: () => stepsConnectSheet(mode) }, icon("plug"), "Conectar")
         : h("button", { class: "btn sm", onclick: () => connectionsSheet() }, icon("plug"), "Conexiones"),
-      label ? h("button", { class: "btn sm", onclick: go }, label) : null))];
+      label && !location.hash.startsWith(hash) ? h("button", { class: "btn sm", onclick: go }, label) : null))];
 }
 function stepsFooter(d) { return sheetFoot(`Último envío del móvil: ${agoTxt(d.last_received)}`); }
 // Ficha de pasos del día (desde Hoy): objetivo, gasto, distancia, racha y el día por horas frente a tu media
-async function stepsStatsSheet(st) {
+async function stepsStatsSheet(st, sh0) {
   const sub = dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" });
-  const sh = sheet("Pasos", h("div", { class: "muted" }, "Cargando…"), null, { wide: true, sub });
+  const sh = sh0 || sheet("Pasos", h("div", { class: "muted" }, "Cargando…"), null, { wide: true, sub });
   let d; try { d = await stepsData(st); } catch (e) { toast(e.message, { error: true }); sh.close(); return; }
   const en = st.energy, steps = st.day.steps || 0, today = st.date === st.today, now = new Date().getHours(), goal = d.goal;
   const hrs = d.hours || Array(24).fill(0), avg = d.avg_hours;
@@ -751,7 +751,13 @@ async function stepsStatsSheet(st) {
       `${String(i).padStart(2, "0")}:00–${String(i + 1).padStart(2, "0")}:00\n${fut ? "—" : fmt(v) + " pasos"}`);
   }));
   const peak = hrs.reduce((b, v, i) => (v > hrs[b] ? i : b), 0);
-  sh.set("Pasos", [
+  // ‹ día › como en las apps de pasos: el día anterior o el siguiente sin salir de la ficha
+  const go = async (n) => { const d2 = addDays(st.date, n); if (d2 > st.today) return;
+    try { const st2 = await api("GET", "/api/state?date=" + d2); stepsStatsSheet(st2, sh); } catch (e) { toast(e.message, { error: true }); } };
+  const nav = h("div", { class: "dnav" }, h("button", { class: "icon-btn round", "aria-label": "Día anterior", onclick: () => go(-1) }, icon("left")),
+    h("b", null, today ? "Hoy" : dateLabel(st.date, { weekday: "short", day: "numeric", month: "short" })),
+    h("button", { class: "icon-btn round", "aria-label": "Día siguiente", disabled: today, onclick: () => go(1) }, icon("right")));
+  sh.set("Pasos", [nav,
     h("div", { class: "sh2" },
       h("div", { class: "sh2-ring" }, ring, h("div", { class: "sh2-in" }, h("b", { class: "num" }, fmt(steps)), h("span", null, "pasos"),
         h("button", { class: "sgoal", title: "Cambiar el objetivo de pasos", onclick: goalSheet }, `de ${fmt(goal)}`, icon("edit")))),
@@ -764,7 +770,7 @@ async function stepsStatsSheet(st) {
     h("div", { class: "card panel flat" }, h("h3", { style: { margin: 0 } }, "Por horas"), hchart,
       h("div", { class: "sch-x" }, [0, 6, 12, 18, 24].map((x) => h("span", null, x + " h"))),
       hrs[peak] ? h("div", { class: "faint sm", style: { marginTop: "6px" } }, `Hora más activa: ${peak}:00 · ${fmt(hrs[peak])} pasos`) : null),
-  ], stepsFooter(d, sh), { wide: true, sub });
+  ], stepsFooter(d, sh), { wide: true });
 }
 // Más estadísticas de pasos: semana L–D, rachas y récords, últimos 30 días y media por día de la semana
 async function stepsMoreSheet(st) {
@@ -1142,7 +1148,7 @@ function suppStatsCard(x, sh) {
       onclick: st === "fut" || st === "none" ? null : () => { if (sh) sh.close(); goDay(d); } }, n === 1 ? h("b", null, dateLabel(d, { month: "short" }).replace(".", "")) : String(n)));
   }
   return h("div", { class: "sst" },
-    h("div", { class: "sst-h" }, mono(x.name, fo.category, fo.image),
+    h("div", { class: "sst-h" }, mono(x.name, fo.category || "Suplemento", x.image || fo.image),
       h("div", { class: "grow" }, h("b", null, x.name), h("span", { class: "faint" }, [x.dose, facts.join(" · ")].filter(Boolean).join(" · "))),
       x.supp_when === "manual" ? h("div", { class: "sst-pct num" }, String(x.days.filter((c) => c.n && c.date > addDays(today, -30)).length), h("small", null, "días en 30"))
         : h("div", { class: "sst-pct num" + pctCls }, x.pct30 == null ? "—" : x.pct30 + " %", h("small", null, x.due30 ? `${x.ok30} de ${x.due30} días` : "aún sin días"))),
@@ -1151,8 +1157,15 @@ function suppStatsCard(x, sh) {
 const sstLegend = () => h("div", { class: "sst-leg" }, [["ok", "Tomado"], ["half", "A medias"], ["miss", "Faltó"], ["off", "No tocaba"]].map(([k, l]) => h("span", null, h("i", { class: "sst-d " + k }), l)));
 function suppStatsPanel(L) {
   if (!L || !L.length) return null;
-  return h("div", { class: "card panel" }, h("h3", null, "Suplementos", h("span", { class: "faint", style: { fontWeight: 400 } }, " · % de los días que tocaba, últimos 30 días")),
-    h("div", { class: "sst-l grid" }, L.map((x) => suppStatsCard(x))), sstLegend());
+  // En Progreso, una línea por suplemento (las últimas 4 semanas); el calendario entero, en su ficha
+  const rows = L.filter((x) => x.supp_when !== "manual" || x.days.some((c) => c.n));
+  return h("div", { class: "card panel" }, h("h3", null, "Suplementos", h("span", { class: "faint", style: { fontWeight: 400 } }, " · % de los días que tocaba (30 días)")),
+    h("div", { class: "sst-rows" }, rows.map((x) => { const fo = (S.catalog && S.catalog.foods || []).find((f) => f.id === x.id) || {};
+      const pc = x.pct30, cls = pc == null ? "" : pc >= 85 ? " good" : pc >= 60 ? " mid" : " low";
+      return h("button", { class: "sst-row", onclick: suppStatsSheet }, mono(x.name, fo.category || "Suplemento", x.image || fo.image),
+        h("span", { class: "grow" }, h("b", null, x.name), h("span", { class: "sst-strip" }, x.days.slice(-28).map((c) => h("i", { class: "s-" + c.s, title: dateLabel(c.date) + (SST_TXT[c.s] ? " · " + SST_TXT[c.s] : "") })))),
+        h("b", { class: "sst-pc num" + cls }, x.supp_when === "manual" ? x.days.filter((c) => c.n).length + " d" : pc == null ? "—" : pc + " %")); })),
+    h("button", { class: "pg-inl", onclick: suppStatsSheet }, "Ver el calendario de cada uno", icon("right")));
 }
 function mealBlock(st, meal, closed) {
   const supIds = new Set((st.supplements || []).map((x) => x.id));
@@ -2289,7 +2302,7 @@ function viewProgress() {
   const avgK = logged7.length ? logged7.reduce((a, d) => a + (d.kcal || 0), 0) / logged7.length : null;
   const avgP = logged7.length ? logged7.reduce((a, d) => a + (d.protein_g || 0), 0) / logged7.length : null;
   const cal = P.calibration;
-  const kpi = (l, val, s) => h("div", { class: "kpi" }, h("div", { class: "l" }, kpiLbl(l)), h("div", { class: "v num" }, val), h("div", { class: "s" }, s || ""));
+  const kpi = (l, val, s, fn) => h("div", { class: "kpi" + (fn ? " clickable" : ""), onclick: fn || null }, h("div", { class: "l" }, kpiLbl(l), fn ? h("span", { class: "kpi-go" }, "›") : null), h("div", { class: "v num" }, val), h("div", { class: "s" }, s || ""));
   const range = h("div", { class: "seg" }, [[7, "7 d"], [30, "30 d"], [90, "90 d"], [365, "1 año"]].map(([d, l]) => h("button", { class: S.progDays === d ? "on" : "", onclick: async () => { S.progDays = d; await refresh(); } }, l)));
   return h("div", null,
     h("div", { class: "row prog-head", style: { marginBottom: "12px" } }, h("h2", { class: "vt" }, "Progreso"), h("span", { class: "grow" }),
@@ -2298,15 +2311,25 @@ function viewProgress() {
       kpi("Último peso", last ? fmt(last.weight_kg, 1) + " kg" : "—", last ? dateLabel(last.date, { day: "numeric", month: "short" }) : "sin pesajes"),
       kpi("Media 7 días", lastAvg ? fmt(lastAvg.avg7, 1) + " kg" : "—", prevAvg && prevAvg.avg7 != null ? signed(lastAvg.avg7 - prevAvg.avg7, 1) + " kg vs semana anterior" : ""),
       kpi("Ingesta media 7 d", avgK != null ? fmt(avgK) + " kcal" : "—", avgP != null ? `P ${fmt(avgP)} g · ${logged7.length} días` : ""),
-      kpi("Mantenimiento observado", cal.observed_maintenance != null ? fmt(cal.observed_maintenance) + " kcal" : "—", cal.observed_maintenance != null ? `tendencia ${signed(cal.slope_kg_week, 1)} kg/sem · modelo ${fmt(cal.model_tdee_avg)}` : "faltan datos (≥14 días)")),
+      kpi("Mantenimiento observado", cal.observed_maintenance != null ? fmt(cal.observed_maintenance) + " kcal" : "—", cal.observed_maintenance != null ? `tendencia ${signed(cal.slope_kg_week, 1)} kg/sem · modelo ${fmt(cal.model_tdee_avg)}` : "faltan datos (≥14 días)", () => pgSheet("Calibración del gasto", calPanel(S.progress.calibration)))),
     h("div", { class: "card panel" }, h("h3", null, "Peso", h("span", { class: "faint", style: { fontWeight: 400 } }, " · puntos: pesajes · gruesa: media de 7 días · discontinua: lo esperado")), h("div", { class: "faint", style: { fontSize: "12.5px", marginTop: "-4px" } }, "Pésate siempre igual: al levantarte, después de ir al baño, antes de comer o beber y con la misma ropa (o sin ella)"), weightChart(ws, P.body)),
     balancePanel(P.history),
-    calPanel(cal),
     stepsPanel(P.history, P.steps_goal),
     suppStatsPanel(P.supplements),
-    bodyPanel(P.body || [], P.weights || []),
-    h("div", { class: "card panel" }, h("h3", null, "Semanas", h("span", { class: "only-m faint" }, " · desliza →")), weeksTable(P.weeks)),
-    h("div", { class: "card panel" }, h("h3", null, "Días", h("span", { class: "only-m faint" }, " · desliza →")), daysTable(P.history)));
+    h("div", { class: "card panel pg-links" }, h("h3", null, "Más"),
+      pgMore("⚖️", "Báscula y pesajes", (P.body || []).length ? `${P.body.length} mediciones · composición y todos los pesajes` : "composición, pesajes y añadir medición",
+        () => pgSheet("Báscula y pesajes", bodyPanel(P.body || [], P.weights || []))),
+      pgMore("🔥", "Calibración del gasto", cal.ready ? (cal.auto ? "automática · al día" : "manual") : "aprendiendo de tus datos", () => pgSheet("Calibración del gasto", calPanel(cal))),
+      pgMore("🗓️", "Semanas", `${(P.weeks || []).length} semanas · medias de comida, peso y pasos`, () => pgSheet("Semanas", h("div", { class: "card panel flat" }, weeksTable(P.weeks)))),
+      pgMore("📋", "Días", `${P.history.length} días · uno por fila`, () => pgSheet("Días", h("div", { class: "card panel flat" }, daysTable(P.history))))));
+}
+// Progreso: lo importante a la vista; cada cosa tiene su ficha con todo lo demás
+function pgMore(ic, title, sub, fn) {
+  return h("button", { class: "pg-more", onclick: fn }, h("span", { class: "pg-ic" }, ic), h("span", { class: "grow" }, h("b", null, title), h("small", null, sub)), h("span", { class: "chev" }, icon("right")));
+}
+function pgSheet(title, body) { return sheet(title, [body].flat().filter(Boolean), null, { wide: true }); }
+async function openStepsDay(d) {
+  try { const st = await api("GET", "/api/state?date=" + (d || todayISO())); stepsStatsSheet(st); } catch (e) { toast(e.message, { error: true }); }
 }
 
 // ----------------------------------------------------------- informe en PDF
@@ -2558,7 +2581,8 @@ function stepsPanel(hist, goal) {
       kpi("Mejor día", fmt(best.steps), dateLabel(best.date, { day: "numeric", month: "short" }))),
     h("div", { class: "pbars" }, h("i", { class: "goal", style: { bottom: (100 * goal) / mx + "%" } }),
       days.map((d) => { const v = by[d]; return h("span", { class: v == null ? "gap" : v >= goal ? "ok" : "", style: { height: v == null ? "0" : Math.max(2, (100 * v) / mx) + "%" }, "data-tip": `${dateLabel(d, { weekday: "long", day: "numeric", month: "short" })}\n${v == null ? "Sin datos" : fmt(v) + " pasos" + (v >= goal ? " · objetivo cumplido" : "")}` }); })),
-    h("div", { class: "pbars-x faint" }, h("span", null, dateLabel(days[0], { day: "numeric", month: "short" })), h("span", null, "hoy")));
+    h("div", { class: "pbars-x faint" }, h("span", null, dateLabel(days[0], { day: "numeric", month: "short" })), h("span", null, "hoy")),
+    h("button", { class: "pg-inl", onclick: () => openStepsDay(todayISO()) }, "Ver cada día por horas", icon("right")));
 }
 // Calibración del gasto (Progreso): lo que dicen tus pesajes frente a lo que calcula el modelo
 const CAL_ROWS = [["cal_ajuste_kcal", "Base: metabolismo y día a día", (v) => signed(v) + " kcal/día"], ["cal_pasos_factor", "Pasos", (v) => "× " + fmt(v, 2)], ["cal_ejercicio_factor", "Entrenos", (v) => "× " + fmt(v, 2)]];

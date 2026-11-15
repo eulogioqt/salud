@@ -159,7 +159,8 @@ def supplements_stats(conn, days=56, ref=None):
     out = []
     for x in supplements(conn):
         first = conn.execute("SELECT min(date) FROM entries WHERE food_id=? AND deleted_at IS NULL", (x["id"],)).fetchone()[0]
-        created = (conn.execute("SELECT created_at FROM foods WHERE id=?", (x["id"],)).fetchone()[0] or end)[:10]
+        created, image = conn.execute("SELECT created_at, image FROM foods WHERE id=?", (x["id"],)).fetchone()
+        created = (created or end)[:10]
         s0 = max(start, min(first or created, created))
         cells, d = [], start
         while d <= end:
@@ -185,7 +186,7 @@ def supplements_stats(conn, days=56, ref=None):
         streak = run
         hs = sorted(hours.get(x["id"], []))
         usual = hs[len(hs) // 2] if len(hs) >= 3 and x["doses"] == 1 else None
-        out.append({"id": x["id"], "name": x["name"], "dose": x["dose"], "supp_when": x["supp_when"], "since": s0,
+        out.append({"id": x["id"], "name": x["name"], "image": image, "dose": x["dose"], "supp_when": x["supp_when"], "since": s0,
                     "pct30": round(100 * ok30 / len(due30)) if due30 else None, "ok30": ok30, "due30": len(due30),
                     "streak": streak, "best": best, "usual_time": usual, "days": cells})
     return out
