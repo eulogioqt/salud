@@ -736,6 +736,12 @@ class TestSuplementos(Base):
         self.assertTrue(any("creatina" in t for t in w)); self.assertFalse(any("b12" in t for t in w))
         self.assertEqual(len(SC.listing()), len(SC.CATALOG))
 
+    def test_estimacion_con_cantidad(self):
+        e = core.add_estimate(self.conn, {"date": "2026-11-14", "meal": "otro", "name": "Cubata de whisky", "unit_label": "2 cubalitros", "kcal": 760}, "web")
+        self.assertEqual(e["unit_label"], "2 cubalitros")
+        e = core.update_entry(self.conn, e["id"], {"unit_label": ""}, "web")
+        self.assertEqual(e["unit_label"], "ración estimada")
+
     def test_constancia(self):
         from salud import supp_catalog as SC
         cre = core.create_food(self.conn, SC.food_data("creatina"), "web")

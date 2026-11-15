@@ -2184,3 +2184,4 @@ input[type=checkbox].mv-sw:checked::after { transform: translateX(16px); }
 .sst-d.rest { background: var(--warn-soft); color: var(--warn); }
 .sst-d.today { box-shadow: inset 0 0 0 2px var(--text); }
 .cyc-prev .sst-leg { margin-top: 10px; }
+.sumtbl th .th-sub { display: block; font-size: 11px; font-weight: 500; opacity: .8; }

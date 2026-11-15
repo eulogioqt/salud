@@ -1141,7 +1141,7 @@ function mealBlock(st, meal, closed) {
     return h("div", { class: "item b" + (child ? " child" : ""), onclick: closed ? null : (ev) => { ev.stopPropagation(); entrySheet(e); } },
       mono(e.name, fo.category, fo.image),
       h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, fo.id && e.name === fo.name ? dname(fo) : e.name), estTag(e)),
-        h("div", { class: "sub" }, estTag(e), [e.time, e.kind === "estimacion" && e.unit_label === "ración estimada" ? null : e.unit_label, e.kind === "estimacion" && e.note ? e.note : null, e.kind === "estimacion" && e.kcal_min != null ? `rango ${fmt(e.kcal_min)}–${fmt(e.kcal_max)}` : null].filter(Boolean).join(" · ")), chips(e)),
+        h("div", { class: "sub" }, estTag(e), [e.kind === "estimacion" ? null : e.time, e.kind === "estimacion" && e.unit_label === "ración estimada" ? null : e.unit_label, e.kind === "estimacion" ? e.time : null, e.kind === "estimacion" && e.note ? e.note : null, e.kind === "estimacion" && e.kcal_min != null ? `rango ${fmt(e.kcal_min)}–${fmt(e.kcal_max)}` : null].filter(Boolean).join(" · ")), chips(e)),
       h("div", { class: "kc num" }, v(e, "kcal"), h("small", null, "kcal"))); };
   // Las comidas habituales se muestran como un solo plato (desplegable con sus ingredientes)
   const es = m.entries;
@@ -1426,13 +1426,14 @@ function amountForm(food, init) {
 }
 
 function estimateFields(init) {
-  const name = h("input", { class: "input", placeholder: "Ej.: menú del día — pasta boloñesa y pan", value: init.name || "" });
+  const name = h("input", { class: "input", placeholder: "Ej.: Ensaladilla rusa", value: init.name || "" });
+  const qty = h("input", { class: "input", placeholder: "Ej.: 2 cañas", value: init.unit_label && init.unit_label !== "ración estimada" ? init.unit_label : "" });
   const num = (k, ph) => h("input", { class: "input num", inputMode: "decimal", placeholder: ph || "?", value: init[k] == null ? "" : String(init[k]).replace(".", ",") });
   const kc = num("kcal"), p = num("protein_g"), c = num("carbs_g"), g = num("fat_g"), mn = num("kcal_min", "mín."), mx = num("kcal_max", "máx.");
-  const nota = h("input", { class: "input", placeholder: "Supuestos: tamaño, aceite, guarnición…", value: init.note || "" });
+  const nota = h("input", { class: "input", placeholder: "Detalles: ingredientes, sitio, aceite…", value: init.note || "" });
   const meal = mealChips(init.meal), timeIn = h("input", { class: "input", type: "time", value: init.time || "" });
   const el = h("div", null,
-    field("Qué has comido", name),
+    h("div", { class: "grid2" }, field("Qué es (un plato o bebida)", name), field("Cantidad", qty)),
     h("div", { class: "grid4 gap-top" }, field("kcal", kc), field("Proteína (g)", p), field("Carbohidratos (g)", c), field("Grasas (g)", g)),
     h("div", { class: "grid2 gap-top" }, field("Rango de kcal (opcional)", h("div", { class: "row" }, mn, h("span", { class: "faint" }, "–"), mx)), field("Notas", nota)),
     whenRow(meal, timeIn),
@@ -1442,7 +1443,7 @@ function estimateFields(init) {
     const vals = { kcal: parseNum(kc.value), protein_g: parseNum(p.value), carbs_g: parseNum(c.value), fat_g: parseNum(g.value), kcal_min: parseNum(mn.value), kcal_max: parseNum(mx.value) };
     if (!name.value.trim()) { toast("Describe la comida", { error: true }); return null; }
     if (Object.values(vals).some(Number.isNaN)) { toast("Hay un número no válido", { error: true }); return null; }
-    return { name: name.value.trim(), ...vals, note: nota.value || null, meal: meal.value, time: timeIn.value || null };
+    return { name: name.value.trim(), unit_label: qty.value.trim() || null, ...vals, note: nota.value || null, meal: meal.value, time: timeIn.value || null };
   } };
 }
 
@@ -1532,7 +1533,7 @@ function summaryView(s, extra) {
   const bal = s.balance;
   return h("div", null,
     h("table", { class: "t sumtbl v2" },
-      h("tr", null, h("th", null, ""), h("th", { class: "r" }, "Día"), h("th", { class: "r" }, "Objetivo")),
+      h("tr", null, h("th", null, ""), h("th", { class: "r" }, "Día"), h("th", { class: "r" }, "Objetivo", h("small", { class: "th-sub" }, "y diferencia"))),
       main("Calorías", v(t, "kcal") + " kcal", tg.kcal ? og(tg.kcal, d.kcal, Math.abs(d.kcal) <= 0.05 * tg.kcal) : ""),
       sub("Proteína", v(t, "protein_g") + " g", tg.protein_g != null ? og(tg.protein_g, d.protein_g, d.protein_g >= -5) : ""),
       sub("Carbohidratos", v(t, "carbs_g") + " g", tg.carbs_g != null ? og(tg.carbs_g, d.carbs_g, Math.abs(d.carbs_g) <= 0.15 * tg.carbs_g) : ""),

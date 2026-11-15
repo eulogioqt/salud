@@ -180,7 +180,7 @@ def main(argv=None):
     p.add_argument("nombre"); p.add_argument("--kcal", type=float); p.add_argument("--p", type=float)
     p.add_argument("--ch", type=float); p.add_argument("--g", type=float); p.add_argument("--min", type=float)
     p.add_argument("--max", type=float); p.add_argument("-c", "--comida", required=True); p.add_argument("--hora")
-    p.add_argument("--fecha"); p.add_argument("--nota")
+    p.add_argument("--fecha"); p.add_argument("--nota"); p.add_argument("--cantidad", help="en palabras: «2 cubalitros», «media ración»")
     p = sp.add_parser("edit", help="Editar entrada"); p.add_argument("id", type=int)
     p.add_argument("--cantidad", type=float); p.add_argument("--unidad"); p.add_argument("-c", "--comida"); p.add_argument("--hora")
     p.add_argument("--kcal", type=float); p.add_argument("--p", type=float); p.add_argument("--ch", type=float); p.add_argument("--g", type=float)
@@ -301,7 +301,7 @@ def main(argv=None):
     elif c == "estimar":
         e = call("POST", "/api/entries", {"estimate": True, "date": d, "meal": a.comida, "time": a.hora, "name": a.nombre,
                                           "kcal": a.kcal, "protein_g": a.p, "carbs_g": a.ch, "fat_g": a.g,
-                                          "kcal_min": a.min, "kcal_max": a.max, "note": a.nota})
+                                          "kcal_min": a.min, "kcal_max": a.max, "note": a.nota, "unit_label": a.cantidad})
         print("Estimación [%d] %s · %s" % (e["id"], e["name"], macro_line(e)))
     elif c == "edit":
         body = {}

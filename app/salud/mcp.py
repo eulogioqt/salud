@@ -29,7 +29,8 @@ Reglas:
 - null = desconocido, nunca 0. Si falta un dato relevante, pregunta UNA cosa concreta.
 - Antes de añadir, `buscar_alimento` para usar lo que ya existe (y su unidad). No inventes valores de productos de marca: pide la etiqueta o usa Open Food Facts citándolo. Lo que crees (productos, recetas, comidas habituales) queda «por revisar» hasta que la persona lo acepte en la pestaña Comida.
 - UNA ENTRADA POR ALIMENTO O BEBIDA, siempre: nunca juntes una comida entera (ni un menú) en una sola entrada. «Albóndigas, puré, patatas, donut y 2 vasos de Coca-Cola» son 5 entradas en el almuerzo; «pizza y Coca-Cola Zero» son 2 en la cena. Así se ven, se corrigen y se reutilizan por separado.
-- Comidas fuera: `estimar_comida` UNA VEZ POR CADA plato o bebida. La `descripcion` es SOLO el nombre corto del plato («Ensaladilla rusa», «Patatas bravas», «Montadito de lomo»): la cantidad, la parte que comió, el sitio y los supuestos van en la `nota` («media ración, ~60 g; bar de la esquina»), nunca en el nombre.
+- CÓMO SE ESCRIBE UNA ENTRADA (como en MyFitnessPal o Yazio: qué es · cuánto · detalles): NOMBRE = qué es, corto y genérico, como en la carta de un bar, en singular y sin cantidades («Ensaladilla rusa», «Montadito de lomo», «Cubata de whisky», «Chupito», «Caña», «Hamburguesa de pollo»); sin marcas de dentro, ni sitio, ni «ración de», ni «2 x»; la marca solo si el producto ES la marca (Coca-Cola Zero, McFlurry Oreo). CANTIDAD = cuánto, en palabras («media ración», «2 cubalitros», «1 unidad», «~150 g»). NOTA = los detalles («con pimiento y huevo de codorniz», «Red Label con Blue Chameleon», «bar de la esquina», supuestos). Lo mismo varias veces seguidas (2 cañas, 3 chupitos iguales) es UNA entrada con su cantidad y las kcal del total; si son distintos (un cubata con Red Bull y otro con Coca-Cola), una entrada cada uno.
+- Comidas fuera: `estimar_comida` UNA VEZ POR CADA plato o bebida, con `descripcion` (el nombre), `cantidad` y `nota` como arriba. Ej.: descripcion «Cubata de whisky», cantidad «2 cubalitros», nota «Red Label con Blue Chameleon; ~70 ml de whisky cada uno».
 - CORREGIR = EDITAR: si algo apuntado está mal (cantidad, kcal, nombre), cámbialo con `editar_entrada` sobre esa misma entrada. NUNCA añadas entradas nuevas para compensar («pan adicional», «corrección», «resto de…»); si sobra una entrada, `borrar_entrada`. Si es un producto que ya existe o de marca conocida (Coca-Cola Zero, una lata…), mejor `buscar_alimento` + `anadir_alimento` que estimarlo.
 - Suplementos: cada uno tiene «cuándo se toma» (cada día, algunos días de la semana, días de fiesta, días de entreno o cuando lo apunte; hora, aviso y ciclo opcionales, p. ej. píldora 21+7). Para añadir uno, mira antes el catálogo (`api` GET /api/supplements/catalog) y créalo con `api` POST /api/supplements/catalog/<clave> (ya trae dosis, cuándo y dibujo); si no está, POST /api/foods con categoría «Suplemento» y supp_when/supp_days/supp_time/supp_notify/supp_cycle. Si dice que sale de fiesta, `dia_de_fiesta`.
 - Comida habitual = un conjunto de VARIOS alimentos que toma junto (su desayuno, un táper, un batido). Un producto suelto (una barrita, una lata de Coca-Cola, un yogur, un paquete) NUNCA es una comida habitual: es un producto (`api` POST /api/foods, con su ración «1 unidad (23 g)» y `default_unit` por unidad) y se apunta con `anadir_alimento`. El servidor rechaza comidas habituales de un solo alimento.
@@ -80,7 +81,7 @@ def _fh(a, argv):
 
 def _edit_argv(a):
     """Editar entrada: lo normal por la CLI (entiende las unidades); si toca valores de una estimación, por la API."""
-    est = {"nombre": "name", "kcal": "kcal", "proteina_g": "protein_g", "carbohidratos_g": "carbs_g", "grasa_g": "fat_g", "kcal_min": "kcal_min", "kcal_max": "kcal_max"}
+    est = {"nombre": "name", "cantidad_texto": "unit_label", "kcal": "kcal", "proteina_g": "protein_g", "carbohidratos_g": "carbs_g", "grasa_g": "fat_g", "kcal_min": "kcal_min", "kcal_max": "kcal_max"}
     if any(a.get(k) is not None for k in est):
         body = {v: a[k] for k, v in est.items() if a.get(k) is not None}
         for k, v in (("comida", "meal"), ("hora", "time"), ("nota", "note")):
@@ -220,17 +221,18 @@ TOOLS = [
      lambda a: _fh(a, ["habitual", a["nombre"]] + (["-c", a["comida"]] if a.get("comida") else [])
                    + sum([["--set", "%d=%s" % (c["item_id"], c["cantidad"])] for c in a.get("cambios") or []], [])
                    + sum([["--skip", str(i)] for i in a.get("omitir") or []], [])), False),
-    ("estimar_comida", "Estimación de UN plato o UNA bebida (no de la comida entera: llámala una vez por cada cosa) con kcal y macros, rango (min–max kcal). "
-     "`descripcion`: solo el nombre corto del plato («Ensaladilla rusa»); cantidad, sitio y supuestos en `nota`. Para comida fuera o sin pesar.",
-     _o({"descripcion": U, "kcal": N, "proteina_g": N, "carbohidratos_g": N, "grasa_g": N, "kcal_min": N, "kcal_max": N,
+    ("estimar_comida", "Estimación de UN plato o UNA bebida (no de la comida entera: llámala una vez por cada cosa) con kcal y macros (del total de esa cantidad) y rango (min–max kcal). "
+     "Como lo apuntaría una persona: `descripcion` = qué es, corto y genérico como en una carta («Ensaladilla rusa», «Cubata de whisky», «Montadito de lomo»), sin cantidades ni marcas de dentro ni sitio; "
+     "`cantidad` = cuánto, en palabras («media ración», «2 cubalitros», «1 unidad», «~150 g»); `nota` = los detalles (ingredientes, marcas, sitio, supuestos). Para comida fuera o sin pesar.",
+     _o({"descripcion": U, "cantidad": U, "kcal": N, "proteina_g": N, "carbohidratos_g": N, "grasa_g": N, "kcal_min": N, "kcal_max": N,
          "comida": COMIDA, "nota": U, "fecha": FECHA, "hora": HORA}, ["descripcion", "kcal", "comida"]),
      lambda a: _fh(a, ["estimar", a["descripcion"], "--kcal", str(a["kcal"]), "-c", a["comida"]]
                    + sum([[f, str(a[k])] for f, k in (("--p", "proteina_g"), ("--ch", "carbohidratos_g"), ("--g", "grasa_g"),
-                                                       ("--min", "kcal_min"), ("--max", "kcal_max"), ("--nota", "nota")) if a.get(k) is not None], [])), False),
+                                                       ("--min", "kcal_min"), ("--max", "kcal_max"), ("--nota", "nota"), ("--cantidad", "cantidad")) if a.get(k) is not None], [])), False),
     ("editar_entrada", "Corrige una entrada del día (id de ver_dia) EN SU SITIO: cantidad, unidad, comida, hora, nota o si la cantidad es a ojo; "
-     "y en las estimaciones (comida fuera) también nombre, kcal, macros y rango. Para corregir algo, edita la entrada: nunca añadas otra para compensar.",
+     "y en las estimaciones (comida fuera) también nombre, cantidad en palabras (`cantidad_texto`: «2 cubalitros»), kcal, macros y rango. Para corregir algo, edita la entrada: nunca añadas otra para compensar.",
      _o({"id": I, "cantidad": N, "unidad": U, "comida": COMIDA, "hora": HORA, "nota": U, "cantidad_estimada": {"type": "boolean"},
-         "nombre": U, "kcal": N, "proteina_g": N, "carbohidratos_g": N, "grasa_g": N, "kcal_min": N, "kcal_max": N}, ["id"]),
+         "nombre": U, "cantidad_texto": U, "kcal": N, "proteina_g": N, "carbohidratos_g": N, "grasa_g": N, "kcal_min": N, "kcal_max": N}, ["id"]),
      lambda a: _edit_argv(a), False),
     ("borrar_entrada", "Quita una entrada del día (reversible con restaurar_entrada).", _o({"id": I}, ["id"]), lambda a: ["del", str(a["id"])], False),
     ("restaurar_entrada", "Recupera una entrada borrada.", _o({"id": I}, ["id"]), lambda a: ["undo", str(a["id"])], False),

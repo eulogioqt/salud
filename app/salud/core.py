@@ -999,7 +999,7 @@ def add_estimate(conn, data, source="web"):
             "INSERT INTO entries(date,meal,time,sort,name,kind,unit_label,quantity,factor,kcal,protein_g,carbs_g,fat_g,"
             "missing,kcal_min,kcal_max,quality,note,snapshot,created_at,updated_at) "
             "VALUES(?,?,?,?,?,'estimacion',?,1,1,?,?,?,?,?,?,?,'estimacion',?,?,?,?)",
-            (d, meal, _time(data.get("time")), _next_sort(conn, d, meal), name, data.get("unit_label") or "ración estimada",
+            (d, meal, _time(data.get("time")), _next_sort(conn, d, meal), name, (data.get("unit_label") or "").strip() or "ración estimada",
              kcal, p, c, f, json.dumps(nu["missing"]), kmin, kmax, data.get("note"),
              json.dumps({"tipo": "estimacion", "descripcion": name, "nota": data.get("note")}, ensure_ascii=False),
              ts(), ts()))
@@ -1040,6 +1040,8 @@ def update_entry(conn, eid, data, source="web"):
                         vals[k] = v
             if "name" in data and data["name"].strip():
                 sets.append("name=?"); args.append(data["name"].strip())
+            if "unit_label" in data:  # cantidad en palabras: «2 cubalitros», «media ración»
+                sets.append("unit_label=?"); args.append((data["unit_label"] or "").strip() or "ración estimada")
             sets.append("missing=?"); args.append(json.dumps(N.nutr(**vals)["missing"]))
         if sets:
             conn.execute("UPDATE entries SET %s, updated_at=? WHERE id=?" % ", ".join(sets), args + [ts(), eid])
