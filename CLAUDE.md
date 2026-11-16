@@ -106,3 +106,4 @@ Decirlo en una línea y guardar lo pedido como **PENDIENTE** en la conversación
 - Esquema: solo migraciones nuevas al final de `MIGRATIONS` (`app/salud/db.py`). SQLite con `journal_mode=TRUNCATE`.
 - Despliegue y servidor: `deploy/LEEME.md`. Los datos de cada persona (BD, fotos, contexto) viven solo en el servidor; en este repo no hay datos personales (ver `.gitignore`).
 - Commits en español.
+- Interfaz (preferencias de Eulogio): minimalista y compacta, que ocupe poco y se vea simple; textos de app profesionales, nunca frases que le hablen al usuario («llegó sola», «cámbiala cuando quieras», «toca para…», consejos). Cada cambio se revisa en móvil, modo oscuro y PC con capturas.

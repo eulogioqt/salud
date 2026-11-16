@@ -1372,7 +1372,7 @@ def day_state(conn, d=None):
         "balance": None if totals["kcal"] is None or en["total"] is None else round(totals["kcal"] - en["total"]),
         "activities": acts, "avg7": None if a7 is None else round(a7, 2), "avg7_n": n7,
         "weight_interp": None if west is None else round(west, 1),
-        "weights14": [{"date": w["date"], "w": w["weight_kg"], "i": w["interp"]} for w in weight_series(conn, shift(d, -13), d)],
+        "weights7": [{"date": w["date"], "w": w["weight_kg"], "i": w["interp"]} for w in weight_series(conn, shift(d, -6), d)],
         "weight_est_fit": day["weight_kg"] is None and any(k > d for k in weights_between(conn, d, "9999-12-31")),
         "approx_kcal": round(sum(e["kcal"] or 0 for e in entries if e["quality"] not in ("etiqueta", "historico"))),
         "entry_count": len(entries), "open_days": open_days(conn), "today_entry_count": len(entries) if d == today() else conn.execute("SELECT COUNT(*) FROM entries WHERE date=? AND deleted_at IS NULL", (today(),)).fetchone()[0], "closure": closure, "closure_count": n_closures, "rev": rev(conn),

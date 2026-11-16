@@ -207,7 +207,7 @@ def _progress(c, q, b, s):
     return {"weights": ws, "history": hist,
             "weeks": core.weekly(c, int(q.get("weeks", 12))), "calibration": core.calibration(c, apply=False),
             "body": T.list_body(c, a, b_), "steps_goal": int(float(core.settings(c).get("objetivo_pasos") or 8000)),
-            "supplements": core.supplements_stats(c, 56), "training": T.summary(c, a, b_), "rev": rev(c)}
+            "supplements": core.supplements_stats(c, 56), "training": T.summary(c, a, b_), "target": core.target_for(c, b_), "rev": rev(c)}
 
 
 @route("GET", r"/api/calibration")

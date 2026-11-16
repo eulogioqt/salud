@@ -9,20 +9,33 @@ Ahora el día va de 00:00 a 00:00. La comida de madrugada va al día que sigue a
 - Los datos de sueño del iPhone (Conduit manda `SleepAnalysis`) servirían para Raquel. El Android de Eulogio no manda sueño.
 
 ## Ciclo (menstruación y píldora)
-Iría como una tarjeta más en Evolución (y su resumen en Hoy), con su ficha. No sería otra pestaña. **Activado por defecto en las mujeres** (sexo F del perfil), con opción de quitarlo en Ajustes; **oculto en los hombres** (se puede activar a mano).
-- **Con píldora**: se configura el ciclo una vez (21+7, 24+4, continua…) y el día en que empieza el descanso. La regla se predice (suele venir el 2.º o 3.er día del descanso) y basta con confirmarla o moverla. La píldora sale como suplemento con su aviso.
-- **Sin píldora**: se marca en Hoy cuándo empieza y cuándo acaba, como el 🎉. La app calcula la duración media del ciclo y predice la próxima.
-- Opcional cada día: flujo (poco, normal, mucho), dolor, hinchazón, antojos, energía, ánimo.
-- Fases (menstrual, folicular, ovulación, lútea) en Hoy y en los gráficos de Progreso. Útil porque en la fase lútea sube el gasto ~100–300 kcal, hay más hambre y se retiene líquido (el peso sube sin ganar grasa).
-- Estadísticas con filtros por tipo de día: regla, fiesta 🎉, comida fuera, entreno o descanso. Para ver relaciones (hambre, kcal, peso, rendimiento en el gimnasio…).
+Tarjeta en Evolución (y su resumen en Hoy) con su ficha. **Activado por defecto en las mujeres** (sexo F del perfil), con opción de quitarlo en Ajustes; **oculto en los hombres**.
+
+Lo que hacen las apps de referencia (Apple Salud «Seguimiento del ciclo», Clue, Flo) y nos sirve:
+- **Registro del día** (un toque, como el 🎉): regla sí/no y flujo (manchado, poco, normal, mucho); síntomas (dolor, hinchazón, cabeza, acné, sensibilidad en el pecho, antojos, sueño, energía, ánimo). Opcionales: temperatura basal, test de ovulación.
+- **Predicciones** de la próxima regla y de la ventana fértil a partir de la duración media de los ciclos (Apple y Clue usan los últimos ciclos registrados; mejoran con 3–6 ciclos). Se muestran como rango, no como día exacto.
+- **Avisos de desviaciones** (Apple): ciclos irregulares, poco frecuentes, reglas muy largas o manchado persistente; sugieren consultarlo con un médico.
+- **Factores del ciclo** (Apple): anticonceptivos (píldora, DIU, implante, parche, anillo), embarazo, lactancia. Con píldora combinada no hay ovulación ni ventana fértil: se predice el sangrado por deprivación en la semana de descanso.
+- **Modo píldora** (Clue/Flo): aviso diario a su hora, pauta (21+7, 24+4, 28 continua), registro de toma olvidada.
+- **Historial**: cada ciclo como una barra (días de regla, duración del ciclo) y medias de duración del ciclo y de la regla.
+
+Lo que añadiríamos nosotros (lo que no hacen ellas, porque no tienen comida, peso y entreno juntos):
+- Fases en las gráficas de Evolución (bandas de color) para ver el peso, el hambre y el rendimiento según la fase.
+- **Peso**: en la fase lútea y la regla se retiene líquido (+0,5–2 kg). Marcarlo en la ficha del peso y no usar esos días para la calibración del gasto (o corregirlos).
+- **Gasto**: en la fase lútea sube ~100–300 kcal/día; opción de subir el objetivo esos días.
+- Estadísticas con filtros por fase y por tipo de día (regla, fiesta 🎉, comida fuera, entreno o descanso).
+- Raquel: Apple Salud ya guarda «Menstruación» y Conduit puede mandarlo; leerlo de ahí para no apuntarlo dos veces.
+- La píldora ya funciona como suplemento con su ciclo (21+7…): unirla con este módulo para predecir el sangrado.
+
+Fuentes: [Apple · Seguimiento del ciclo](https://support.apple.com/120356), [Clue](https://apps.apple.com/us/app/clue-period-cycle-tracker/id657189652), [Flo](https://apps.apple.com/us/app/flo-cycle-period-tracker/id1038369065).
 
 ## Estructura de la web
 - 4 pestañas: **Hoy** (el día), **Entreno**, **Comida** (la biblioteca) y **Evolución** (antes «Progreso»).
-- Evolución: una tarjeta resumen por tema para el periodo elegido (30 días por defecto); «Ver cada día» abre la misma ficha que en Hoy, con ‹ › para cambiar de día. Tocar un día en una gráfica abre ese día. Hecho en nov. 2026.
-- Navegación propuesta (pendiente de confirmar): en el móvil, barra abajo con iconos (como Instagram); en el ordenador, barra lateral a la izquierda con la cuenta abajo.
+- Evolución: una tarjeta por tema (Peso, Comida, Pasos, Suplementos, Entreno) con el resumen del periodo (30 días por defecto). «Más» abre la ficha con todo (Peso y cuerpo = gráfica completa y báscula; Comida y gasto = medias, semanas, calibración y todos los días) y desde ella «Por días» abre la misma ficha que en Hoy, con ‹ › para cambiar de día. Tocar un día en una gráfica abre ese día.
+- Navegación (hecho): en el móvil, barra abajo con iconos (como Instagram); en el ordenador, barra lateral con la cuenta abajo.
 
 ## Gráfica de peso
-- Hecho: en Evolución solo pesajes + media de 7 días; «estimado», «no cuenta» y «esperado» en la ficha del peso. En Hoy, la minigráfica gris de los últimos 14 días.
+- En Evolución, la gráfica completa (pesajes, estimados, no cuenta, media y esperado). En Hoy, la minigráfica de 7 días: solo la línea gris, pesajes rellenos y estimados huecos.
 
 ## Otros
 - Notificaciones en el móvil (PWA con Web Push o app con Capacitor).

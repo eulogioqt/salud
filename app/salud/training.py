@@ -333,13 +333,15 @@ def bw_on(conn, d):
 
 
 def _ex_stats(ex, bw=None):
-    """Como Hevy: el volumen y el nº de series incluyen los calentamientos; el 1RM (tabla de Hevy) sale de las series efectivas."""
+    """Como Hevy: el volumen (kg × reps, o kg × metros con distancia) y el nº de series incluyen los calentamientos; el 1RM (tabla de Hevy) sale de las series efectivas."""
     sets = ex["sets"]
     work = [s for s in sets if s["type"] != "calentamiento"]
     if ex["kind"] == "lastre" and bw and full_bw(ex.get("name")):
         vol = sum((bw + (s["weight_kg"] or 0)) * (s["reps"] or 0) for s in sets)
     else:
         vol = sum((s["weight_kg"] or 0) * (s["reps"] or 0) for s in sets if ex["kind"] in ("peso", "lastre") and (s["weight_kg"] or 0) > 0)
+    if ex["kind"] in ("cardio", "tiempo"):  # como Hevy: con peso y distancia (trineo, paseo del granjero) el volumen es kg × metros
+        vol += sum((s["weight_kg"] or 0) * (s.get("distance_m") or 0) for s in sets)
     best, e1 = None, None
     for s in work:
         if s["reps"] is None:

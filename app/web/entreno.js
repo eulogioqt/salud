@@ -1069,7 +1069,7 @@ function lvAgg(L) {
   return { pct, idx: zToIdx(pct) };
 }
 function tNivel(st) {
-  if (!S.bw) return h("div", { class: "card panel muted" }, "Para calcular rangos hace falta tu peso: apúntalo en Hoy (o la báscula en Progreso) y tu sexo en Ajustes.");
+  if (!S.bw) return h("div", { class: "card panel muted" }, "Para calcular rangos hace falta tu peso: apúntalo en Hoy (o la báscula en Evolución) y tu sexo en Ajustes.");
   const xs = st.list.filter((e) => e.level).sort((a, b) => b.level.pct - a.level.pct);
   if (!xs.length) return h("div", { class: "card panel muted" }, "Aún no hay ejercicios con estándares.");
   const G = lvAgg(xs);
@@ -1498,7 +1498,7 @@ async function workoutSheet_(id) {
       h("div", null, h("span", null, "Ejercicios"), h("b", null, String(w.exercises.length)))),
 
     ...exBlocks,
-    h("div", { class: "note wk-orig" }, h("span", { class: "grow" }, `Origen: ${w.source}` + (w.volume_source === "hevy" ? " · volumen tomado de Hevy" : " · volumen: kg × reps de todas las series, como en Hevy")),
+    h("div", { class: "note wk-orig" }, h("span", { class: "grow" }, `Origen: ${w.source}` + (w.volume_source === "hevy" ? " · volumen tomado de Hevy" : " · volumen como en Hevy: kg × reps (kg × metros con distancia), con los calentamientos")),
       h("button", { class: "lnk-del", title: "Solo para duplicados o errores: en Hevy no se borra", onclick: (e) => confirmDel(e, async () => { await act(() => api("DELETE", "/api/workouts/" + w.id), "Entreno eliminado"); sh.close(); }) }, "Eliminar")),
   ], S.view === "hoy" ? (() => {  // desde Hoy, el mismo pie que pasos y peso; desde Entreno (historial), solo el entreno
     const on = !!(S.pasos || {}).entreno_ultimo && !((S.pasos || {}).off || []).includes("entreno");
