@@ -9,7 +9,7 @@ Ahora el día va de 00:00 a 00:00. La comida de madrugada va al día que sigue a
 - Los datos de sueño del iPhone (Conduit manda `SleepAnalysis`) servirían para Raquel. El Android de Eulogio no manda sueño.
 
 ## Ciclo (menstruación y píldora)
-Iría como una tarjeta más en Progreso, con su ficha. No sería otra pestaña. Solo aparece si la persona lo activa en Ajustes.
+Iría como una tarjeta más en Evolución (y su resumen en Hoy), con su ficha. No sería otra pestaña. **Activado por defecto en las mujeres** (sexo F del perfil), con opción de quitarlo en Ajustes; **oculto en los hombres** (se puede activar a mano).
 - **Con píldora**: se configura el ciclo una vez (21+7, 24+4, continua…) y el día en que empieza el descanso. La regla se predice (suele venir el 2.º o 3.er día del descanso) y basta con confirmarla o moverla. La píldora sale como suplemento con su aviso.
 - **Sin píldora**: se marca en Hoy cuándo empieza y cuándo acaba, como el 🎉. La app calcula la duración media del ciclo y predice la próxima.
 - Opcional cada día: flujo (poco, normal, mucho), dolor, hinchazón, antojos, energía, ánimo.
@@ -17,10 +17,12 @@ Iría como una tarjeta más en Progreso, con su ficha. No sería otra pestaña. 
 - Estadísticas con filtros por tipo de día: regla, fiesta 🎉, comida fuera, entreno o descanso. Para ver relaciones (hambre, kcal, peso, rendimiento en el gimnasio…).
 
 ## Estructura de la web
-- **Hoy**: el resumen del día. **Progreso** (quizá con otro nombre, p. ej. «Evolución»): el resumen de todo, con una tarjeta por tema que abre su ficha completa (peso, objetivo, pasos, suplementos, báscula, calibración, ciclo…). **Comida**: la biblioteca. **Entreno**: los entrenos.
+- 4 pestañas: **Hoy** (el día), **Entreno**, **Comida** (la biblioteca) y **Evolución** (antes «Progreso»).
+- Evolución: una tarjeta resumen por tema para el periodo elegido (30 días por defecto); «Ver cada día» abre la misma ficha que en Hoy, con ‹ › para cambiar de día. Tocar un día en una gráfica abre ese día. Hecho en nov. 2026.
+- Navegación propuesta (pendiente de confirmar): en el móvil, barra abajo con iconos (como Instagram); en el ordenador, barra lateral a la izquierda con la cuenta abajo.
 
 ## Gráfica de peso
-- Propuesta: en Progreso solo pesajes + media de 7 días; «estimado», «no cuenta» y «esperado» en la ficha del peso.
+- Hecho: en Evolución solo pesajes + media de 7 días; «estimado», «no cuenta» y «esperado» en la ficha del peso. En Hoy, la minigráfica gris de los últimos 14 días.
 
 ## Otros
 - Notificaciones en el móvil (PWA con Web Push o app con Capacitor).

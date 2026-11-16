@@ -507,6 +507,19 @@ def list_workouts(conn, a=None, b=None, limit=200):
     return out
 
 
+def summary(conn, a, b):
+    """Resumen del periodo para Evolución: sesiones, tiempo, volumen y récords."""
+    ws = list_workouts(conn, a, b, 1000)
+    if not ws:
+        return {"sessions": 0}
+    from datetime import date
+    n_days = (date.fromisoformat(b) - date.fromisoformat(a)).days + 1
+    return {"sessions": len(ws), "per_week": round(len(ws) * 7 / n_days, 1),
+            "minutes": round(sum(w.get("duration_min") or 0 for w in ws)),
+            "volume": round(sum(w.get("volume_kg") or 0 for w in ws)),
+            "prs": sum(w.get("prs_count") or 0 for w in ws)}
+
+
 def day_workouts(conn, d):
     return list_workouts(conn, d, d)
 

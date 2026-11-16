@@ -75,7 +75,7 @@ async function act(fn, okMsg) {
 }
 
 // ----------------------------------------------------------------- estado
-const S = { view: "hoy", date: todayISO(), day: null, catalog: null, rev: null, progress: null, libFilter: null, libQuery: "", progDays: 90, energyOpen: false, sheetOpen: 0, pendingRefresh: false };
+const S = { view: "hoy", date: todayISO(), day: null, catalog: null, rev: null, progress: null, libFilter: null, libQuery: "", progDays: 30, energyOpen: false, sheetOpen: 0, pendingRefresh: false };
 
 async function loadCatalog() { S.catalog = await api("GET", "/api/catalog?all=1"); }
 async function loadDay() {
@@ -194,7 +194,16 @@ window.addEventListener("popstate", () => {
   const top = SHEET_STACK[SHEET_STACK.length - 1];
   if (top && top.pop) top.pop();
 });
+// Doble toque: un botón de acción (Guardar, Añadir, Marcar…) no hace lo mismo dos veces seguidas
+document.addEventListener("click", (e) => {
+  const b = e.target && e.target.closest ? e.target.closest("button.btn.primary, .sheet-f button.btn, button.rm-ok, .dlg button") : null;
+  if (!b) return;
+  const now = Date.now();
+  if (b._tapAt && now - b._tapAt < 900) { e.stopImmediatePropagation(); e.preventDefault(); return; }
+  b._tapAt = now;
+}, true);
 function sheet(title, body, footer, opts = {}) {
+  if (typeof hideTip === "function") hideTip();  // que no se quede encima el globo del dato que se tocó
   const tkey = typeof title === "string" ? title : null;
   if (tkey && LAST_SHEET && LAST_SHEET.key === tkey && LAST_SHEET.ctl.el.isConnected && !LAST_SHEET.ctl.el.parentNode.classList.contains("closing")
       && Date.now() - LAST_SHEET.t < 1200) return LAST_SHEET.ctl;
@@ -519,7 +528,7 @@ function partsBlock(parts, empty) {
       h("div", { class: "bd-pl" }, h("span", null, l), h("small", null, sub)),
       val == null ? (empty ? empty(k) : h("span", { class: "miss" }, "falta")) : h("div", { class: "bd-pv num" }, h("b", null, fmt(val))))))];
 }
-function energySheet(st, focus) {
+function energySheet(st, focus, sh0) {
   const t = st.totals, tg = st.target || {}, c = st.closure, en = st.energy, closed = st.status === "cerrado";
   const bal = st.balance, kc = t.kcal || 0;
   // balance que marcaba el objetivo: según gasto, la diferencia elegida; fijo, objetivo − gasto
@@ -585,8 +594,10 @@ function energySheet(st, focus) {
     h("span", { class: "cx-s" }, tx(`${+c.closed_at.slice(8, 10)}/${+c.closed_at.slice(5, 7)} · ${c.closed_at.slice(11, 16)}` ))) : null;
   const obs = closed && c && c.summary && (c.summary.observations || []).length
     ? h("div", { class: "bd-sec" }, h("div", { class: "bd-st" }, "Observaciones del cierre"), h("ul", { class: "bd-obs" }, c.summary.observations.map((o) => h("li", null, o)))) : null;
-  const esh = sheet(closed ? "Resumen del día" : "Desglose del día", [hero, eaten, burned, obs,
-    h("div", { class: "faint bd-foot" }, "El gasto es una estimación: tu metabolismo en reposo (según peso, altura, edad y sexo) + lo que te mueves en el día + tus pasos + tus entrenos + la digestión (10 % de lo que comes).")], null, { sub: dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" }), titleExtra: closedNote });
+  const eb = [dayNav(st, (st2) => energySheet(st2, null, esh)), hero, eaten, burned, obs,
+    h("div", { class: "faint bd-foot" }, "El gasto es una estimación: tu metabolismo en reposo (según peso, altura, edad y sexo) + lo que te mueves en el día + tus pasos + tus entrenos + la digestión (10 % de lo que comes).")];
+  const eopts = { titleExtra: closedNote }, et = closed ? "Resumen del día" : "Desglose del día";
+  const esh = sh0 ? (sh0.set(et, eb, null, eopts), sh0) : sheet(et, eb, null, eopts);
   if (focus === "gasto") setTimeout(() => { const b = esh.el.querySelector(".sheet-b"); if (b && burned.isConnected) b.scrollTo({ top: b.scrollTop + burned.getBoundingClientRect().top - b.getBoundingClientRect().top - 8, behavior: "smooth" }); burned.classList.add("bd-focus"); }, 120);
 }
 function energyTable(en, balance) {
@@ -632,8 +643,7 @@ function bodyStrip(st) {
         : h("div", { class: "v none" }, h("small", null, "Aún sin pesaje")))
         : h("div", { class: "v" }, h("span", null, fmt(day.weight_kg, 1)), h("small", null, "kg")))
       : h("div", { class: "v" }, el, h("small", null, "kg")),
-    h("div", { class: "s" }, [day.weight_kg == null && st.weight_interp != null ? "estimado" : null,
-      st.avg7 != null ? `media de 7\u00a0días ${fmt(st.avg7, 1)}` : null].filter(Boolean).join(" · ")),
+    day.weight_kg == null && st.weight_interp != null ? h("div", { class: "s" }, "estimado") : null,
     weightSpark(st.weights14));
   // Pasos: conectados al móvil → solo «Ver» (ficha con estadísticas); si no, se apuntan a mano y se ofrece conectar
   const auto = !!(S.pasos || {}).conectado && !((S.pasos || {}).off || []).includes("pasos");
@@ -667,24 +677,33 @@ function bodyStrip(st) {
   return h("div", { class: "strip" }, weight, steps, train);
 }
 
-// Mini gráfica del peso en Hoy (como las barras de los pasos): las 2 últimas semanas, pesajes y su media de 7 días
+// Mini gráfica del peso en Hoy: una línea gris de las 2 últimas semanas (pesajes con punto; los días sin pesaje, su estimación)
 function weightSpark(ws) {
-  ws = ws || []; const pts = ws.filter((x) => x.w != null || x.a != null);
-  if (pts.length < 2) return null;
-  const vs = pts.flatMap((x) => [x.w, x.a]).filter((v) => v != null), lo = Math.min(...vs) - 0.15, hi = Math.max(...vs) + 0.15;
-  const W = 140, H = 34, X = (i) => 3 + (i * (W - 6)) / (ws.length - 1), Y = (v) => 3 + (H - 6) * (1 - (v - lo) / (hi - lo || 1));
-  const line = ws.map((x, i) => x.a == null ? null : `${X(i).toFixed(1)},${Y(x.a).toFixed(1)}`).filter(Boolean).join(" ");
+  ws = (ws || []).map((x) => ({ ...x, v: x.w != null ? x.w : x.i }));
+  const k = ws.findIndex((x) => x.v != null); if (k < 0) return null; ws = ws.slice(k);
+  if (ws.filter((x) => x.v != null).length < 2) return null;
+  const vs = ws.map((x) => x.v).filter((v) => v != null), lo = Math.min(...vs) - 0.2, hi = Math.max(...vs) + 0.2;
+  const W = 140, H = 30, X = (i) => 3 + (i * (W - 6)) / Math.max(1, ws.length - 1), Y = (v) => 4 + (H - 8) * (1 - (v - lo) / (hi - lo || 1));
+  const line = ws.map((x, i) => x.v == null ? null : `${X(i).toFixed(1)},${Y(x.v).toFixed(1)}`).filter(Boolean).join(" ");
   const el = h("div", { class: "wspark" });
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><polyline points="${line}" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>` +
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><polyline points="${line}" class="wl"/>` +
     ws.map((x, i) => x.w == null ? "" : `<path d="M${X(i).toFixed(1)} ${Y(x.w).toFixed(1)}h0" class="wd"/>`).join("") + "</svg>";
   return el;
 }
-// Ficha de peso (al tocar el peso en Hoy): gráfica, media de 7 días, cambio semanal y la báscula; lo demás en Progreso
-async function weightSheet(st) {
+// ‹ día › en las fichas de un día (pasos, peso, desglose): el anterior o el siguiente sin salir de la ficha
+function dayNav(st, reopen) {
+  const today = st.date >= st.today;
+  const go = async (n) => { const d2 = addDays(st.date, n); if (d2 > st.today) return;
+    try { reopen(await api("GET", "/api/state?date=" + d2)); } catch (e) { toast(e.message, { error: true }); } };
+  return h("div", { class: "dnav" }, h("button", { class: "icon-btn round", "aria-label": "Día anterior", onclick: () => go(-1) }, icon("left")),
+    h("b", null, today ? "Hoy" : dateLabel(st.date, { weekday: "short", day: "numeric", month: "short" })),
+    h("button", { class: "icon-btn round", "aria-label": "Día siguiente", disabled: today, onclick: () => go(1) }, icon("right")));
+}
+async function weightSheet(st, sh0) {
   // Ficha del peso de ESE día (pesaje, hora, composición y otros pesajes del día) + la gráfica; lo demás, en Progreso
   let days = 30;
   const sub = dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" });
-  const sh = sheet("Peso", h("div", { class: "muted" }, "Cargando…"), null, { wide: true, sub });
+  const sh = sh0 || sheet("Peso", h("div", { class: "muted" }, "Cargando…"), null, { wide: true });
   const draw = async () => {
     const P = await api("GET", `/api/progress?days=${days}&weeks=4`).catch(() => null);
     if (!P) return;
@@ -695,7 +714,7 @@ async function weightSheet(st) {
     const scale = !!(S.pasos || {}).bascula && !((S.pasos || {}).off || []).includes("bascula");
     const src = main ? ({ movil: "báscula (llegó sola)", xiaomi: "captura de la báscula" }[main.source] || "apuntado") : "apuntado a mano";
     const tiles = main ? bodyTiles(main) : [];
-    sh.set("Peso", [
+    sh.set("Peso", [dayNav(st, (st2) => weightSheet(st2, sh)),
       h("div", { class: "wday" },
         h("div", { class: "wday-v" }, dayW != null ? [h("b", { class: "num" }, fmt(dayW, 1)), h("span", null, " kg")]
           : st.weight_interp != null ? [h("b", { class: "num interp" }, fmt(st.weight_interp, 1)), h("span", null, " kg"), h("span", { class: "est-pill" }, "Estimado")] : h("span", { class: "muted" }, "Sin pesaje")),
@@ -710,7 +729,7 @@ async function weightSheet(st) {
       h("div", { class: "row", style: { margin: "14px 0 6px" } }, h("b", null, "Evolución"), h("span", { class: "grow" }),
         h("div", { class: "seg" }, [[7, "7 d"], [30, "30 d"], [90, "90 d"]].map(([d, l]) => h("button", { class: days === d ? "on" : "", onclick: () => { days = d; draw(); } }, l)))),
       h("div", { class: "card panel" }, weightChart(ws, P.body, st.date))],
-      scale ? sheetFoot(`Último envío de la báscula: ${agoTxt(S.pasos.bascula)}`) : sheetFoot(null, "bascula"), { sub });
+      scale ? sheetFoot(`Último envío de la báscula: ${agoTxt(S.pasos.bascula)}`) : sheetFoot(null, "bascula"), { wide: true });
   };
   draw();
 }
@@ -787,12 +806,7 @@ async function stepsStatsSheet(st, sh0) {
       `${String(i).padStart(2, "0")}:00–${String(i + 1).padStart(2, "0")}:00\n${fut ? "—" : fmt(v) + " pasos"}`);
   }));
   const peak = hrs.reduce((b, v, i) => (v > hrs[b] ? i : b), 0);
-  // ‹ día › como en las apps de pasos: el día anterior o el siguiente sin salir de la ficha
-  const go = async (n) => { const d2 = addDays(st.date, n); if (d2 > st.today) return;
-    try { const st2 = await api("GET", "/api/state?date=" + d2); stepsStatsSheet(st2, sh); } catch (e) { toast(e.message, { error: true }); } };
-  const nav = h("div", { class: "dnav" }, h("button", { class: "icon-btn round", "aria-label": "Día anterior", onclick: () => go(-1) }, icon("left")),
-    h("b", null, today ? "Hoy" : dateLabel(st.date, { weekday: "short", day: "numeric", month: "short" })),
-    h("button", { class: "icon-btn round", "aria-label": "Día siguiente", disabled: today, onclick: () => go(1) }, icon("right")));
+  const nav = dayNav(st, (st2) => stepsStatsSheet(st2, sh));
   sh.set("Pasos", [nav,
     h("div", { class: "sh2" },
       h("div", { class: "sh2-ring" }, ring, h("div", { class: "sh2-in" }, h("b", { class: "num" }, fmt(steps)), h("span", null, "pasos"),
@@ -1434,7 +1448,7 @@ function amountForm(food, init) {
   const du0 = defUnit(food);
   // la base «100 g» no es una medida para elegir (para eso están los gramos)
   const units = (food.units || []).filter((u, _, all) => !(/^p:/.test(u.key) && /^100 (g|ml)$/.test(u.label) && all.some((x) => x.key === "g" || x.key === "ml")))
-    .sort((a, b) => (du0 && b.key === du0.key) - (du0 && a.key === du0.key));
+    .sort((a, b) => ((du0 && b.key === du0.key) - (du0 && a.key === du0.key)) || (/^p:/.test(b.key) - /^p:/.test(a.key)));  // la de por defecto, luego las medidas, luego gramos
   let unit = init.unit_key, qty = init.quantity;
   // Por defecto: su medida («1 unidad») con 1; si no tiene, en gramos y vacío (lo escribes tú)
   if (!unit || !units.find((u) => u.key === unit)) {
@@ -1445,7 +1459,8 @@ function amountForm(food, init) {
   // Raciones por unidad («1 barrita (23 g)»): si solo hay una, el chip dice «unidades» y abajo se explica cuánto es una
   const UNIT_RX = /^1\s+([^()]+?)\s*\(([^)]+)\)$/;
   const perUnit = units.filter((u) => u.key.startsWith("p:") && UNIT_RX.test(u.label));
-  const uLabel = (u) => ({ g: "gramos", ml: "ml", rac: "raciones", total: "receta entera", x: "ración" })[u.key] || (perUnit.length === 1 && perUnit[0] === u ? "unidades" : u.label);
+  // cada medida con su nombre corto («lata», «cucharada»); los gramos, «gramos»
+  const uLabel = (u) => ({ g: "gramos", ml: "ml", rac: "raciones", total: "receta entera", x: "ración" })[u.key] || u.label.replace(/\s*\([^)]*\)\s*$/, "").replace(/^1\s+/, "");
   const uHint = (u) => { const m = perUnit.length === 1 && perUnit[0] === u && u.label.match(UNIT_RX); return m ? `1 unidad = 1 ${m[1]} (${m[2]})` : null; };
   const qIn = h("input", { class: "qty-in num", value: String(qty ?? "").replace(".", ","), inputMode: "decimal", "aria-label": "Cantidad" });
   const isMass = () => ["g", "ml"].includes(unit);
@@ -1462,22 +1477,23 @@ function amountForm(food, init) {
     drawUnits(); draw();
   } }, uLabel(u))));
   const meal = mealChips(init.meal), timeIn = h("input", { class: "input", type: "time", value: init.time || "" });
-  const prev = h("div", { class: "mprev" }), note = h("div", { class: "note" });
+  const prev = h("div", { class: "mprev mprev1" }), note = h("div", { class: "note" });
   let qtyEst = !!init.qty_est;
   const qeBtn = h("button", { type: "button", class: "qe-btn" + (qtyEst ? " on" : ""), title: "Márcalo si no lo has pesado ni contado", onclick: () => { qtyEst = !qtyEst; qeBtn.classList.toggle("on", qtyEst); draw(); } },
     h("i", { class: "qe-box" }, icon("check")), "Cantidad a ojo (sin pesar)");
   const draw = () => {
     const u = units.find((x) => x.key === unit), q = parseNum(qIn.value);
     const n = u && q > 0 ? scaleN(u.per, q) : { kcal: null, protein_g: null, carbs_g: null, fat_g: null, missing: [] };
-    prev.replaceChildren(
-      h("div", { class: "mp k" }, h("b", { class: "num" }, v(n, "kcal")), h("span", null, "kcal")),
-      ...[["protein_g", "Proteína", "p"], ["carbs_g", "Carbohidratos", "c"], ["fat_g", "Grasas", "g"]].map(([f, l, c]) =>
-        h("div", { class: "mp " + c }, h("b", { class: "num" }, v(n, f, 1), h("small", null, " g")), h("span", null, l))));
+    // Lo que suma: las kcal y los macros en una línea (y cuánto es, si es una medida: «2 × lata = 660 ml»)
+    const w = u && u.amount && ["g", "ml"].includes(u.unit) && q > 0 && !isMass() ? ` · ${fmt(u.amount * q)} ${u.unit}` : "";
+    prev.replaceChildren(h("div", { class: "mp2" }, h("b", { class: "num" }, v(n, "kcal")), h("span", null, " kcal" + w)), chipsOf(n));
     if (!u) { note.textContent = "Este alimento no tiene unidades registrables."; note.className = "note warn"; return; }
     const miss = u.per.missing || [];
-    note.className = "note" + (miss.length || ["pendiente", "provisional"].includes(u.quality) ? " warn" : "");
+    // abajo solo lo que hay que saber: valores a ojo o que faltan
+    const warn = miss.length || ["estimacion", "provisional", "pendiente"].includes(u.quality);
+    note.className = "note warn" + (warn ? "" : " hidden");
     const vq = ["estimacion", "provisional", "pendiente"].includes(u.quality) ? "Valores a ojo (no son de la etiqueta)" : "Valores de " + (u.quality === "etiqueta" ? "la etiqueta" : "tu histórico");
-    note.textContent = [uHint(u), vq, qtyEst ? "cantidad a ojo" : null, uHint(u) ? null : u.basis, miss.length === 4 ? "sin datos: se registra como pendiente (no cuenta como 0)" : miss.length ? "macros incompletos: no se suman como 0" : null].filter(Boolean).join(" · ");
+    note.textContent = [vq,  miss.length === 4 ? "sin datos: se registra como pendiente (no cuenta como 0)" : miss.length ? "macros incompletos: no se suman como 0" : null].filter(Boolean).join(" · ");
   };
   qIn.addEventListener("input", draw);
   const form = { onEnter: null };
@@ -1494,9 +1510,8 @@ function amountForm(food, init) {
       h("div", { class: "stepper" }, h("button", { type: "button", onclick: () => stepBy(-1), "aria-label": "Menos" }, icon("minus")), qIn,
         h("button", { type: "button", onclick: () => stepBy(1), "aria-label": "Más" }, icon("plus"))),
       unitsEl),
-    qeBtn,
     prev, note,
-    whenRow(meal, timeIn));
+    whenRow(meal, timeIn), qeBtn);
   form.value = () => {
     const q = parseNum(qIn.value);
     if (!(q > 0)) { toast(qIn.value.trim() ? "Cantidad no válida" : "Pon la cantidad", { error: true }); qIn.focus(); return null; }
@@ -1515,10 +1530,11 @@ function estimateFields(init) {
   const meal = mealChips(init.meal), timeIn = h("input", { class: "input", type: "time", value: init.time || "" });
   const el = h("div", null,
     h("div", { class: "grid2" }, field("Qué es (un plato o bebida)", name), field("Cantidad", qty)),
-    h("div", { class: "grid4 gap-top" }, field("kcal", kc), field("Proteína (g)", p), field("Carbohidratos (g)", c), field("Grasas (g)", g)),
-    h("div", { class: "grid2 gap-top" }, field("Rango de kcal (opcional)", h("div", { class: "row" }, mn, h("span", { class: "faint" }, "–"), mx)), field("Notas", nota)),
+    h("div", { class: "grid4 gap-top" }, field("kcal", kc), field("Proteína", p), field("Carbos", c), field("Grasas", g)),
+    h("div", { class: "gap-top" }, field("Detalles", nota)),
     whenRow(meal, timeIn),
-    h("div", { class: "note" }, "Se guarda como estimación. Lo que no sepas, déjalo vacío: no cuenta como 0. También puedes describírmelo por el chat."));
+    h("details", { class: "fe-more" }, h("summary", null, "Rango de kcal", h("span", { class: "faint" }, " · opcional")), h("div", { class: "row" }, mn, h("span", { class: "faint" }, "–"), mx)),
+    h("div", { class: "note" }, "Lo que no sepas, déjalo vacío (no cuenta como 0)."));
   setTimeout(() => name.focus(), 60);
   return { el, value: () => {
     const vals = { kcal: parseNum(kc.value), protein_g: parseNum(p.value), carbs_g: parseNum(c.value), fat_g: parseNum(g.value), kcal_min: parseNum(mn.value), kcal_max: parseNum(mx.value) };
@@ -1741,9 +1757,8 @@ function viewLibrary() {
   const byName = (a, b) => (b.favorite - a.favorite) || a.name.localeCompare(b.name, "es");
   const order = (L) => [...L].sort(S.libSort === "uso" ? (a, b) => (b.uses_60d || 0) - (a.uses_60d || 0) || when(b).localeCompare(when(a))
     : S.libSort === "nombre" ? byName : (a, b) => when(b).localeCompare(when(a)) || byName(a, b));
-  const sortSeg = h("div", { class: "seg lib-sort" }, [["reciente", "Recientes"], ["uso", "Más usados"], ["nombre", "A–Z"]].map(([k, l]) =>
-    h("button", { class: S.libSort === k ? "on" : "", onclick: (e) => { S.libSort = k; try { localStorage.setItem("libSort", k); } catch (er) { /* sin almacenamiento */ }
-      [...sortSeg.children].forEach((b) => b.classList.toggle("on", b === e.currentTarget)); drawGrid(); } }, l)));
+  const sortSeg = h("select", { class: "input lib-src lib-sort", title: "Orden", onchange: (e) => { S.libSort = e.target.value; try { localStorage.setItem("libSort", S.libSort); } catch (er) { /* sin almacenamiento */ } drawGrid(); } },
+    [["reciente", "Recientes"], ["uso", "Más usados"], ["nombre", "A–Z"]].map(([k, l]) => h("option", { value: k, selected: S.libSort === k }, l)));
   const drawGrid = () => {
     const q = norm(S.libQuery), F = S.libFilter;
     const match = (n) => !q || norm(n).includes(q);
@@ -1765,15 +1780,19 @@ function viewLibrary() {
   };
   const chips = h("div", { class: "chips" }, filters.map(([k, l]) => h("button", { class: "chip" + (S.libFilter === k ? " on" : ""), onclick: () => { S.libFilter = k; render(); } }, l)));
   drawGrid();
+  // Cabecera: buscar y «+ Nuevo»; debajo, el tipo; y a la derecha, pequeños, el orden y la fuente
+  const newBtn = h("button", { class: "btn primary lib-new", onclick: (e) => { e.stopPropagation(); newMenu(e.currentTarget); } }, icon("plus"), h("span", null, "Nuevo"));
+  const newMenu = (anchor) => {
+    const old = document.querySelector(".lib-menu"); if (old) { old.remove(); return; }
+    const m = h("div", { class: "acct-menu lib-menu" }, [["Producto", () => foodEditor(null)], ["Receta", () => recipeEditor(null)], ["Comida habitual", () => templateEditor(null)], ["Suplemento", () => suppCatalogSheet()]]
+      .map(([l, fn]) => h("button", { onclick: () => { m.remove(); fn(); } }, l)));
+    document.body.append(m); const r = anchor.getBoundingClientRect();
+    m.style.top = r.bottom + 6 + "px"; m.style.right = Math.max(8, window.innerWidth - r.right) + "px";
+    setTimeout(() => document.addEventListener("click", function off(ev) { if (!m.contains(ev.target)) { m.remove(); document.removeEventListener("click", off); } }), 0);
+  };
   return h("div", { class: "lib" },
-    h("div", { class: "row wrap", style: { marginBottom: "12px" } },
-      h("div", { class: "search grow", style: { minWidth: "220px" } }, icon("search"), search),
-      h("button", { class: "btn", onclick: () => foodEditor(null) }, "+ Producto"),
-      h("button", { class: "btn", onclick: () => recipeEditor(null) }, "+ Receta"),
-      h("button", { class: "btn", onclick: () => templateEditor(null) }, "+ Comida habitual"),
-      S.libFilter === "supl" ? h("button", { class: "btn", onclick: () => suppCatalogSheet() }, "+ Suplemento") : null),
+    h("div", { class: "lib-top" }, h("div", { class: "search grow" }, icon("search"), search), newBtn),
     h("div", { class: "lib-bar" }, chips, h("div", { class: "lib-tools" }, srcSel, sortSeg)),
-
     grid);
 }
 
@@ -1854,7 +1873,7 @@ async function suppCatalogSheet() {
 // Una medida sin peso puede llevar sus propios valores (p. ej. «1 pico» si no sabes cuánto pesa).
 const MK = ["kcal", "protein_g", "carbs_g", "fat_g"], MKL = { kcal: "kcal", protein_g: "Proteína", carbs_g: "Carbos", fat_g: "Grasas" };
 const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
-function measuresEditor(f, onDirty) {
+function measuresEditor(f, onDirty, onUnlock) {
   const P = (f.portions || []).filter((p) => !p.deleted);
   const isW = (p) => p && ["g", "ml"].includes(p.unit) && p.amount > 0;
   const base0 = P.find((p) => p.is_default && isW(p)) || P.find(isW) || null;
@@ -1864,107 +1883,99 @@ function measuresEditor(f, onDirty) {
   const vIn = {};
   for (const k of MK) { vIn[k] = numIn(base0 ? per100(base0, k) : unit0 ? unit0[k] : null); vIn[k].addEventListener("input", () => { refresh(); onDirty(); }); }
   const unitLabel = h("input", { class: "input", value: unit0 ? unit0.label : "1 unidad", placeholder: "p. ej. 1 cápsula" });
-  // La base que no era de 100 (p. ej. «1 ración (30 g)») sigue como medida
-  const baseId = base0 && Math.abs(base0.amount - 100) < 1e-6 ? base0.id : null;
-  const deleted = [];
-  const meds = [];
+  const baseId = base0 && Math.abs(base0.amount - 100) < 1e-6 ? base0.id : null;  // la base que no era de 100 (p. ej. «1 ración (30 g)») sigue como medida
+  const deleted = [], meds = [];
+  let locked = false, def = null;  // def: la medida por defecto (objeto) o null
   // Cada medida se construye una vez (si se rehiciera al escribir, el móvil cerraría el teclado en cada letra)
   const addMed = (p, fresh) => {
-    const m = { id: p.id || null, label: h("input", { class: "input", value: p.label || "", placeholder: "p. ej. 1 lata, 1 cucharada" }),
+    // se ve solo el nombre («lata»); al guardar queda «1 lata (330 ml)»
+    let shown = isW(p) ? (p.label || "").replace(/\s*\(\s*[\d.,]+\s*(g|ml)\s*\)\s*$/i, "").replace(/^1\s+/, "") : (p.label || "");
+    if (/^[\d.,]+\s*(g|ml)$/i.test(shown)) shown = "";
+    const m = { id: p.id || null, label: h("input", { class: "input", value: shown, placeholder: "Nombre: lata, cucharada…" }),
       amt: numIn(isW(p) ? p.amount : null, mode === "ml" ? "ml" : "g"), own: {} };
     for (const k of MK) m.own[k] = numIn(isW(p) ? null : p[k]);
     m.unitTx = h("span", null, mode);
     m.wEl = h("label", { class: "med-w" }, m.amt, m.unitTx);
+    m.star = h("button", { type: "button", class: "med-star", title: "Que salga por defecto al añadirlo", onclick: () => { def = m; refresh(); onDirty(); } }, "★");
     m.vEl = h("div", { class: "med-v num" });
-    m.hint = h("div", { class: "faint sm" }, "Sin peso: pon su peso, o sus valores si no lo sabes");
-    m.ownEl = h("div", { class: "med-own" }, m.hint, h("div", { class: "grid4" }, MK.map((k) => field(MKL[k], m.own[k]))));
+    m.ownEl = h("div", { class: "med-own" }, h("div", { class: "faint sm" }, "Sin peso: pon cuánto pesa o, si no lo sabes, sus valores"), h("div", { class: "grid4" }, MK.map((k) => field(MKL[k], m.own[k]))));
     m.x = h("button", { type: "button", class: "icon-btn med-x", title: "Quitar esta medida", onclick: () => {
-      const i = meds.indexOf(m); if (i < 0) return; if (m.id) deleted.push(m.id);
-      const d = def === "m" + i ? "" : def.startsWith("m") && +def.slice(1) > i ? "m" + (+def.slice(1) - 1) : def;
-      meds.splice(i, 1); def = d; drawMeds(); onDirty(); } }, icon("x"));
-    m.el = h("div", { class: "med" }, h("div", { class: "med-top" }, m.label, m.wEl, m.x), m.vEl, m.ownEl);
+      const i = meds.indexOf(m); if (i < 0) return; if (m.id) deleted.push(m.id); meds.splice(i, 1); if (def === m) def = null; drawMeds(); onDirty(); } }, icon("x"));
+    m.el = h("div", { class: "med" }, h("div", { class: "med-top" }, m.star, m.label, m.wEl, m.x), m.vEl, m.ownEl);
     for (const el of [m.label, m.amt, ...Object.values(m.own)]) el.addEventListener("input", () => { refresh(); onDirty(); });
     meds.push(m); if (fresh) { drawMeds(); setTimeout(() => m.label.focus(), 30); }
     return m;
   };
   for (const p of P) if (p !== unit0 && p.id !== baseId) addMed(p);
-  // Por defecto: la medida con la que se apunta (o por peso)
-  let def = (() => { const k = f.default_unit || ""; let i = meds.findIndex((m) => m.id && "p:" + m.id === k);
-    // sin elegir: si la ración base era una medida («1 cacito (5 g)»), se sigue apuntando con ella
-    if (i < 0 && !k && base0 && base0.id !== baseId) i = meds.findIndex((m) => m.id === base0.id);
-    return i >= 0 ? "m" + i : ""; })();
+  { const k = f.default_unit || ""; def = meds.find((m) => m.id && "p:" + m.id === k) || null;
+    if (!def && !k && base0 && base0.id !== baseId) def = meds.find((m) => m.id === base0.id) || null; }
+  // Por defecto al añadir: si hay una medida, esa; si hay varias, la de la estrella (o la primera); si no hay, los gramos
+  const defMed = () => (mode === "ud" ? null : meds.length === 1 ? meds[0] : def && meds.includes(def) ? def : meds[0] || null);
   const vals = () => Object.fromEntries(MK.map((k) => [k, parseNum(vIn[k].value)]));
   const calc = (m) => { const a = parseNum(m.amt.value), v = vals();
     return a > 0 && mode !== "ud" ? Object.fromEntries(MK.map((k) => [k, v[k] == null || Number.isNaN(v[k]) ? null : r1((v[k] * a) / 100)])) : null; };
-  const modeSeg = h("div", { class: "seg full" });
-  const valsBox = h("div"), medsBox = h("div", { class: "meds" }), defSel = h("select", { class: "input" });
-  let locked = false;
-  const addBtn = h("button", { type: "button", class: "btn sm", onclick: () => addMed({}, true) }, icon("plus"), "Añadir medida");
-  const medName = (m, i) => m.label.value.trim() || (parseNum(m.amt.value) ? `${fmt(parseNum(m.amt.value))} ${mode}` : "medida " + (i + 1));
-  // Lo que cambia al escribir: los valores calculados, la marca de «por defecto» y los nombres del desplegable
+  const modeSel = h("select", { class: "mx-mode", title: "Cómo vienen los valores en la etiqueta" },
+    [["g", "por 100 g"], ["ml", "por 100 ml"], ["ud", "por unidad"]].map(([k, l]) => h("option", { value: k, selected: k === mode }, l)));
+  modeSel.addEventListener("change", () => { mode = modeSel.value; drawVals(); drawMeds(); onDirty(); });
+  const lockLnk = h("button", { type: "button", class: "mx-lock hidden", title: "Los valores vienen de Open Food Facts", onclick: () => onUnlock && onUnlock() }, icon("lock"), "Open Food Facts · ", h("u", null, "editar"));
+  const valsBox = h("div"), medsBox = h("div", { class: "meds" });
+  const addBtn = h("button", { type: "button", class: "lnk-btn mx-add", onclick: () => addMed({}, true) }, "+ Añadir medida");
   function refresh() {
-    meds.forEach((m, i) => {
+    const dm = defMed();
+    meds.forEach((m) => {
       const c = calc(m), hasW = parseNum(m.amt.value) > 0;
       m.wEl.classList.toggle("hidden", mode === "ud"); m.unitTx.textContent = mode; m.amt.placeholder = mode === "ml" ? "ml" : "g";
-      m.vEl.classList.toggle("hidden", !c); m.ownEl.classList.toggle("hidden", !!c); m.hint.classList.toggle("hidden", mode === "ud" || hasW);
+      m.vEl.classList.toggle("hidden", !c); m.ownEl.classList.toggle("hidden", !!c || (mode !== "ud" && !m.label.value.trim() && !hasW));
       if (c) m.vEl.textContent = `${c.kcal == null ? "?" : fmt(c.kcal)} kcal · P ${c.protein_g == null ? "?" : fmt(c.protein_g, 1)} · C ${c.carbs_g == null ? "?" : fmt(c.carbs_g, 1)} · G ${c.fat_g == null ? "?" : fmt(c.fat_g, 1)}`;
-      m.el.classList.toggle("def", def === "m" + i);
+      m.star.classList.toggle("hidden", meds.length < 2); m.star.classList.toggle("on", dm === m);
+      m.el.classList.toggle("def", dm === m && meds.length > 1);
     });
-    defSel.replaceChildren(...[...(mode !== "ud" ? [["", mode === "ml" ? "Por volumen (ml)" : "Por peso (g)"]] : [["", unitLabel.value || "1 unidad"]]),
-      ...meds.map((m, i) => ["m" + i, medName(m, i)])].map(([k, l]) => h("option", { value: k, selected: k === def }, l)));
   }
-  // Lo que cambia la estructura: añadir o quitar una medida, cambiar de modo
   function drawMeds() {
     medsBox.replaceChildren(...meds.map((m) => m.el));
-    if (!meds.length) medsBox.append(h("div", { class: "faint sm med-empty" }, mode === "ud" ? "Solo se apunta por unidades." : "Sin medidas: se apunta por peso. Añade «1 lata», «1 cucharada»… con su peso."));
+    if (!meds.length) medsBox.append(h("div", { class: "faint sm med-empty" }, mode === "ud" ? "Se apunta por unidades." : "Se apunta en gramos. Añade «lata», «cucharada»… con lo que pesa."));
     refresh(); lockApply();
   }
-  defSel.addEventListener("change", () => { def = defSel.value; refresh(); onDirty(); });
-  unitLabel.addEventListener("input", () => { refresh(); onDirty(); });
-  const drawMode = () => {
-    modeSeg.replaceChildren(...[["g", "100 g"], ["ml", "100 ml"], ["ud", "1 unidad"]].map(([k, l]) => h("button", { type: "button", class: mode === k ? "on" : "", disabled: locked,
-      onclick: () => { if (mode === k) return; mode = k; drawMode(); drawMeds(); onDirty(); } }, l)));
-    valsBox.replaceChildren(...[mode === "ud" ? field("Qué es una unidad", unitLabel) : null, h("div", { class: "grid4" + (mode === "ud" ? " gap-top" : "") }, MK.map((k) => field(MKL[k], vIn[k])))].filter(Boolean));
-  };
-  // Con los valores bloqueados (Open Food Facts) las medidas se siguen pudiendo añadir, cambiar y quitar: solo son su peso
-  function lockApply() { for (const k of MK) vIn[k].disabled = locked; unitLabel.disabled = locked; modeSeg.querySelectorAll("button").forEach((b) => { b.disabled = locked; }); }
-  drawMode(); drawMeds();
+  const drawVals = () => valsBox.replaceChildren(...[mode === "ud" ? field("Una unidad es", unitLabel) : null,
+    h("div", { class: "grid4 mx-vals" }, MK.map((k) => field(MKL[k], vIn[k])))].filter(Boolean));
+  function lockApply() { for (const k of MK) vIn[k].disabled = locked; unitLabel.disabled = locked; modeSel.disabled = locked; lockLnk.classList.toggle("hidden", !locked); }
+  drawVals(); drawMeds();
   const el = h("div", { class: "mx" },
-    h("div", { class: "mx-h" }, h("b", null, "Valores por"), modeSeg), valsBox,
-    h("div", { class: "mx-h mx-h2" }, h("b", null, "Medidas"), h("span", { class: "faint sm" }, "su peso y ya: los valores salen solos")), medsBox,
-    h("div", { class: "row mx-add" }, addBtn), field("Al añadirlo, por defecto", defSel));
+    h("div", { class: "mx-h" }, h("b", null, "Valores"), modeSel, h("span", { class: "grow" }), lockLnk), valsBox,
+    h("div", { class: "mx-h mx-h2" }, h("b", null, "Medidas"), h("span", { class: "faint sm" }, "nombre y cuánto pesa")), medsBox, addBtn);
   return {
     el,
-    lock(on) { locked = on; drawMode(); drawMeds(); },
+    lock(on) { locked = on; lockApply(); },
     // Lo que trae Open Food Facts: valores por 100 y su ración o unidad («1 lata (500 ml)»)
     fromOff(o) {
-      mode = o.unit === "ml" ? "ml" : "g";
+      mode = o.unit === "ml" ? "ml" : "g"; modeSel.value = mode;
       for (const k of MK) vIn[k].value = o.per100[k] == null ? "" : String(o.per100[k]).replace(".", ",");
       if (o.serving) {
-        let i = meds.findIndex((m) => Math.abs((parseNum(m.amt.value) || 0) - o.serving.amount) < 0.6);
-        if (i < 0) { addMed({ label: o.serving.label, amount: o.serving.amount, unit: mode }); i = meds.length - 1; }
-        else if (!meds[i].label.value.trim()) meds[i].label.value = o.serving.label;
-        if (o.serving.per_unit) def = "m" + i;
+        let m = meds.find((x) => Math.abs((parseNum(x.amt.value) || 0) - o.serving.amount) < 0.6);
+        if (!m) m = addMed({ label: o.serving.label.replace(/\s*\([^)]*\)\s*$/, ""), amount: o.serving.amount, unit: mode });
+        else if (!m.label.value.trim()) m.label.value = o.serving.label;
+        if (o.serving.per_unit) def = m;
       }
-      drawMode(); drawMeds();
+      drawVals(); drawMeds();
     },
     data(quality) {
       const v = vals(); if (Object.values(v).some(Number.isNaN)) return { error: "Hay un número no válido" };
-      const out = [];
-      if (mode === "ud") out.push({ id: unit0 ? unit0.id : null, label: unitLabel.value.trim() || "1 unidad", amount: 1, unit: "ud", quality, is_default: true, ...v, ...(def === "" && !(unit0 && unit0.id) ? { by_unit: true } : {}) });
+      const out = [], dm = defMed();
+      if (mode === "ud") out.push({ id: unit0 ? unit0.id : null, label: unitLabel.value.trim() || "1 unidad", amount: 1, unit: "ud", quality, is_default: true, ...v, ...(!(unit0 && unit0.id) ? { by_unit: true } : {}) });
       else out.push({ id: baseId, label: "100 " + mode, amount: 100, unit: mode, quality, is_default: true, ...v });
       if (mode !== "ud" && unit0 && unit0.id) deleted.push(unit0.id);
       if (mode === "ud" && baseId) deleted.push(baseId);
-      for (const [i, m] of meds.entries()) {
+      for (const m of meds) {
         const a = parseNum(m.amt.value), c = calc(m), own = Object.fromEntries(MK.map((k) => [k, parseNum(m.own[k].value)]));
         if (Number.isNaN(a) || Object.values(own).some(Number.isNaN)) return { error: "Hay un número no válido en las medidas" };
-        const label = m.label.value.trim() || (a ? `${fmt(a)} ${mode}` : "");
-        if (!label) continue;  // fila vacía
-        if (!c && MK.every((k) => own[k] == null)) return { error: `Pon el peso de «${label}» (o sus valores)` };
-        out.push({ id: m.id, label, amount: c ? a : null, unit: c ? mode : "ud", quality, is_default: false, ...(c || own), ...(def === "m" + i && !m.id ? { by_unit: true } : {}) });
+        let label = m.label.value.trim();
+        if (!label && !a) continue;  // fila vacía
+        if (!label) label = `${fmt(a)} ${mode}`;
+        else if (c) label = `${/^\d/.test(label) ? "" : "1 "}${label.replace(/\s*\([^)]*\)\s*$/, "")} (${fmt(a)} ${mode})`;  // «lata» → «1 lata (330 ml)»
+        if (!c && MK.every((k) => own[k] == null)) return { error: `Pon cuánto pesa «${label}» (o sus valores)` };
+        out.push({ id: m.id, label, amount: c ? a : null, unit: c ? mode : "ud", quality, is_default: false, ...(c || own), ...(dm === m && !m.id ? { by_unit: true } : {}) });
       }
       for (const id of deleted) out.push({ id, deleted: true });
-      const dm = def.startsWith("m") ? meds[+def.slice(1)] : null;
       const default_unit = dm ? (dm.id ? "p:" + dm.id : undefined) : mode === "ud" ? (unit0 && unit0.id ? "p:" + unit0.id : undefined) : "";
       return { portions: out, default_unit };
     },
@@ -1991,7 +2002,9 @@ function foodEditor(f, opt = {}) {
   srcSel.addEventListener("change", () => { srcOther.classList.toggle("hidden", srcSel.value !== "otra"); const st_ = (SRC.find((x) => x[0] === srcSel.value) || [])[2]; if (st_) status.value = st_; });
   const sourceText = () => ({ etiqueta: "Etiqueta", off: "Open Food Facts" + (offCode ? " · " + offCode : ""), estimacion: "Estimación", otra: srcOther.value.trim() || null })[srcSel.value];
   const notes = h("textarea", { class: "input", rows: 2, placeholder: "Notas" }, f.notes || "");
-  const mx = measuresEditor(f, () => { if (typeof sh !== "undefined" && sh && sh.markDirty) sh.markDirty(); });
+  const dirtyF = () => { if (typeof sh !== "undefined" && sh && sh.markDirty) sh.markDirty(); };
+  // Valores de Open Food Facts: bloqueados; «editar» los pasa a mano (y la fuente deja de ser Open Food Facts)
+  const mx = measuresEditor(f, dirtyF, () => { srcSel.value = "etiqueta"; srcSel.dispatchEvent(new Event("change")); dirtyF(); });
   const applyOpen = h("input", { type: "checkbox", checked: true });
   const orig = !isNew && (f.original_name || f.historical_text || f.import_note) ? h("details", { style: { marginTop: "12px" } }, h("summary", null, "Origen e historial del dato"),
     h("pre", { class: "orig" }, [f.original_name && "Nombre original: " + f.original_name, f.previous_name && "Nombre anterior: " + f.previous_name, f.code && "Código: " + f.code,
@@ -2052,26 +2065,26 @@ function foodEditor(f, opt = {}) {
   const showSched = () => sched.el.classList.toggle("hidden", !/suplement/i.test(cat.value));
   cat.addEventListener("input", showSched); showSched();
   // Si los valores vienen de Open Food Facts, quedan bloqueados; para cambiarlos se pasa a «a mano» (y deja de ser de Open Food Facts)
-  const lockBar = h("div", { class: "off-lock hidden" }, icon("lock"),
-    h("span", { class: "grow" }, h("b", null, "Valores de Open Food Facts"), h("small", null, "Para cambiarlos, pásalo a mano")),
-    h("button", { type: "button", class: "btn sm", onclick: () => { srcSel.value = "etiqueta"; srcSel.dispatchEvent(new Event("change")); if (sh && sh.markDirty) sh.markDirty(); } }, "Editar a mano"));
-  applyLock = () => { const on = srcSel.value === "off"; lockBar.classList.toggle("hidden", !on); mx.lock(on); };
+  applyLock = () => mx.lock(srcSel.value === "off");
   srcSel.addEventListener("change", () => applyLock());
-  const body = [dl, fileIn, completeBtn, offNote, photoBox, credit,
-    h("div", { class: "grid2" }, h("div", null, h("label", { class: "f" }, "Nombre", h("i", { class: "req" }, " *")), name), h("div", null, h("label", { class: "f" }, "Estado del dato"), status)),
-    h("div", { class: "grid3 src-grid", style: { marginTop: "10px" } }, h("div", null, h("label", { class: "f" }, "Categoría"), cat), h("div", null, h("label", { class: "f" }, "Marca"), brand), h("div", null, h("label", { class: "f" }, "Fuente"), source)),
-    h("div", { class: "sec-t" }, "Valores y medidas"),
-    lockBar, mx.el,
-    h("div", { class: "note" }, "Valores vacíos = desconocidos (no cuentan como 0)."),
-    sched.el,
-    h("div", { style: { marginTop: "10px" } }, h("label", { class: "f" }, "Notas"), notes),
+  // Lo importante a la vista (foto, nombre, valores y medidas); lo demás, en «Más datos»
+  const more = h("details", { class: "fe-more" }, h("summary", null, "Más datos", h("span", { class: "faint" }, " · marca, categoría, fuente, notas")),
+    h("div", { class: "grid2" }, field("Marca", brand), field("Categoría", cat)),
+    h("div", { class: "grid2 gap-top" }, field("De dónde salen los valores", source), field("Estado del dato", status)),
+    h("div", { class: "gap-top" }, field("Notas", notes)),
     !isNew ? h("label", { class: "note row", style: { gap: "6px" } }, applyOpen, "Corregir también lo ya apuntado (todos los días, también los cerrados)") : null,
-    orig];
+    credit, orig);
+  const body = [dl, fileIn, completeBtn, offNote,
+    h("div", { class: "fe-top" }, photoBox, h("div", { class: "grow" }, h("label", { class: "f" }, "Nombre"), name)),
+    mx.el, sched.el, more];
   const save = async (accept) => {
     const md = mx.data(status.value);
     if (md.error) return toast(md.error, { error: true });
+    // ¿ya lo tienes? (mismo nombre y marca)
+    const twin = isNew && !(opt.off && opt.off.allow_dup) && (S.catalog.foods || []).find((x) => !x.deleted && norm(x.name) === norm(name.value.trim()) && norm(x.brand || "") === norm(brand.value.trim()));
+    if (twin && !confirm(`Ya tienes «${dname(twin)}». ¿Crear otro igualmente?`)) return;
     const portions = md.portions;
-    const data = { ...(/suplement/i.test(cat.value) ? sched.data() : {}), name: name.value.trim(), category: cat.value.trim() || null, brand: brand.value.trim() || null, status: status.value, source: sourceText(), notes: notes.value.trim() || null, portions, ...(accept === true ? { reviewed: true } : {}), ...(!isNew && md.default_unit !== undefined ? { default_unit: md.default_unit || null } : {}) };
+    const data = { ...(/suplement/i.test(cat.value) ? sched.data() : {}), ...((opt.off && opt.off.allow_dup) || twin ? { allow_dup: true } : {}), name: name.value.trim(), category: cat.value.trim() || null, brand: brand.value.trim() || null, status: status.value, source: sourceText(), notes: notes.value.trim() || null, portions, ...(accept === true ? { reviewed: true } : {}), ...(!isNew && md.default_unit !== undefined ? { default_unit: md.default_unit || null } : {}) };
     if (isNew) {
       const created = await act(() => api("POST", "/api/foods", data), "Producto creado");
       if (pendingImg && created) await act(() => offImg && pendingImg === offImg ? api("POST", `/api/foods/${created.id}/image-url`, { url: offImg, image_source: offImg })
@@ -2124,7 +2137,7 @@ function offChooser(onFound, big, onManual, selfId) {
           return h("div", { class: "item b", onclick: () => { close(); foodEditor(fo.id ? fo : null); } }, mono(x.name, fo.category, fo.image),
             h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, x.name)), h("div", { class: "sub" }, "Toca para abrirlo")),
             h("span", { class: "chev" }, icon("right"))); })),
-        o.missing ? null : h("button", { type: "button", class: "btn ghost sm", onclick: () => onFound(o) }, "Crear otro igualmente"));
+        o.missing ? null : h("button", { type: "button", class: "btn ghost sm", onclick: () => onFound({ ...o, allow_dup: true }) }, "Crear otro igualmente"));
       dup.classList.remove("hidden");
     } catch (e) { note.className = "note warn"; note.textContent = e.message + (onManual ? ". Puedes rellenarlo a mano con la etiqueta (botón de abajo)." : "."); }
   };
@@ -2230,7 +2243,7 @@ function saveButtons(isNew, item, save) {
   return [b];
 }
 function reviewSub(isNew, item) {
-  if (isNew || !item || item.kind !== "producto") return null;
+  if (isNew || !item || item.kind !== "producto" || srcKind(item) === "off") return null;  // OFF ya lo dice el candado de los valores
   return "Valores: " + ((SRC_KINDS.find((x) => x[0] === srcKind(item)) || [0, "otra fuente"])[1]);
 }
 
@@ -2467,18 +2480,61 @@ function viewProgress() {
       kpi("Media 7 días", lastAvg ? fmt(lastAvg.avg7, 1) + " kg" : "—", prevAvg && prevAvg.avg7 != null ? signed(lastAvg.avg7 - prevAvg.avg7, 1) + " kg vs semana anterior" : ""),
       kpi("Ingesta media 7 d", avgK != null ? fmt(avgK) + " kcal" : "—", avgP != null ? `P ${fmt(avgP)} g · ${logged7.length} días` : ""),
       kpi("Mantenimiento observado", cal.observed_maintenance != null ? fmt(cal.observed_maintenance) + " kcal" : "—", cal.observed_maintenance != null ? `tendencia ${signed(cal.slope_kg_week, 1)} kg/sem · modelo ${fmt(cal.model_tdee_avg)}` : "faltan datos (≥14 días)", () => pgSheet("Calibración del gasto", calPanel(S.progress.calibration)))),
-    h("div", { class: "card panel" }, h("h3", null, "Peso", h("span", { class: "faint", style: { fontWeight: 400 } }, " · puntos: pesajes · gruesa: media de 7 días · discontinua: lo esperado")), h("div", { class: "faint", style: { fontSize: "12.5px", marginTop: "-4px" } }, "Pésate siempre igual: al levantarte, después de ir al baño, antes de comer o beber y con la misma ropa (o sin ella)"), weightChart(ws, P.body)),
+    // Cada tarjeta: el resumen del periodo; «Ver cada día» abre la misma ficha que en Hoy (y se pasa de día con ‹ ›)
+    h("div", { class: "card panel" }, h("h3", null, "Peso", h("span", { class: "faint", style: { fontWeight: 400 } }, "")),
+      weightChart(ws, P.body, null, null, { simple: true, onDay: (d) => openDay(d, weightSheet) }), pgGo("Ver cada día (con estimados y lo esperado)", () => openDay(todayISO(), weightSheet))),
     balancePanel(P.history),
     stepsPanel(P.history, P.steps_goal),
     suppStatsPanel(P.supplements),
-    h("div", { class: "card panel pg-links" }, h("h3", null, "Más"),
-      pgMore("⚖️", "Báscula y pesajes", (P.body || []).length ? `${P.body.length} mediciones · composición y todos los pesajes` : "composición, pesajes y añadir medición",
-        () => pgSheet("Báscula y pesajes", bodyPanel(P.body || [], P.weights || []))),
-      pgMore("🔥", "Calibración del gasto", cal.ready ? (cal.auto ? "automática · al día" : "manual") : "aprendiendo de tus datos", () => pgSheet("Calibración del gasto", calPanel(cal))),
-      pgMore("🗓️", "Semanas", `${(P.weeks || []).length} semanas · medias de comida, peso y pasos`, () => pgSheet("Semanas", h("div", { class: "card panel flat" }, weeksTable(P.weeks)))),
-      pgMore("📋", "Días", `${P.history.length} días · uno por fila`, () => pgSheet("Días", h("div", { class: "card panel flat" }, daysTable(P.history))))));
+    trainPanel(P.training),
+    bodyCard(P.body || [], P.weights || []),
+    calCard(cal),
+    histCard(P.weeks || [], P.history));
 }
 // Progreso: lo importante a la vista; cada cosa tiene su ficha con todo lo demás
+// Enlace al pie de cada tarjeta
+const pgGo = (txt, fn) => h("button", { class: "pg-inl", onclick: fn }, txt, icon("right"));
+async function openDay(d, fn) { try { fn(await api("GET", "/api/state?date=" + (d || todayISO()))); } catch (e) { toast(e.message, { error: true }); } }
+// Entreno del periodo
+function trainPanel(t) {
+  if (!t || !t.sessions) return null;
+  const kpi = (l, v, s_) => h("div", { class: "kpi" }, h("div", { class: "l" }, l), h("div", { class: "v num" }, v), h("div", { class: "s" }, s_ || ""));
+  return h("div", { class: "card panel" }, h("h3", null, "Entreno"),
+    h("div", { class: "kpis k3" }, kpi("Sesiones", String(t.sessions), `${fmt(t.per_week, 1)} por semana`), kpi("Tiempo", fmt(t.minutes / 60, 1) + " h", `${fmt(t.minutes / t.sessions)} min de media`),
+      kpi("Récords", String(t.prs), t.volume ? `${fmt(t.volume / 1000, 1)} t de volumen` : "")),
+    pgGo("Ver los entrenos", () => { location.hash = "#/training"; }));
+}
+// Báscula: la última medición; todo (composición e historial) en su ficha
+function bodyCard(list, weights) {
+  const b = list[0];
+  const head = h("h3", null, "Báscula", h("span", { class: "faint", style: { fontWeight: 400 } }, b ? " · " + dateLabel(b.date, { day: "numeric", month: "short" }) : ""));
+  if (!b) return h("div", { class: "card panel" }, head, h("div", { class: "faint sm" }, "Sin mediciones todavía."), pgGo("Añadir una medición", () => bodySheet()));
+  const ref = list.find((x) => x.date <= addDays(b.date, -25));
+  return h("div", { class: "card panel" }, head, h("div", { class: "btiles three" }, bodyTiles(b, ref, true).slice(0, 3)), b.date < addDays(todayISO(), -14) ? h("div", { class: "faint sm" }, "Hace más de dos semanas de la última medición.") : null,
+    pgGo("Composición e historial", () => pgSheet("Báscula y pesajes", bodyPanel(list, weights))));
+}
+// Calibración del gasto: en qué punto está; el detalle, en su ficha
+function calCard(cal) {
+  if (!cal) return null;
+  const ap = cal.applied || {};
+  return h("div", { class: "card panel" }, h("div", { class: "row" }, h("h3", { style: { margin: 0 } }, "Calibración del gasto"), h("span", { class: "grow" }),
+      h("span", { class: "pc-badge " + (cal.auto ? "ok" : "man") }, cal.auto ? "Automática" : "Manual")),
+    h("div", { class: "faint sm", style: { marginTop: "6px" } }, cal.ready
+      ? `Mantenimiento observado ${cal.observed_maintenance != null ? fmt(cal.observed_maintenance) + " kcal" : "—"} · base ${signed(ap.cal_ajuste_kcal || 0)} kcal/día · pasos × ${fmt(ap.cal_pasos_factor || 1, 2)}`
+      : cal.reason || "Aprendiendo de tus datos."),
+    pgGo("Cómo se ajusta", () => pgSheet("Calibración del gasto", calPanel(cal))));
+}
+// Historial: las últimas semanas en pequeño; todas las semanas y todos los días en sus fichas
+function histCard(weeks, hist) {
+  const W = weeks.slice(-4).reverse();
+  if (!W.length) return null;
+  return h("div", { class: "card panel" }, h("h3", null, "Semanas"),
+    h("table", { class: "t hist-mini" }, h("tr", null, ...["Semana", "kcal", "Proteína", "Peso", "Δ"].map((x, i) => h("th", { class: i ? "r" : "" }, x))),
+      W.map((w) => h("tr", null, h("td", null, dateLabel(w.week, { day: "numeric", month: "short" })), h("td", { class: "r num" }, w.kcal ? fmt(w.kcal) : "—"),
+        h("td", { class: "r num" }, w.kcal ? fmt(w.protein_g) + " g" : "—"), h("td", { class: "r num" }, w.weight != null ? fmt(w.weight, 1) : "—"), h("td", { class: "r num" }, signed(w.weight_delta, 1))))),
+    h("div", { class: "row", style: { gap: "16px" } }, pgGo("Todas las semanas", () => pgSheet("Semanas", h("div", { class: "card panel flat" }, weeksTable(weeks)))),
+      pgGo("Día a día", () => pgSheet("Días", h("div", { class: "card panel flat" }, daysTable(hist))))));
+}
 function pgMore(ic, title, sub, fn) {
   return h("button", { class: "pg-more", onclick: fn }, h("span", { class: "pg-ic" }, ic), h("span", { class: "grow" }, h("b", null, title), h("small", null, sub)), h("span", { class: "chev" }, icon("right")));
 }
@@ -2509,10 +2565,11 @@ function reportSheet() {
 async function buildReport(days, parts) {
   toast("Preparando el informe…");
   const to = todayISO(), from = addDays(to, -(days - 1));
-  let P, W, SS;
+  let P, W, SS, ST;
   try {
-    [P, W, SS] = await Promise.all([api("GET", `/api/progress?days=${days}&weeks=${Math.ceil(days / 7) + 1}`),
-      parts.entreno ? api("GET", `/api/workouts?from=${from}&to=${to}&limit=500`) : null, parts.supl ? api("GET", `/api/supplements/stats?days=${days}`) : null]);
+    [P, W, SS, ST] = await Promise.all([api("GET", `/api/progress?days=${days}&weeks=${Math.ceil(days / 7) + 1}`),
+      parts.entreno ? api("GET", `/api/workouts?from=${from}&to=${to}&limit=500`) : null, parts.supl ? api("GET", `/api/supplements/stats?days=${days}`) : null,
+      api("GET", "/api/state?date=" + to).catch(() => null)]);
   } catch (e) { toast(e.message, { error: true }); return; }
   const user = S.me ? (S.me.nombre || S.me.usuario || "") : "";
   // Días que cuentan para las medias: los cerrados (si no hay ninguno, los que tienen comida apuntada)
@@ -2560,19 +2617,40 @@ async function buildReport(days, parts) {
   const byDate = Object.fromEntries(hist.map((d) => [d.date, d]));
   const dl = allDays.map((d) => D(d));
   const macroAvg = (k) => mean(logged.map((d) => d[k]));
+  // Lo más destacado: unas frases con lo importante del periodo
+  const tgt = (ST && ST.target) || {}, protT = tgt.protein_g, first = (user.trim().split(/\s+/)[0] || "");
+  const inGoal = logged.filter((d) => d.target_kcal && Math.abs(d.kcal - d.target_kcal) <= 150).length;
+  const stepsD = hist.filter((d) => d.steps != null), hitD = stepsD.filter((d) => d.steps >= (P.steps_goal || 8000)).length;
+  const bestSteps = stepsD.reduce((a, d) => (!a || d.steps > a.steps ? d : a), null);
+  const prs = []; wos.forEach((w) => (w.exercises || []).forEach((e) => (e.prs || []).forEach((k) => prs.push({ date: w.date, name: e.name, k }))));
+  const prBy = {}; prs.forEach((r) => { (prBy[r.name] = prBy[r.name] || { name: r.name, n: 0, kinds: new Set(), last: r.date }).n++; prBy[r.name].kinds.add(r.k); if (r.date > prBy[r.name].last) prBy[r.name].last = r.date; });
+  const prTop = Object.values(prBy).sort((a, b) => b.n - a.n || b.last.localeCompare(a.last)).slice(0, 8);
+  const suppL = (SS || []).filter((x) => x.supp_when !== "manual" && x.pct30 != null);
+  const dW = w0 && w1 && w0 !== w1 ? w1.avg7 - w0.avg7 : null, weeksN = w0 && w1 ? Math.max(1, (new Date(w1.date) - new Date(w0.date)) / 6048e5) : 1;
+  const hl = [
+    dW != null ? ["peso", Math.abs(dW) < 0.25 ? `Peso estable: la media de 7 días se ha movido ${signed(dW, 1)} kg (${fmt(w0.avg7, 1)} → ${fmt(w1.avg7, 1)} kg).`
+      : `Tu peso medio ha ${dW < 0 ? "bajado" : "subido"} ${fmt(Math.abs(dW), 1)} kg (${fmt(w0.avg7, 1)} → ${fmt(w1.avg7, 1)} kg), unos ${fmt(Math.abs(dW) / weeksN, 2)} kg por semana.`] : null,
+    kcalAvg != null ? ["comida", `Has comido ${fmt(kcalAvg)} kcal de media` + (tgAvg ? `, ${Math.abs(kcalAvg - tgAvg) <= 50 ? "justo en tu objetivo" : fmt(Math.abs(kcalAvg - tgAvg)) + (kcalAvg > tgAvg ? " por encima" : " por debajo") + " de tu objetivo"}; ${inGoal} de ${logged.length} días dentro de ±150 kcal.` : ".")] : null,
+    macroAvg("protein_g") != null ? ["prot", `Proteína: ${fmt(macroAvg("protein_g"))} g al día` + (protT ? ` frente a ${fmt(protT)} g de objetivo (${Math.round(100 * macroAvg("protein_g") / protT)} %).` : ".")] : null,
+    stepsD.length ? ["pasos", `${fmt(stepsAvg)} pasos de media; meta cumplida ${hitD} de ${stepsD.length} días` + (bestSteps ? `; tu mejor día, el ${D(bestSteps.date, { day: "numeric", month: "long" })} (${fmt(bestSteps.steps)}).` : ".")] : null,
+    wos.length ? ["entreno", `${wos.length} ${wos.length === 1 ? "entreno" : "entrenos"} (${fmt(wos.length * 7 / days, 1)} por semana)` + (prs.length ? ` y ${prs.length} ${prs.length === 1 ? "récord" : "récords"}${prTop[0] ? `, sobre todo en ${prTop.slice(0, 2).map((r) => r.name).join(" y ")}` : ""}.` : ".")] : null,
+    suppL.length ? ["supl", "Suplementos: " + suppL.slice().sort((a, b) => b.pct30 - a.pct30).map((x) => `${x.name} ${x.pct30} %`).join(" · ") + "."] : null,
+  ].filter(Boolean);
   const doc = h("div", { class: "rp-doc" },
-    h("header", { class: "rp-head" }, h("div", null, h("div", { class: "rp-brand" }, "Salud"), h("h1", null, "Informe de " + (days === 7 ? "la semana" : days + " días")),
-      h("div", { class: "rp-sub" }, `${user.trim() ? user.trim() + " · " : ""}${D(from, { day: "numeric", month: "long" })} – ${D(to, { day: "numeric", month: "long", year: "numeric" })}`)),
-      h("div", { class: "rp-mark" }, h("span", null, "●"), h("span", null, "●"), h("span", null, "●"))),
+    h("header", { class: "rp-cover" },
+      h("div", { class: "rp-cover-t" }, h("div", { class: "rp-brand" }, "Salud · informe"), h("h1", null, first ? `Informe de ${first}` : "Tu informe"),
+        h("div", { class: "rp-sub" }, `${days === 7 ? "Última semana" : `Últimos ${days} días`} · ${D(from, { day: "numeric", month: "long" })} – ${D(to, { day: "numeric", month: "long", year: "numeric" })}`)),
+      h("div", { class: "rp-cover-n" }, h("b", { class: "num" }, w1 ? fmt(w1.avg7, 1) : "—"), h("span", null, "kg de media"), dW != null ? h("em", { class: dW < 0 ? "dn" : "up" }, signed(dW, 1) + " kg") : null)),
+    hl.length ? h("section", { class: "rp-hl" }, h("div", { class: "rp-h3" }, "Lo más destacado"), h("ul", null, hl.map(([k, t]) => h("li", { class: "k-" + k }, t)))) : null,
     h("div", { class: "rp-kpis" },
-      kpi("Peso (media 7 días)", w1 ? fmt(w1.avg7, 1) + " kg" : "—", w0 && w1 && w0 !== w1 ? `${signed(w1.avg7 - w0.avg7, 1)} kg en el periodo` : ""),
+      kpi("Peso (media 7 días)", w1 ? fmt(w1.avg7, 1) + " kg" : "—", wm.length ? `${wm.length} pesajes · mín ${fmt(Math.min(...wm.map((w) => w.weight_kg)), 1)} · máx ${fmt(Math.max(...wm.map((w) => w.weight_kg)), 1)}` : ""),
       kpi("Comes de media", kcalAvg != null ? fmt(kcalAvg) + " kcal" : "—", tgAvg != null ? `objetivo ${fmt(tgAvg)}` : ""),
-      kpi("Balance medio", balAvg != null ? signed(Math.round(balAvg)) + " kcal" : "—", balAvg != null ? (balAvg < 0 ? "déficit al día" : "superávit al día") : ""),
-      kpi("Proteína media", macroAvg("protein_g") != null ? fmt(macroAvg("protein_g")) + " g" : "—", ""),
-      kpi("Pasos de media", stepsAvg != null ? fmt(stepsAvg) : "—", P.steps_goal ? `meta ${fmt(P.steps_goal)}` : ""),
-      kpi("Entrenos", String(wos.length), wos.length ? fmt(wos.reduce((a, w) => a + (w.duration_min || 0), 0) / 60, 1) + " h en total" : ""),
+      kpi("Balance medio", balAvg != null ? signed(Math.round(balAvg)) + " kcal" : "—", balAvg != null ? (balAvg < 0 ? "déficit al día (estimado)" : "superávit al día (estimado)") : ""),
+      kpi("Proteína media", macroAvg("protein_g") != null ? fmt(macroAvg("protein_g")) + " g" : "—", protT ? `objetivo ${fmt(protT)} g` : ""),
+      kpi("Pasos de media", stepsAvg != null ? fmt(stepsAvg) : "—", P.steps_goal ? `meta ${fmt(P.steps_goal)} · ${hitD} días cumplida` : ""),
+      kpi("Entrenos", String(wos.length), wos.length ? fmt(wos.reduce((a, w) => a + (w.duration_min || 0), 0) / 60, 1) + " h · " + prs.length + " récords" : ""),
       kpi("Días con comida", `${withFood.length} de ${days}`, closedD.length ? `${closedD.length} cerrados (las medias salen de estos)` : "ninguno cerrado aún"),
-      kpi("Días de fiesta", String(party), "")),
+      kpi("Días de fiesta", String(party), party ? "marcados con 🎉" : "")),
     parts.peso ? sec("Peso", "puntos: pesajes · línea: media de 7 días", line(ws.map((w) => ({ ...w })))) : null,
     parts.peso && P.body && P.body.filter((b) => b.date >= from && b.fat_pct != null).length ? (() => { const bs = P.body.filter((b) => b.date >= from && b.fat_pct != null); const a = bs[0], b = bs[bs.length - 1];
       return h("div", { class: "rp-row" }, kpi("Grasa (báscula)", fmt(b.fat_pct, 1) + " %", bs.length > 1 ? signed(b.fat_pct - a.fat_pct, 1) + " puntos" : ""), b.muscle_kg != null ? kpi("Músculo", fmt(b.muscle_kg, 1) + " kg", "") : null,
@@ -2593,22 +2671,25 @@ async function buildReport(days, parts) {
     parts.entreno ? sec("Entreno", wos.length ? `${wos.length} sesiones · ${fmt(wos.reduce((a, w) => a + (w.volume_kg || 0), 0))} kg de volumen` : "",
       wos.length ? h("table", { class: "rp-t" }, h("tr", null, h("th", null, "Día"), h("th", null, "Sesión"), h("th", { class: "r" }, "Min"), h("th", { class: "r" }, "Volumen"), h("th", { class: "r" }, "Récords")),
         wos.slice().sort((a, b) => a.date.localeCompare(b.date)).map((w) => h("tr", null, h("td", null, D(w.date)), h("td", null, w.title || w.activity_type), h("td", { class: "r num" }, w.duration_min ? fmt(w.duration_min) : "—"),
-          h("td", { class: "r num" }, w.volume_kg ? fmt(w.volume_kg) + " kg" : "—"), h("td", { class: "r num" }, w.prs_count ? "🏆 " + w.prs_count : "")))) : h("div", { class: "rp-empty" }, "Sin entrenos en este periodo.")) : null,
+          h("td", { class: "r num" }, w.volume_kg ? fmt(w.volume_kg) + " kg" : "—"), h("td", { class: "r num" }, w.prs_count ? "🏆 " + w.prs_count : "")))) : h("div", { class: "rp-empty" }, "Sin entrenos en este periodo."),
+      prTop.length ? h("div", { class: "rp-top" }, h("div", { class: "rp-h3" }, "Récords del periodo"), h("ol", null, prTop.map((r) => h("li", null, h("span", null, r.name),
+        h("b", { class: "num" }, [...r.kinds].map((k) => (typeof PR_SHORT !== "undefined" && PR_SHORT[k]) || k).join(" · ") + " · " + D(r.last)))))) : null) : null,
     parts.supl && SS && SS.length ? sec("Suplementos", "% de los días que tocaba",
       h("div", { class: "rp-supl" }, SS.filter((x) => x.supp_when !== "manual").map((x) => h("div", { class: "rp-sp" }, h("span", null, x.name),
         h("div", { class: "rp-strip" }, x.days.filter((c) => c.date >= from).map((c) => h("i", { class: "s-" + c.s }))),
         h("b", { class: "num" }, x.pct30 == null ? "—" : x.pct30 + " %"))))) : null,
-    h("footer", { class: "rp-foot" }, `Generado con Salud el ${D(to, { day: "numeric", month: "long", year: "numeric" })}. El gasto y el balance son estimaciones.`));
+    h("footer", { class: "rp-foot" }, h("span", null, `${first ? first + " · " : ""}generado con Salud el ${D(to, { day: "numeric", month: "long", year: "numeric" })}`), h("span", null, "El gasto y el balance son estimaciones; la composición corporal de la báscula, orientativa.")));
   const prevTitle = document.title;
   const close = () => { ov.remove(); document.body.classList.remove("rp-on"); document.title = prevTitle; };
   const ov = h("div", { id: "report-view" },
     h("div", { class: "rp-bar" }, h("button", { class: "btn", onclick: close }, "Cerrar"), h("span", { class: "grow" }),
-      h("button", { class: "btn primary", onclick: () => { document.title = `Informe Salud ${from} a ${to}`; window.print(); } }, icon("out"), "Descargar PDF")),
+      h("button", { class: "btn primary", onclick: () => { document.title = `Informe Salud${first ? " " + first : ""} ${from} a ${to}`; window.print(); } }, icon("out"), "Descargar PDF")),
     h("div", { class: "rp-paper" }, doc));
   document.body.append(ov); document.body.classList.add("rp-on");
 }
 
-function weightChart(ws, bodies, sel, next) {
+function weightChart(ws, bodies, sel, next, o = {}) {
+  // o.simple: solo pesajes y media de 7 días (Evolución); o.onDay(fecha): tocar un día abre su ficha
   if (next != null && ws.length) ws = [...ws, { date: addDays(ws[ws.length - 1].date, 1), next }];
   const first = ws.findIndex((w) => w.weight_kg != null || w.avg7 != null);
   if (first > 0) ws = ws.slice(Math.min(first, ws.length - 2));  // sin días vacíos delante: la gráfica empieza en el primer pesaje
@@ -2619,7 +2700,7 @@ function weightChart(ws, bodies, sel, next) {
   const idx = Object.fromEntries(ws.map((w, i) => [w.date, i])), mins = (t) => t ? +t.slice(0, 2) * 60 + +t.slice(3, 5) : 480;
   const byT = [...(bodies || [])].filter((b) => b.weight_kg != null).sort((a, b) => (a.date + (a.time || "")).localeCompare(b.date + (b.time || "")));
   const mainOf = (w) => w.weight_kg == null ? null : byT.find((b) => b.date === w.date && Math.abs(b.weight_kg - w.weight_kg) < 0.05) || null;
-  const others = byT.filter((b) => idx[b.date] != null && b !== mainOf(ws[idx[b.date]]));
+  const others = o.simple ? [] : byT.filter((b) => idx[b.date] != null && b !== mainOf(ws[idx[b.date]]));
   const vals = pts.flatMap((p) => [p.weight_kg, p.avg7, p.interp]).concat(next != null ? [next] : [], others.map((b) => b.weight_kg)).filter((x) => x != null);
   // Eje Y ajustado a los datos: la variación ocupa la mayor parte del alto (mínimo 0,6 kg de margen para no exagerar el ruido)
   let lo = Math.min(...vals), hi = Math.max(...vals); const span = Math.max(hi - lo, 0.6), pad = span * 0.25, mid = (hi + lo) / 2;
@@ -2637,15 +2718,17 @@ function weightChart(ws, bodies, sel, next) {
   }
   const ticks = Math.min(W < 500 ? 4 : 6, n); for (let k = 0; k < ticks; k++) { const i = Math.round((k * (n - 1)) / Math.max(1, ticks - 1)); const t = el("text", { x: x(i), y: H - 6, "text-anchor": k === 0 ? "start" : k === ticks - 1 ? "end" : "middle", class: "axis" }); t.textContent = dateLabel(ws[i].date, { day: "numeric", month: "short" }); svg.append(t); }
   // Curva de peso: pesajes unidos; los días sin pesaje entre dos pesajes se interpolan en línea recta.
-  let dc = ""; ws.forEach((w, i) => { const v = w.weight_kg ?? w.interp; if (v != null) dc += (dc ? "L" : "M") + xw(i).toFixed(1) + " " + y(v).toFixed(1); });
+  // (en la versión sencilla, solo entre el primer y el último pesaje: sin estimados por delante ni por detrás)
+  const wi = ws.map((w, i) => w.weight_kg != null ? i : -1).filter((i) => i >= 0), i0 = o.simple ? wi[0] : 0, i1 = o.simple ? wi[wi.length - 1] : n;
+  let dc = ""; ws.forEach((w, i) => { const v = w.weight_kg ?? w.interp; if (v != null && i >= i0 && i <= i1) dc += (dc ? "L" : "M") + xw(i).toFixed(1) + " " + y(v).toFixed(1); });
   if (dc) svg.append(el("path", { d: dc, class: "wline", "vector-effect": "non-scaling-stroke" }));
   let d = ""; ws.forEach((w, i) => { if (w.avg7 != null) d += (d ? "L" : "M") + x(i).toFixed(1) + " " + y(w.avg7).toFixed(1); });
   if (d) svg.append(el("path", { d, class: "avg", "vector-effect": "non-scaling-stroke" }));
   // Lo esperado por el modelo (lo que comes − lo que gastas): se corta donde falta la comida de algún día
   let de = "", prevE = false; ws.forEach((w, i) => { if (w.expected != null && w.expected >= lo && w.expected <= hi) { de += (prevE ? "L" : "M") + x(i).toFixed(1) + " " + y(w.expected).toFixed(1); prevE = true; } else prevE = false; });
-  if (de) svg.append(el("path", { d: de, class: "exp", "vector-effect": "non-scaling-stroke" }));
+  if (de && !o.simple) svg.append(el("path", { d: de, class: "exp", "vector-effect": "non-scaling-stroke" }));
   ws.forEach((w, i) => {
-    const v = w.weight_kg ?? w.interp; if (v == null) return;
+    const v = w.weight_kg ?? w.interp; if (v == null || (o.simple && w.weight_kg == null)) return;
     svg.append(el("circle", { cx: xw(i), cy: y(v), r: w.weight_kg != null ? 3.2 : 2, class: w.weight_kg != null ? "pt" : "ipt" }));
   });
   for (const b of others) svg.append(el("circle", { cx: xt(idx[b.date], b.time), cy: y(b.weight_kg), r: 2.2, class: "opt" }));
@@ -2661,9 +2744,10 @@ function weightChart(ws, bodies, sel, next) {
   const vline = el("line", { y1: T, y2: H - B, class: "hov hidden" }); svg.append(vline);
   const hov = el("circle", { r: 5.5, class: "hov-pt hidden" }); svg.append(hov);
   const box = h("div", { class: "wc" }, svg), tip_ = h("div", { class: "wc-tip hidden" }); box.append(tip_);
-  box.append(h("div", { class: "wc-leg" }, h("span", null, h("i", { class: "sw pt" }), "Pesaje"), h("span", null, h("i", { class: "sw ipt" }), "Estimado"),
+  box.append(o.simple ? h("div", { class: "wc-leg" }, h("span", null, h("i", { class: "sw pt" }), "Pesaje"), h("span", null, h("i", { class: "sw avg" }), "Media 7 días"), o.onDay ? h("span", { class: "faint" }, "· toca un día para verlo") : null)
+    : h("div", { class: "wc-leg" }, h("span", null, h("i", { class: "sw pt" }), "Pesaje"), h("span", null, h("i", { class: "sw ipt" }), "Estimado"),
     others.length ? h("span", null, h("i", { class: "sw opt" }), "No cuenta") : null, h("span", null, h("i", { class: "sw avg" }), "Media 7 días"), h("span", null, h("i", { class: "sw exp" }), "Esperado")));
-  let hideT = null;
+  let hideT = null, lastDay = null;
   // Puntos de la gráfica (cada uno a su hora): al pasar el ratón o el dedo se elige el más cercano
   const P = [];
   ws.forEach((w, i) => {
@@ -2682,7 +2766,8 @@ function weightChart(ws, bodies, sel, next) {
       h("div", null, h("i", { class: "sw " + { main: "pt", est: "ipt", other: "opt" }[p.k] }), { main: "Peso del día ", est: "Estimado (sin pesaje) ", other: "Otro pesaje " }[p.k], h("b", { class: "num" }, fmt(p.v, 1) + " kg")),
       p.k === "other" ? h("div", { class: "faint" }, "No cuenta para la tendencia") : null,
       p.k !== "other" && w.avg7 != null ? h("div", null, h("i", { class: "sw avg" }), "Media 7 días ", h("b", { class: "num" }, fmt(w.avg7, 1))) : null,
-      p.k !== "other" && w.expected != null ? h("div", null, h("i", { class: "sw exp" }), "Esperado ", h("b", { class: "num" }, fmt(w.expected, 1))) : null].filter(Boolean));
+      p.k !== "other" && w.expected != null && !o.simple ? h("div", null, h("i", { class: "sw exp" }), "Esperado ", h("b", { class: "num" }, fmt(w.expected, 1))) : null].filter(Boolean));
+    lastDay = w.date;
     tip_.classList.remove("hidden");
     const px = (p.px / W) * r.width; tip_.style.left = Math.min(Math.max(px, 70), r.width - 70) + "px";
   };
@@ -2691,6 +2776,11 @@ function weightChart(ws, bodies, sel, next) {
   svg.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") move(e); });
   svg.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") leave(); });
   touchHold(svg, (e) => { clearTimeout(hideT); move(e); }, leave);
+  if (o.onDay) { // un toque corto (o clic) abre ese día; mantener y deslizar solo enseña los datos
+    let t0 = 0, x0 = 0; svg.style.cursor = "pointer";
+    svg.addEventListener("pointerdown", (e) => { t0 = Date.now(); x0 = e.clientX; move(e); });
+    svg.addEventListener("pointerup", (e) => { if (Date.now() - t0 < 350 && Math.abs(e.clientX - x0) < 10 && lastDay) { leave(); o.onDay(lastDay); } });
+  }
   window.addEventListener("scroll", leave, { passive: true, capture: true });
   return box;
 }
@@ -2719,10 +2809,11 @@ function balancePanel(hist) {
       days.map((d) => { const x = by[d], v = x ? dif(x) : null;
         const cls = v == null ? "gap" : Math.abs(v) <= 150 ? "in" : v > 0 ? "over" : "under";
         const hh = v == null ? 0 : Math.max(2, (100 * Math.abs(v)) / span);
-        return h("span", { class: "bal-b " + cls, "data-tip": `${dateLabel(d, { weekday: "long", day: "numeric", month: "short" })}\n` + (v == null ? "Sin cerrar" : `${signed(Math.round(v))} kcal · ${word(v)}\nComiste ${fmt(x.kcal)} de ${fmt(x.target_kcal)}`) },
+        return h("span", { class: "bal-b " + cls, onclick: v == null ? null : () => openDay(d, (st) => energySheet(st)), "data-tip": `${dateLabel(d, { weekday: "long", day: "numeric", month: "short" })}\n` + (v == null ? "Sin cerrar" : `${signed(Math.round(v))} kcal · ${word(v)}\nComiste ${fmt(x.kcal)} de ${fmt(x.target_kcal)}`) },
           v == null ? null : h("i", { style: v >= 0 ? { bottom: (100 * dn) / span + "%", height: hh + "%" } : { top: (100 * up) / span + "%", height: hh + "%" } })); })),
     h("div", { class: "pbars-x faint" }, h("span", null, dateLabel(days[0], { day: "numeric", month: "short" })), h("span", null, "hoy")),
-    h("div", { class: "bal-leg faint" }, h("span", null, h("i", { class: "over" }), "Por encima"), h("span", null, h("i", { class: "in" }), "En objetivo (±150)"), h("span", null, h("i", { class: "under" }), "Por debajo")));
+    h("div", { class: "bal-leg faint" }, h("span", null, h("i", { class: "over" }), "Por encima"), h("span", null, h("i", { class: "in" }), "En objetivo (±150)"), h("span", null, h("i", { class: "under" }), "Por debajo")),
+    pgGo("Ver cada día: lo que comiste y lo que gastaste", () => openDay(ds[ds.length - 1].date, (st) => energySheet(st))));
 }
 function stepsPanel(hist, goal) {
   const ds = (hist || []).filter((x) => x.steps != null);
@@ -2737,9 +2828,9 @@ function stepsPanel(hist, goal) {
     h("div", { class: "kpis k3" }, kpi("Media", fmt(avg), `${ds.length} ${ds.length === 1 ? "día" : "días"}`), kpi("Objetivo", `${hit} de ${ds.length}`, Math.round((100 * hit) / ds.length) + " % de los días"),
       kpi("Mejor día", fmt(best.steps), dateLabel(best.date, { day: "numeric", month: "short" }))),
     h("div", { class: "pbars" }, h("i", { class: "goal", style: { bottom: (100 * goal) / mx + "%" } }),
-      days.map((d) => { const v = by[d]; return h("span", { class: v == null ? "gap" : v >= goal ? "ok" : "", style: { height: v == null ? "0" : Math.max(2, (100 * v) / mx) + "%" }, "data-tip": `${dateLabel(d, { weekday: "long", day: "numeric", month: "short" })}\n${v == null ? "Sin datos" : fmt(v) + " pasos" + (v >= goal ? " · objetivo cumplido" : "")}` }); })),
+      days.map((d) => { const v = by[d]; return h("span", { class: v == null ? "gap" : v >= goal ? "ok" : "", onclick: v == null ? null : () => openStepsDay(d), style: { height: v == null ? "0" : Math.max(2, (100 * v) / mx) + "%" }, "data-tip": `${dateLabel(d, { weekday: "long", day: "numeric", month: "short" })}\n${v == null ? "Sin datos" : fmt(v) + " pasos" + (v >= goal ? " · objetivo cumplido" : "")}` }); })),
     h("div", { class: "pbars-x faint" }, h("span", null, dateLabel(days[0], { day: "numeric", month: "short" })), h("span", null, "hoy")),
-    h("button", { class: "pg-inl", onclick: () => openStepsDay(todayISO()) }, "Ver cada día por horas", icon("right")));
+    pgGo("Ver cada día por horas", () => openStepsDay(todayISO())));
 }
 // Calibración del gasto (Progreso): lo que dicen tus pesajes frente a lo que calcula el modelo
 const CAL_ROWS = [["cal_ajuste_kcal", "Base: metabolismo y día a día", (v) => signed(v) + " kcal/día"], ["cal_pasos_factor", "Pasos", (v) => "× " + fmt(v, 2)], ["cal_ejercicio_factor", "Entrenos", (v) => "× " + fmt(v, 2)]];

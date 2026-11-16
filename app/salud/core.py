@@ -662,6 +662,17 @@ def create_food(conn, data, source="web"):
         raise ValidationError("Estado no válido: %s" % status)
     portions = data.get("portions") or []
     vals = [_portion_values(p) for p in portions]
+    # Sin repetidos: el mismo código de barras, o el mismo nombre y marca creado hace nada (doble toque)
+    if not data.get("allow_dup"):
+        m = re.search(r"open food facts\D{0,4}(\d{8,14})", data.get("source") or "", re.I)
+        if m:
+            r = conn.execute("SELECT name FROM foods WHERE deleted=0 AND kind='producto' AND (source LIKE ? OR image_source LIKE ?)", ("%" + m.group(1) + "%",) * 2).fetchone()
+            if r:
+                raise ValidationError("Ya tienes este producto: «%s»" % r[0])
+        r = conn.execute("SELECT name FROM foods WHERE deleted=0 AND lower(name)=lower(?) AND COALESCE(lower(brand),'')=COALESCE(lower(?),'') AND created_at>=?",
+                         (name, data.get("brand"), (now_local() - timedelta(seconds=60)).replace(microsecond=0).isoformat(sep=" "))).fetchone()
+        if r:
+            raise ValidationError("«%s» se acaba de crear" % r[0])
     with tx(conn, "create_food", source, payload=data):
         cur = conn.execute(
             "INSERT INTO foods(code,name,original_name,previous_name,kind,category,brand,status,source,notes,"
@@ -1361,7 +1372,7 @@ def day_state(conn, d=None):
         "balance": None if totals["kcal"] is None or en["total"] is None else round(totals["kcal"] - en["total"]),
         "activities": acts, "avg7": None if a7 is None else round(a7, 2), "avg7_n": n7,
         "weight_interp": None if west is None else round(west, 1),
-        "weights14": [{"date": w["date"], "w": w["weight_kg"], "a": w["avg7"]} for w in weight_series(conn, shift(d, -13), d)],
+        "weights14": [{"date": w["date"], "w": w["weight_kg"], "i": w["interp"]} for w in weight_series(conn, shift(d, -13), d)],
         "weight_est_fit": day["weight_kg"] is None and any(k > d for k in weights_between(conn, d, "9999-12-31")),
         "approx_kcal": round(sum(e["kcal"] or 0 for e in entries if e["quality"] not in ("etiqueta", "historico"))),
         "entry_count": len(entries), "open_days": open_days(conn), "today_entry_count": len(entries) if d == today() else conn.execute("SELECT COUNT(*) FROM entries WHERE date=? AND deleted_at IS NULL", (today(),)).fetchone()[0], "closure": closure, "closure_count": n_closures, "rev": rev(conn),
