@@ -223,7 +223,8 @@ document.addEventListener("pointerdown", (e) => {
   HOLD.x = e.clientX; HOLD.y = e.clientY;
   HOLD.t = setTimeout(() => { HOLD.t = null; HOLD.shown = true; HOLD.eatClick = true; clearTimeout(TIP_T); showTipAt(t.dataset.tip, t); if (navigator.vibrate) navigator.vibrate(8); }, HOLD_MS);
 });
-const holdEnd = (e) => { if (e.pointerType === "mouse") return; if (SCRUB && e.pointerId === SCRUB.id) { SCRUB = null; hideTip(); return; } clearTimeout(HOLD.t); HOLD.t = null; if (HOLD.shown) { HOLD.shown = false; clearTimeout(TIP_T); TIP_T = setTimeout(hideTip, 1500); setTimeout(() => { HOLD.eatClick = false; }, 450); } };
+// (en una gráfica, al soltar el dedo el dato se queda unos segundos)
+const holdEnd = (e) => { if (e.pointerType === "mouse") return; if (SCRUB && e.pointerId === SCRUB.id) { SCRUB = null; clearTimeout(TIP_T); if (e.type === "pointercancel") hideTip(); else TIP_T = setTimeout(hideTip, 2500); return; } clearTimeout(HOLD.t); HOLD.t = null; if (HOLD.shown) { HOLD.shown = false; clearTimeout(TIP_T); TIP_T = setTimeout(hideTip, 1500); setTimeout(() => { HOLD.eatClick = false; }, 450); } };
 document.addEventListener("pointerup", holdEnd); document.addEventListener("pointercancel", holdEnd);
 document.addEventListener("click", (e) => { if (HOLD.eatClick) { HOLD.eatClick = false; e.preventDefault(); e.stopPropagation(); } }, true);
 document.addEventListener("contextmenu", (e) => { if (tipTarget(e) && e.pointerType !== "mouse") e.preventDefault(); });
@@ -825,12 +826,13 @@ function viewTraining() {
   const T = S.training; if (!T) return h("div");
   S.tTab = S.tTab || "resumen"; S.tGran = S.tGran || "mes"; S.tOff = S.tOff || 0;
   const ws = T.workouts;
-  const head = h("div", { class: "row wrap", style: { marginBottom: "12px" } }, h("h2", { class: "vt" }, "Entreno"), h("span", { class: "grow" }),
-    tip(h("button", { class: "btn sm ghost", onclick: () => importCsv() }, "Subir CSV de Hevy"), "Subir CSV de Hevy\nTrae de golpe los entrenos que falten: no duplica\n## Cómo sacarlo\nHevy → Perfil → ⚙ Ajustes → Exportar e importar datos → Exportar entrenos"));
+  const head = h("div", { class: "row", style: { marginBottom: "6px" } }, h("h2", { class: "vt" }, "Entreno"), h("span", { class: "grow" }),
+    tip(h("button", { class: "icon-btn round", "aria-label": "Subir CSV de Hevy", onclick: () => importCsv() }, icon("up")), "Subir CSV de Hevy\nTrae los entrenos que falten, sin duplicar\n## Cómo sacarlo\nHevy → Perfil → ⚙ Ajustes → Exportar e importar datos → Exportar entrenos"));
   if (!ws.length) return h("div", { class: "training" }, head, h("div", { class: "card empty" }, icon("dumbbell"), h("h3", null, "Aún no hay entrenos"),
     h("p", { class: "muted" }, "Dime «entreno hecho» por el chat y lo traigo de Hevy, o importa el CSV de Hevy.")));
   const st = S.tStats && S.tStats._src === ws && S.tStats._bw === S.weights && S.tStats._set === S.exSet ? S.tStats : (S.tStats = Object.assign(trainingStats(ws, S.bw), { _src: ws, _bw: S.weights, _set: S.exSet }));
-  const tabs = h("div", { class: "seg tabs2" }, [["resumen", "Resumen"], ["historial", "Historial"], ["ejercicios", "Ejercicios"], ["records", "Récords"], ["nivel", "Rango"]]
+  // Pestañas de texto con subrayado (una sola fila, sin cajas); el periodo va en una línea propia solo en Resumen
+  const tabs = h("div", { class: "utabs" }, [["resumen", "Resumen"], ["historial", "Historial"], ["ejercicios", "Ejercicios"], ["records", "Récords"], ["nivel", "Rango"]]
     .map(([k, l]) => h("button", { class: S.tTab === k ? "on" : "", onclick: () => { S.tTab = k; render(); } }, l)));
   const body = { resumen: tResumen, historial: tHistorial, ejercicios: tEjercicios, records: tRecords, nivel: tNivel }[S.tTab](st, ws);
   return h("div", { class: "training" }, head, tabs, body);
@@ -876,10 +878,15 @@ function lastCard(ws) {
 function tResumen(st, ws) {
   const R = periodRange(S.tGran, S.tOff, st), P = periodStats(st, ws, R);
   const nav = (d) => { S.tOff += d; render(); };
-  const sel = h("div", { class: "pnav" },
-    h("div", { class: "seg pgran" }, GRANS.map(([k, l]) => h("button", { class: S.tGran === k ? "on" : "", onclick: () => { S.tGran = k; S.tOff = 0; render(); } }, l))),
-    R.all ? null : h("div", { class: "pstep" }, h("button", { class: "icon-btn", disabled: !R.canPrev, onclick: () => nav(-1), "aria-label": "Anterior" }, icon("left")),
-      h("b", null, R.label), h("button", { class: "icon-btn", disabled: !R.canNext, onclick: () => nav(1), "aria-label": "Siguiente" }, icon("right"))));
+  const days0 = new Set(P.L.map((w) => w.date)).size;
+  const gsel = h("select", { class: "pg-sel", "aria-label": "Periodo" }, GRANS.map(([k, l]) => h("option", { value: k, selected: S.tGran === k }, l)));
+  gsel.addEventListener("change", () => { S.tGran = gsel.value; S.tOff = 0; render(); });
+  // Una sola línea: ‹ periodo › y, a la derecha, semana / mes / año / todo
+  const sel = h("div", { class: "pline" },
+    R.all ? null : h("button", { class: "icon-btn round", disabled: !R.canPrev, onclick: () => nav(-1), "aria-label": "Anterior" }, icon("left")),
+    h("div", { class: "pl-c" }, h("b", null, R.all ? "Todo" : R.label), h("span", null, `${fmt(days0)} ${days0 === 1 ? "día entrenado" : "días entrenados"}`)),
+    R.all ? null : h("button", { class: "icon-btn round", disabled: !R.canNext, onclick: () => nav(1), "aria-label": "Siguiente" }, icon("right")),
+    h("span", { class: "grow" }), gsel);
   const pv = P.prev, c = P.cur, vs = R.prevLabel ? "vs " + R.prevLabel : "";
   const groups = Object.entries(P.groups).sort((a, b) => b[1] - a[1]);
   const gmax = Math.max(1, ...groups.map((g) => g[1]));
@@ -897,7 +904,6 @@ function tResumen(st, ws) {
   const yr = (b) => (P.gran === "day" ? "" : "");
   return h("div", null,
     sel,
-    h("div", { class: "prow" }, h("div", { class: "faint" }, `${dateLabel(R.from, { day: "numeric", month: "short", year: R.all || R.gran === "año" ? "numeric" : undefined })} – ${R.to === todayISO() ? "hoy" : dateLabel(R.to, { day: "numeric", month: "short" })} · ${fmt(days)} ${days === 1 ? "día entrenado" : "días entrenados"}`)),
     h("div", { class: "kpis five" },
       kpi("Entrenos", fmt(c.n), `${fmt(P.perWeek, 1)}/sem.`, deltaOf(c.n, pv && pv.n), `${c.n} entrenos ${R.all ? "en total" : "· " + R.label}${pv ? `\n${pv.n} ${vs}` : ""}`),
       kpi("Tiempo", fmt(c.min / 60, 1) + " h", c.n ? fmt(c.min / c.n) + " min/entreno" : "", deltaOf(c.min / 60, pv && pv.min / 60, (x) => fmt(x, 1) + " h"), pv ? `${fmt(pv.min / 60, 1)} h ${vs}` : null),

@@ -113,7 +113,7 @@ setInterval(async () => {
 document.addEventListener("visibilitychange", () => { if (!document.hidden && !S.sheetOpen) refresh().catch(() => {}); });
 
 // ------------------------------------------------------------------ router
-const VIEW_OF = { today: "hoy", day: "hoy", dia: "hoy", training: "entreno", food: "biblioteca", comida: "biblioteca", progress: "progreso" };
+const VIEW_OF = { today: "hoy", day: "hoy", dia: "hoy", training: "entreno", food: "biblioteca", comida: "biblioteca", progress: "progreso", profile: "perfil", perfil: "perfil" };
 function route() {
   [...OPEN_SHEETS].forEach((c) => c());
   const parts = location.hash.replace(/^#\/?/, "").split("/");
@@ -121,6 +121,7 @@ function route() {
   // Las antiguas en español (#/hoy, #/hoy/AAAA-MM-DD, #/dia/…, #/entreno, #/comida, #/biblioteca, #/progreso) siguen valiendo.
   const alias = VIEW_OF;
   S.view = alias[parts[0]] || (["hoy", "entreno", "biblioteca", "progreso"].includes(parts[0]) ? parts[0] : "hoy");
+  if (S.view === "perfil" && matchMedia("(min-width: 900px)").matches) { S.view = "hoy"; history.replaceState(history.state, "", "#/today"); }  // en el ordenador, la cuenta está en la barra lateral
   const EN = { hoy: "today", entreno: "training", biblioteca: "food", comida: "food", progreso: "progress" };
   if (EN[parts[0]] && !parts[1]) history.replaceState(history.state, "", "#/" + EN[parts[0]]);
   if (S.view === "hoy") {
@@ -135,7 +136,7 @@ function route() {
   document.querySelectorAll("#tabs a").forEach((a) => a.classList.toggle("on", a.dataset.v === S.view));
   $("#view").classList.toggle("wide", S.view !== "hoy");
   // Cambio de pestaña al instante: lo que ya tenemos (y se actualiza detrás) o un esqueleto de carga, nunca la pestaña anterior
-  const cached = (S.view === "hoy" && S.day && S.day.date === S.date) || (S.view === "biblioteca" && S.catalog) || (S.view === "entreno" && S.training) || (S.view === "progreso" && S.progress);
+  const cached = S.view === "perfil" || (S.view === "hoy" && S.day && S.day.date === S.date) || (S.view === "biblioteca" && S.catalog) || (S.view === "entreno" && S.training) || (S.view === "progreso" && S.progress);
   if (cached) render(); else $("#view").replaceChildren(skeleton(S.view));
   refresh().catch((e) => { $("#view").replaceChildren(h("div", { class: "card panel" }, h("h3", null, "No se puede conectar con el servidor"), h("div", { class: "muted" }, e.message))); });
 }
@@ -158,6 +159,7 @@ function render() {
   if (S.view === "hoy") root.replaceChildren(viewHoy());
   else if (S.view === "biblioteca") root.replaceChildren(viewLibrary());
   else if (S.view === "entreno") root.replaceChildren(viewTraining());
+  else if (S.view === "perfil") root.replaceChildren(viewProfile());
   else root.replaceChildren(viewProgress());
 }
 
@@ -645,8 +647,7 @@ function bodyStrip(st) {
         : h("div", { class: "v none" }, h("small", null, "Aún sin pesaje")))
         : h("div", { class: "v" }, h("span", null, fmt(day.weight_kg, 1)), h("small", null, "kg")))
       : h("div", { class: "v" }, el, h("small", null, "kg")),
-    day.weight_kg == null && st.weight_interp != null ? h("div", { class: "s" }, "estimado") : null,
-    weightSpark(st.weights7));
+    day.weight_kg == null && st.weight_interp != null ? h("div", { class: "s" }, "estimado") : null);
   // Pasos: conectados al móvil → solo «Ver» (ficha con estadísticas); si no, se apuntan a mano y se ofrece conectar
   const auto = !!(S.pasos || {}).conectado && !((S.pasos || {}).off || []).includes("pasos");
   const skc = day.steps != null && en.steps_kcal != null ? kcChip(en.steps_kcal, "de los pasos") : null;
@@ -680,19 +681,6 @@ function bodyStrip(st) {
 }
 
 // Mini gráfica del peso en Hoy: una línea gris de las 2 últimas semanas (pesajes con punto; los días sin pesaje, su estimación)
-function weightSpark(ws) {
-  // Minigráfica de los últimos 7 días, como la gráfica del peso pero solo lo gris: pesajes (rellenos) y estimados (huecos) unidos por una línea
-  ws = (ws || []).map((x) => ({ ...x, v: x.w != null ? x.w : x.i }));
-  const k = ws.findIndex((x) => x.v != null); if (k < 0) return null;
-  if (ws.filter((x) => x.v != null).length < 2) return null;
-  const vs = ws.map((x) => x.v).filter((v) => v != null), lo = Math.min(...vs) - 0.15, hi = Math.max(...vs) + 0.15;
-  const n = ws.length, X = (i) => 4 + (92 * i) / Math.max(1, n - 1), Y = (v) => 12 + 76 * (1 - (v - lo) / (hi - lo || 1));  // en %
-  const line = ws.map((x, i) => x.v == null ? null : `${X(i).toFixed(2)},${Y(x.v).toFixed(2)}`).filter(Boolean).join(" ");
-  const el = h("div", { class: "wspark" });
-  el.innerHTML = `<svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points="${line}" class="wl"/></svg>` +
-    ws.map((x, i) => x.v == null ? "" : `<i class="${x.w != null ? "wd" : "wd est"}" style="left:${X(i).toFixed(2)}%;top:${Y(x.v).toFixed(2)}%"></i>`).join("");
-  return el;
-}
 // ‹ día › en las fichas de un día (pasos, peso, desglose): el anterior o el siguiente sin salir de la ficha
 // ‹ día › en las fichas del día: solo si se abrieron desde Evolución (desde Hoy ya se está en ese día)
 function dayNav(st, reopen) {
@@ -734,7 +722,7 @@ async function weightSheet(st, sh0) {
       h("div", { class: "row", style: { margin: "14px 0 6px" } }, h("b", null, "Evolución"), h("span", { class: "grow" }),
         h("div", { class: "seg" }, [[7, "7 d"], [30, "30 d"], [90, "90 d"]].map(([d, l]) => h("button", { class: days === d ? "on" : "", onclick: () => { days = d; draw(); } }, l)))),
       h("div", { class: "card panel" }, weightChart(ws, P.body, st.date))],
-      scale ? sheetFoot(`Último envío de la báscula: ${agoTxt(S.pasos.bascula)}`) : sheetFoot(null, "bascula"), { wide: true });
+      st._nav ? null : scale ? sheetFoot(`Último envío de la báscula: ${agoTxt(S.pasos.bascula)}`) : sheetFoot(null, "bascula"), { wide: true });
   };
   draw();
 }
@@ -825,7 +813,7 @@ async function stepsStatsSheet(st, sh0) {
     h("div", { class: "card panel flat" }, h("h3", { style: { margin: 0 } }, "Por horas"), hchart,
       h("div", { class: "sch-x" }, [0, 6, 12, 18, 24].map((x) => h("span", null, x + " h"))),
       hrs[peak] ? h("div", { class: "faint sm", style: { marginTop: "6px" } }, `Hora más activa: ${peak}:00 · ${fmt(hrs[peak])} pasos`) : null),
-  ], stepsFooter(d, sh), { wide: true });
+  ], st._nav ? null : stepsFooter(d, sh), { wide: true });
 }
 // Más estadísticas de pasos: semana L–D, rachas y récords, últimos 30 días y media por día de la semana
 async function stepsMoreSheet(st) {
@@ -1317,12 +1305,18 @@ function favButton(on, onToggle, tipOn, tipOff) {
 // Cabecera común de producto y comida habitual: foto pequeña (con cámara y quitar) y el nombre al lado, centrados
 function edHead(nameIn, ph) { return h("div", { class: "ed-head" }, ph, h("div", { class: "grow" }, nameIn)); }
 function photoEdit(name, cat, src, onPick, onRemove, credit) {
+  // Tocar la foto abre su ficha: la foto en grande, «Cambiar foto» y «Eliminar» (sin botones encima de la miniatura)
   const fr = photoFrame(name || "?", cat, src);
-  if (!src) { fr.classList.add("pick"); fr.onclick = onPick; }
-  if (credit) fr.title = credit;
-  return h("div", { class: "ph-ed" }, fr,
-    h("button", { type: "button", class: "ph-cam", title: src ? "Cambiar foto" : "Añadir foto", onclick: onPick }, icon("camera")),
-    src && onRemove ? h("button", { type: "button", class: "ph-x", title: "Quitar foto", onclick: onRemove }, icon("x")) : null);
+  fr.classList.add("pick"); fr.title = credit || (src ? "Foto" : "Añadir foto");
+  fr.onclick = (e) => { e.stopPropagation(); photoSheet(name, cat, src, onPick, onRemove, credit); };
+  return h("div", { class: "ph-ed" }, fr);
+}
+function photoSheet(name, cat, src, onPick, onRemove, credit) {
+  const s0 = src ? (/^(\/|data:|https?:)/.test(src) ? src : "/" + src) : null;
+  const sh = sheet("Foto", [h("div", { class: "ph-big" }, s0 ? h("img", { src: s0, alt: "" }) : mono(name || "?", cat, null, true)),
+    credit ? h("div", { class: "faint sm", style: { textAlign: "center", marginTop: "8px" } }, credit) : null],
+    [src && onRemove ? h("button", { class: "btn ghost danger", onclick: async () => { sh.close(); await onRemove(); } }, "Eliminar") : null, h("span", { class: "grow" }),
+      h("button", { class: "btn primary", onclick: () => { sh.close(); onPick(); } }, icon("camera"), src ? "Cambiar foto" : "Añadir foto")], { center: true });
 }
 function photoFrame(name, cat, img) {
   const src = img ? (/^(\/|data:|https?:)/.test(img) ? img : "/" + img) : null;
@@ -1916,12 +1910,12 @@ function measuresEditor(f, onDirty, onUnlock) {
     for (const k of MK) m.own[k] = numIn(isW(p) ? null : p[k]);
     m.unitTx = h("span", null, mode);
     m.wEl = h("label", { class: "med-w" }, m.amt, m.unitTx);
-    m.star = h("button", { type: "button", class: "med-def", title: "Que salga esta al añadirlo", onclick: () => { def = m; refresh(); onDirty(); } }, "Por defecto");
+    m.star = h("button", { type: "button", class: "med-rd", title: "Por defecto al añadirlo", "aria-label": "Por defecto", onclick: () => { def = m; refresh(); onDirty(); } });
     m.vEl = h("div", { class: "med-v num" });
     m.ownEl = h("div", { class: "med-own" }, h("div", { class: "faint sm" }, "Sin peso: pon cuánto pesa o, si no lo sabes, sus valores"), h("div", { class: "grid4" }, MK.map((k) => field(MKL[k], m.own[k]))));
     m.x = h("button", { type: "button", class: "icon-btn med-x", title: "Quitar esta medida", onclick: () => {
       const i = meds.indexOf(m); if (i < 0) return; if (m.id) deleted.push(m.id); meds.splice(i, 1); if (def === m) def = null; drawMeds(); onDirty(); } }, icon("x"));
-    m.el = h("div", { class: "med" }, h("div", { class: "med-top" }, m.label, m.wEl, m.x), h("div", { class: "med-b" }, m.vEl, m.star), m.ownEl);
+    m.el = h("div", { class: "med" }, h("div", { class: "med-top" }, m.label, m.wEl, m.star, m.x), m.ownEl);
     for (const el of [m.label, m.amt, ...Object.values(m.own)]) el.addEventListener("input", () => { refresh(); onDirty(); });
     meds.push(m); if (fresh) { drawMeds(); setTimeout(() => m.label.focus(), 30); }
     return m;
@@ -1938,22 +1932,22 @@ function measuresEditor(f, onDirty, onUnlock) {
     [["g", "por 100 g"], ["ml", "por 100 ml"], ["ud", "por unidad"]].map(([k, l]) => h("option", { value: k, selected: k === mode }, l)));
   modeSel.addEventListener("change", () => { mode = modeSel.value; drawVals(); drawMeds(); onDirty(); });
   const lockLnk = h("button", { type: "button", class: "mx-lock hidden", title: "Los valores vienen de Open Food Facts", onclick: () => onUnlock && onUnlock() }, icon("lock"), "Open Food Facts · ", h("u", null, "editar"));
-  const valsBox = h("div"), medsBox = h("div", { class: "meds" });
+  const valsBox = h("div"), medsBox = h("div", { class: "meds" }), legend = h("span", { class: "med-leg hidden" }, h("i"), "por defecto");
   const addBtn = h("button", { type: "button", class: "lnk-btn mx-add", onclick: () => addMed({}, true) }, "+ Añadir medida");
   function refresh() {
     const dm = defMed();
+    legend.classList.toggle("hidden", meds.length < 2);
     meds.forEach((m) => {
       const c = calc(m), hasW = parseNum(m.amt.value) > 0;
       m.wEl.classList.toggle("hidden", mode === "ud"); m.unitTx.textContent = mode; m.amt.placeholder = mode === "ml" ? "ml" : "g";
-      m.vEl.classList.toggle("hidden", !c); m.ownEl.classList.toggle("hidden", !!c || (mode !== "ud" && !m.label.value.trim() && !hasW));
+      m.vEl.classList.add("hidden"); m.ownEl.classList.toggle("hidden", !!c || (mode !== "ud" && !m.label.value.trim() && !hasW));
       if (c) m.vEl.textContent = `${c.kcal == null ? "?" : fmt(c.kcal)} kcal · P ${c.protein_g == null ? "?" : fmt(c.protein_g, 1)} · C ${c.carbs_g == null ? "?" : fmt(c.carbs_g, 1)} · G ${c.fat_g == null ? "?" : fmt(c.fat_g, 1)}`;
-      m.star.classList.toggle("hidden", meds.length < 2); m.star.classList.toggle("on", dm === m); m.star.textContent = dm === m ? "Por defecto" : "Usar por defecto";
+      m.star.classList.toggle("hidden", meds.length < 2); m.star.classList.toggle("on", dm === m);
       m.el.classList.toggle("def", dm === m && meds.length > 1);
     });
   }
   function drawMeds() {
     medsBox.replaceChildren(...meds.map((m) => m.el));
-    if (!meds.length) medsBox.append(h("div", { class: "faint sm med-empty" }, mode === "ud" ? "Sin medidas: se apunta por unidades." : `Sin medidas: se apunta en ${mode === "ml" ? "ml" : "gramos"}.`));
     refresh(); lockApply();
   }
   const drawVals = () => valsBox.replaceChildren(...[mode === "ud" ? field("Una unidad es", unitLabel) : null,
@@ -1962,7 +1956,7 @@ function measuresEditor(f, onDirty, onUnlock) {
   drawVals(); drawMeds();
   const el = h("div", { class: "mx" },
     h("div", { class: "mx-h" }, h("b", null, "Valores"), modeSel, h("span", { class: "grow" }), lockLnk), valsBox,
-    h("div", { class: "mx-h mx-h2" }, h("b", null, "Medidas"), h("span", { class: "faint sm" }, "nombre y cuánto pesa")), medsBox, addBtn);
+    h("div", { class: "mx-h mx-h2" }, h("b", null, "Medidas"), h("span", { class: "faint sm" }, "nombre y cuánto pesa"), h("span", { class: "grow" }), legend), medsBox, addBtn);
   return {
     el,
     lock(on) { locked = on; lockApply(); },
@@ -2283,22 +2277,28 @@ function itemsEditor(items, excludeId, onChange, opts = {}) {
   };
   const totals = () => sumN(items.map((it) => { const f = foodById(it.food_id); const u = f && (f.units || []).find((x) => x.key === it.unit_key); return u && it.quantity > 0 ? scaleN(u.per, it.quantity) : { kcal: null, protein_g: null, carbs_g: null, fat_g: null }; }));
   const drawTotal = () => { const n = totals(); onChange && onChange(n); totalEl.replaceChildren(...[["kcal", "kcal total"], ["protein_g", "Proteína"], ["carbs_g", "Carbohidr."], ["fat_g", "Grasas"]].map(([k, l]) => h("div", null, h("div", { class: "v num" }, v(n, k)), h("div", { class: "l" }, l)))); };
-  const inp = h("input", { class: "input", placeholder: "Añadir ingrediente…" });
-  const dd = h("div", { class: "dropdown hidden" });
-  const showDD = () => {
-    const q = norm(inp.value.trim());
-    const res = S.catalog.foods.filter((f) => !f.deleted && f.id !== excludeId && (!q || norm(f.name).includes(q))).slice(0, 30);
-    dd.replaceChildren(...res.map((f) => h("div", { onmousedown: (e) => { e.preventDefault(); add(f); } }, f.name, h("span", { class: "faint" }, " · " + foodSub(f)))));
-    dd.classList.toggle("hidden", !res.length);
-  };
+  // Añadir: un botón que abre un buscador en su propia ficha (como al añadir comida)
   const add = (f) => {
     const u = (f.units || []).find((x) => x.key === "g" || x.key === "ml") || (f.units || [])[0];
     if (!u) return toast("Ese alimento no tiene unidades", { error: true });
-    items.push({ food_id: f.id, unit_key: u.key, quantity: ["g", "ml"].includes(u.key) ? 100 : 1 }); inp.value = ""; dd.classList.add("hidden"); draw();
+    const du = typeof defUnit === "function" ? defUnit(f) : null, uu = du && (f.units || []).find((x) => x.key === du.key) ? du : u;
+    items.push({ food_id: f.id, unit_key: uu.key, quantity: ["g", "ml"].includes(uu.key) ? 100 : 1 }); draw();
   };
-  inp.addEventListener("input", showDD); inp.addEventListener("focus", showDD); inp.addEventListener("blur", () => setTimeout(() => dd.classList.add("hidden"), 120));
-  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { const first = dd.querySelector("div"); if (first) first.dispatchEvent(new MouseEvent("mousedown")); } });
-  wrap.append(...[list, h("div", { class: "search", style: { marginTop: "8px" } }, icon("search"), inp, dd), opts.totalsApart ? null : totalEl].filter(Boolean));
+  const pick = () => {
+    const q = h("input", { class: "input lg", placeholder: "Buscar", type: "search" }), res = h("div", { class: "list pick-list" });
+    const drawRes = () => {
+      const t = norm(q.value.trim());
+      const L = S.catalog.foods.filter((f) => !f.deleted && f.id !== excludeId && (!t || norm(f.name + " " + (f.brand || "")).includes(t)))
+        .sort((a, b) => (b.favorite || 0) - (a.favorite || 0) || (b.uses_60d || 0) - (a.uses_60d || 0) || a.name.localeCompare(b.name)).slice(0, 60);
+      res.replaceChildren(...(L.length ? L.map((f) => h("div", { class: "item b", onclick: () => { add(f); ps.close(); } }, mono(f.name, f.kind === "receta" ? "receta" : f.category, f.image),
+        h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, dname(f))), h("div", { class: "sub" }, foodSub(f))))) : [h("div", { class: "muted", style: { padding: "18px 0", textAlign: "center" } }, "Sin resultados")]));
+    };
+    q.addEventListener("input", drawRes);
+    const ps = sheet(opts.addLabel || "Añadir ingrediente", [h("div", { class: "search lg" }, icon("search"), q), res], null, { full: true });
+    drawRes(); setTimeout(() => q.focus(), 60);
+  };
+  const addBtn = h("button", { type: "button", class: "lnk-btn ie-add", onclick: pick }, "+ " + (opts.addLabel || "Añadir ingrediente"));
+  wrap.append(...[list, addBtn, opts.totalsApart ? null : totalEl].filter(Boolean));
   draw();
   return { el: wrap, totals, totalEl };
 }
@@ -2340,7 +2340,7 @@ function templateEditor(t) {
   const items = (t.items || []).map((it) => ({ food_id: it.food_id, unit_key: it.unit_key, quantity: it.quantity }));
   const name = h("input", { class: "input", value: t.name, placeholder: "Ej.: Batido habitual" });
   const meal = h("select", { class: "input" }, h("option", { value: "" }, "—"), MEALS.map(([k, l]) => h("option", { value: k, selected: k === t.meal }, l)));
-  const ed = itemsEditor(items, null, null, { totalsApart: true });
+  const ed = itemsEditor(items, null, null, { totalsApart: true, addLabel: "Añadir alimento" });
   const tFile = h("input", { type: "file", accept: "image/*", class: "hidden" });
   const tPhoto = h("div", { class: "ph-slot" });
   const drawTP = () => tPhoto.replaceChildren(photoEdit(t.name, "habitual", t.image, () => isNew ? toast("Guarda primero la comida habitual") : tFile.click(),
@@ -2533,8 +2533,11 @@ function foodMore(P) {
   const avg = (k) => use.length ? use.reduce((a, x) => a + (x[k] || 0), 0) / use.length : null, tg = P.target || {};
   const kpi = (l, v, s_) => h("div", { class: "kpi" }, h("div", { class: "l" }, l), h("div", { class: "v num" }, v), h("div", { class: "s" }, s_ || ""));
   const last = use.length ? use[use.length - 1].date : todayISO();
+  const card = balancePanel(hist, null);
+  if (card) card.classList.add("flat");
   pgSheet("Comida y gasto", [
     pgDays("lo que comiste y lo que gastaste cada día", () => openDay(last, (st) => energySheet(st))),
+    card,
     h("div", { class: "kpis k4" },
       kpi("kcal", avg("kcal") != null ? fmt(avg("kcal")) : "—", tg.kcal ? `objetivo ${fmt(tg.kcal)}` : ""),
       kpi("Proteína", avg("protein_g") != null ? fmt(avg("protein_g")) + " g" : "—", tg.protein_g ? `objetivo ${fmt(tg.protein_g)} g` : ""),
@@ -2553,7 +2556,7 @@ async function openStepsDay(d) {
 // ----------------------------------------------------------- informe en PDF
 // Se monta como una página A4 y se guarda con «Imprimir → Guardar como PDF» del navegador (sin librerías).
 function reportSheet() {
-  let days = 30;
+  let days = 30, mode = "completo";
   const parts = { peso: true, comida: true, pasos: true, entreno: true, supl: true };
   const LBL = { peso: ["Peso y cuerpo", "pesajes, media de 7 días y báscula"], comida: ["Comida", "kcal y macros frente al objetivo"],
     pasos: ["Pasos", "cada día frente a tu meta"], entreno: ["Entreno", "sesiones, calendario y récords"], supl: ["Suplementos", "constancia"] };
@@ -2561,15 +2564,18 @@ function reportSheet() {
   const draw = () => sh.set("Informe PDF", [
     h("div", { class: "sec-t" }, "Periodo"),
     h("div", { class: "seg full" }, [[7, "7 días"], [30, "30 días"], [90, "90 días"]].map(([d, l]) => h("button", { class: days === d ? "on" : "", onclick: () => { days = d; draw(); } }, l))),
+    h("div", { class: "sec-t" }, "Informe"),
+    h("div", { class: "seg full" }, [["resumen", "Resumen · 2 hojas"], ["completo", "Completo"]].map(([k, l]) => h("button", { class: mode === k ? "on" : "", onclick: () => { mode = k; draw(); } }, l))),
     h("div", { class: "sec-t" }, "Qué incluir"),
     h("div", { class: "rp-opts" }, Object.entries(LBL).map(([k, [t, d]]) => h("label", { class: "mv-type" },
       h("span", { class: "grow" }, h("b", null, t), h("span", { class: "faint sm" }, d)),
       h("input", { type: "checkbox", class: "mv-sw", checked: parts[k], onchange: (e) => { parts[k] = e.target.checked; } }))))],
-    [h("span", { class: "grow" }), h("button", { class: "btn primary lg", onclick: () => { sh.close(); buildReport(days, parts); } }, "Crear informe")]);
+    [h("span", { class: "grow" }), h("button", { class: "btn primary lg", onclick: () => { sh.close(); buildReport(days, parts, mode); } }, "Crear informe")]);
   draw();
 }
 // Informe: dos hojas A4 de verdad (794 × 1123 px), que en pantalla se ven a escala y al imprimir salen tal cual
-async function buildReport(days, parts) {
+async function buildReport(days, parts, mode = "completo") {
+  const full = mode === "completo";
   toast("Preparando el informe…");
   const to = todayISO(), from = addDays(to, -(days - 1));
   let P, W, SS, ST;
@@ -2577,6 +2583,7 @@ async function buildReport(days, parts) {
     [P, W, SS, ST] = await Promise.all([api("GET", `/api/progress?days=${days}&weeks=${Math.ceil(days / 7) + 1}`),
       parts.entreno ? api("GET", `/api/workouts?from=${from}&to=${to}&limit=500`) : null, parts.supl ? api("GET", `/api/supplements/stats?days=${days}`) : null,
       api("GET", "/api/state?date=" + to).catch(() => null)]);
+    if (full && !S.catalog) await loadCatalog().catch(() => {});
   } catch (e) { toast(e.message, { error: true }); return; }
   const C = { ink: "#17181a", mut: "#85827a", faint: "#b5b1a8", line: "#ebe8e1", soft: "#f5f3ee", acc: "#1f7a5a", accS: "#e3f0ea", amber: "#d2961f", blue: "#3f6fd8", red: "#c4553d", sand: "#dcd7cc" };
   const user = S.me ? (S.me.nombre || S.me.usuario || "") : "", first = user.trim().split(/\s+/)[0] || "";
@@ -2700,8 +2707,64 @@ async function buildReport(days, parts) {
       h("div", { class: "rx-strip" }, x.days.filter((c) => c.date >= from).map((c) => h("i", { class: "s-" + c.s }))),
       h("b", { class: x.pct30 >= 85 ? "good" : x.pct30 >= 60 ? "mid" : "low" }, x.pct30 + " %"))))) : null;
   const foot = (n, tot) => h("footer", { class: "rx-foot" }, h("span", null, `${first ? first + " · " : ""}Salud · ${D(to, { day: "numeric", month: "long", year: "numeric" })}`), h("span", null, `${n} / ${tot}`));
+  // ---- Informe completo: lo mismo y además tablas y estadísticas
+  const tbl = (cols, rows, cls) => h("table", { class: "rx-t" + (cls ? " " + cls : "") }, h("tr", null, cols.map(([l, r]) => h("th", { class: r ? "r" : "" }, l))),
+    rows.map((rw) => h("tr", null, rw.map((v, i) => h("td", { class: cols[i][1] ? "r" : "" }, v == null || v === "" ? "—" : v)))));
+  const xtra = [];
+  if (full) {
+    // Días destacados
+    const maxBy = (L, k) => L.filter((d) => d[k] != null).reduce((a, d) => (!a || d[k] > a[k] ? d : a), null);
+    const minBy = (L, k) => L.filter((d) => d[k] != null).reduce((a, d) => (!a || d[k] < a[k] ? d : a), null);
+    const tdeeD = logged.filter((d) => d.tdee_complete);
+    const card = (l, v, d_) => h("div", { class: "rx-dd" }, h("span", null, l), h("b", null, v), h("em", null, d_ ? D(d_.date, { weekday: "short", day: "numeric", month: "short" }) : ""));
+    const pMax = maxBy(logged, "protein_g"), kMax = maxBy(logged, "kcal"), bMin = minBy(tdeeD, "balance"), sMax = maxBy(stepsD, "steps"), wMin = wm.length ? wm.reduce((a, w) => (!a || w.weight_kg < a.weight_kg ? w : a), null) : null;
+    const dd = [kMax && card("Más kcal", fmt(kMax.kcal) + " kcal", kMax), pMax && card("Más proteína", fmt(pMax.protein_g) + " g", pMax), bMin && card("Mayor déficit", signed(Math.round(bMin.balance)) + " kcal", bMin),
+      sMax && card("Más pasos", fmt(sMax.steps), sMax), wMin && card("Peso más bajo", fmt(wMin.weight_kg, 1) + " kg", wMin)].filter(Boolean);
+    if (dd.length) xtra.push(sec("Días destacados", "", h("div", { class: "rx-dds" }, dd)));
+    // Semanas
+    const wk = (P.weeks || []).filter((w) => addDays(w.week, 6) >= from && w.week <= to);
+    if (wk.length) xtra.push(sec("Semana a semana", "medias de cada semana",
+      tbl([["Semana"], ["Días", 1], ["kcal", 1], ["Prot.", 1], ["Carb.", 1], ["Grasa", 1], ["Peso", 1], ["Δ", 1], ["Pasos", 1], ["Gasto", 1], ["Balance", 1]],
+        wk.map((w) => [D(w.week), `${w.days_logged}/${w.days}`, w.kcal ? fmt(w.kcal) : null, w.kcal ? fmt(w.protein_g) : null, w.kcal ? fmt(w.carbs_g) : null, w.kcal ? fmt(w.fat_g) : null,
+          w.weight != null ? fmt(w.weight, 1) : null, w.weight_delta != null ? signed(w.weight_delta, 1) : null, w.steps != null ? fmt(w.steps) : null, w.tdee != null ? fmt(w.tdee) : null, w.kcal && w.balance != null ? signed(Math.round(w.balance)) : null]))));
+    // Pasos por día de la semana
+    if (stepsD.length >= 7) {
+      const LD = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"], acc = LD.map(() => []);
+      stepsD.forEach((d) => acc[(new Date(d.date + "T12:00").getDay() + 6) % 7].push(d.steps));
+      const av = acc.map((a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null), mx = Math.max(1, ...av.filter((v) => v != null));
+      xtra.push(sec("Pasos por día de la semana", "media", h("div", { class: "rx-dow" }, LD.map((l, i) => h("div", null, h("div", { class: "rx-dowb" }, h("i", { style: { height: (av[i] ? 100 * av[i] / mx : 0) + "%", background: av[i] >= goal ? C.acc : C.sand } })),
+        h("b", null, av[i] != null ? fmt(av[i] / 1000, 1) + "k" : "—"), h("span", null, l))))));
+    }
+    // Entreno: series por grupo y sesiones
+    if (wos.length) {
+      const G = {}; wos.forEach((w) => (w.exercises || []).forEach((e) => { const g = (typeof exGroup === "function" && exGroup(e.name)) || "Otros"; G[g] = (G[g] || 0) + (e.sets || []).filter((s_) => s_.type !== "calentamiento").length; }));
+      const gl = Object.entries(G).filter(([, n]) => n).sort((a, b) => b[1] - a[1]), gm = Math.max(1, ...gl.map((x) => x[1]));
+      xtra.push(sec("Series por grupo muscular", "series efectivas en el periodo · por semana", h("div", { class: "rx-gb" }, gl.map(([g, n]) => h("div", null, h("span", null, g),
+        h("div", { class: "rx-gbt" }, h("i", { style: { width: 100 * n / gm + "%", background: `hsl(${(typeof GROUP_HUE !== "undefined" && GROUP_HUE[g]) || 0} 45% 52%)` } })), h("b", null, String(n)), h("em", null, fmt(n * 7 / days, 1) + "/sem"))))));
+      const L = wos.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 18).reverse();
+      xtra.push(sec("Sesiones", wos.length > 18 ? `las últimas 18 de ${wos.length}` : "",
+        tbl([["Día"], ["Sesión"], ["Min", 1], ["Series", 1], ["Volumen", 1], ["Récords", 1]],
+          L.map((w) => [D(w.date, { weekday: "short", day: "numeric", month: "short" }), w.title || w.activity_type, w.duration_min ? fmt(w.duration_min) : null, String(w.sets_count || 0), w.volume_kg ? fmt(w.volume_kg) + " kg" : null, w.prs_count ? String(w.prs_count) : ""]))));
+    }
+    // Báscula
+    const bs = (P.body || []).filter((b) => b.date >= from).sort((a, b) => (b.date + (b.time || "")).localeCompare(a.date + (a.time || ""))).slice(0, 10);
+    if (bs.length) xtra.push(sec("Báscula", "últimas mediciones · bioimpedancia, orientativa",
+      tbl([["Fecha"], ["Peso", 1], ["Grasa", 1], ["Músculo", 1], ["Agua", 1], ["Visceral", 1], ["IMC", 1]],
+        bs.map((b) => [D(b.date) + (b.time ? " · " + b.time : ""), b.weight_kg != null ? fmt(b.weight_kg, 1) : null, b.fat_pct != null ? fmt(b.fat_pct, 1) + " %" : null,
+          bodyVal(b, "muscle_kg") != null ? fmt(bodyVal(b, "muscle_kg"), 1) : null, b.water_pct != null ? fmt(b.water_pct, 1) + " %" : null, b.visceral_fat != null ? fmt(b.visceral_fat) : null, b.bmi != null ? fmt(b.bmi, 1) : null]))));
+    // Lo que más apuntas
+    const top = ((S.catalog && S.catalog.foods) || []).filter((f) => f.uses_60d > 0 && !/suplement/i.test(f.category || "")).sort((a, b) => b.uses_60d - a.uses_60d).slice(0, 10);
+    if (top.length) xtra.push(sec("Lo que más apuntas", "últimos 60 días", h("ol", { class: "rx-top" }, top.map((f) => h("li", null, h("span", null, dname(f)), h("b", null, f.uses_60d + " veces"))))));
+    // Calibración del gasto
+    const cal = P.calibration;
+    if (cal && cal.ready) { const ap = cal.applied || {};
+      xtra.push(sec("Gasto", "cómo se calcula y cómo se ajusta", h("div", { class: "rx-stats" },
+        stat("Mantenimiento observado", cal.observed_maintenance != null ? fmt(cal.observed_maintenance) + " kcal" : "—"), stat("Modelo", cal.model_tdee_avg != null ? fmt(cal.model_tdee_avg) + " kcal" : "—"),
+        stat("Ajuste de la base", signed(ap.cal_ajuste_kcal || 0) + " kcal/día"), stat("Pasos", "× " + fmt(ap.cal_pasos_factor || 1, 2)), stat("Entrenos", "× " + fmt(ap.cal_ejercicio_factor || 1, 2))),
+        )); }
+  }
   // Paginación: las secciones van llenando hojas A4; la que no cabe pasa a la siguiente hoja
-  const flow = [head, kpis, hlBox, pesoSec, comidaSec, pasosSec, entrenoSec, suplSec, h("div", { class: "rx-note rx-disc" }, "El gasto y el balance son estimaciones; la composición corporal por bioimpedancia es orientativa.")].filter(Boolean);
+  const flow = [head, kpis, hlBox, pesoSec, comidaSec, pasosSec, entrenoSec, suplSec, ...xtra, h("div", { class: "rx-note rx-disc" }, "El gasto y el balance son estimaciones; la composición corporal por bioimpedancia es orientativa.")].filter(Boolean);
   const newPage = () => { const pg_ = h("div", { class: "rx-page" }, h("div", { class: "rx-body" }), foot(0, 0)); pages.append(pg_); return pg_; };
   // ---- vista previa (a escala) y descarga
   const prevTitle = document.title;
@@ -2834,7 +2897,7 @@ function balancePanel(hist, P) {
   const avg = ds.reduce((a, x) => a + dif(x), 0) / ds.length, ok = ds.filter((x) => Math.abs(dif(x)) <= 150).length, sum = ds.reduce((a, x) => a + dif(x), 0);
   const kpi = (l, v, s_) => h("div", { class: "kpi" }, h("div", { class: "l" }, l), h("div", { class: "v num" }, v), h("div", { class: "s" }, s_ || ""));
   const word = (v) => Math.abs(v) <= 150 ? "en tu objetivo" : v > 0 ? "por encima" : "por debajo";
-  return h("div", { class: "card panel" }, pgHead("Comida", "frente a tu objetivo", P ? () => foodMore(P) : null),
+  return h("div", { class: "card panel" }, P ? pgHead("Comida", "frente a tu objetivo", () => foodMore(P)) : pgHead("Frente a tu objetivo", "kcal de más o de menos cada día"),
     h("div", { class: "kpis k3" },
       kpi("Media", signed(Math.round(avg)), `kcal/día · ${word(avg)}`),
       kpi("En objetivo", `${ok} de ${ds.length}`, "días a ±150 kcal"),
@@ -3189,7 +3252,7 @@ async function welcomeSheet() {
         fi.click(); } }, "Subir archivo de Hevy"), hevyOut],
       [h("button", { class: "btn ghost", onclick: () => go("objetivo") }, "Atrás"), h("span", { class: "grow" }), h("button", { class: "btn primary", onclick: finish }, "Terminar")]],
   };
-  const sh = sheet("Primeros pasos", null, null, { onClose: () => { S.onAgents = null; if (!done) setTimeout(() => api("GET", "/api/notes/bienvenida").then((n) => { if (!n.body) toast("Te lo volveré a mostrar hasta que termines los primeros pasos"); }).catch(() => {}), 50); } });
+  const sh = sheet("Primeros pasos", null, null, { onClose: () => { S.onAgents = null; if (!done) setTimeout(() => api("GET", "/api/notes/bienvenida").then((n) => { if (!n.body) toast("Se mostrará hasta completar los primeros pasos"); }).catch(() => {}), 50); } });
   let wasOn = agentConnected();
   S.onAgents = () => { if (agentConnected() !== wasOn) { wasOn = agentConnected(); if (page === "agente" && wasOn && path === "agente") go("listo"); else if (page === "agente") draw(); } };
   const draw = () => {
@@ -3286,7 +3349,23 @@ async function activitySheet() {
   };
   await load(false);
 }
+// Perfil (pestaña del móvil; en el ordenador, el menú de la cuenta abajo en la barra lateral)
+function viewProfile() {
+  const name = S.me ? (S.me.nombre || S.me.usuario) : "Este dispositivo";
+  const err = (p) => p.catch((e) => toast(e.message, { error: true }));
+  const row = (ic, label, fn, extra, cls) => h("button", { class: "pf-row" + (cls ? " " + cls : ""), onclick: fn }, h("span", { class: "pf-ic" }, icon(ic)), h("span", { class: "grow" }, label), extra || null, cls === "danger" ? null : h("span", { class: "chev" }, icon("right")));
+  return h("div", { class: "profile" },
+    h("div", { class: "pf-head" }, h("span", { class: "av xl" + (S.me ? "" : " local") }, S.me ? name[0].toUpperCase() : icon("lock")),
+      h("div", null, h("b", null, name), h("span", null, S.me ? "@" + S.me.usuario : "Versión local"))),
+    h("div", { class: "card pf-list" },
+      S.me ? row("plug", "Conexiones", () => err(connectionsSheet()), agentConnected() ? h("span", { class: "ag-mini-list" }, S.me.agente.agents.slice(0, 3).map((t) => agentLogo(agentOf(t.agent || t.kind), 20))) : h("span", { class: "alert-dot" }, "!"), agentConnected() ? "" : "warn") : null,
+      row("activity", "Actividad", () => err(activitySheet())),
+      row("gear", "Ajustes", () => err(settingsSheet())),
+      S.me ? row("flag", "Primeros pasos", () => err(welcomeSheet())) : null),
+    S.me ? h("div", { class: "card pf-list" }, row("out", "Cerrar sesión", async () => { await api("POST", "/api/logout", {}); location.href = "/login"; }, null, "danger")) : null);
+}
 function drawAccount() {
+  const nav = $("#nav-av"); if (nav) { nav.className = "nav-av" + (S.me ? "" : " local"); nav.replaceChildren(S.me ? (S.me.nombre || S.me.usuario)[0].toUpperCase() : icon("lock")); }
   const b = $("#btn-acct"); if (!b) return;
   const name = S.me ? (S.me.nombre || S.me.usuario) : "Local";
   b.replaceChildren(h("span", { class: "av" + (S.me ? "" : " local") }, S.me ? name[0].toUpperCase() : icon("lock"), S.me && !agentConnected() ? h("span", { class: "av-alert", title: "Conecta tu agente" }, "!") : null), h("span", { class: "an" }, name), icon("chev"));
