@@ -2595,3 +2595,95 @@ body.rp-on { overflow: hidden; }
 .pf-row .chev svg { width: 16px; height: 16px; color: var(--faint); }
 .pf-row.danger { color: var(--danger); } .pf-row.danger .pf-ic { color: var(--danger); }
 .pf-row.warn { color: #b45309; }
+
+/* Fichas en el móvil: sin X (se cierran tocando fuera, arrastrando hacia abajo o con atrás); las de pantalla completa sí la llevan */
+@media (max-width: 640px) { .backdrop:not(.full) .sheet-x { display: none; } }
+/* Guardando… */
+.btn.busy { opacity: .85; cursor: progress; }
+.spin { display: inline-block; width: 15px; height: 15px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; margin-right: 8px; vertical-align: -2px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Medidas: filas sueltas (sin recuadro): ○ nombre · peso · ✕; el «+» en la cabecera */
+.med { border: 0 !important; padding: 0 !important; background: none !important; border-radius: 0; }
+.meds { gap: 8px; }
+.mx-add { width: 30px; height: 30px; color: var(--accent); background: var(--accent-soft); }
+.mx-add svg { width: 16px; height: 16px; stroke-width: 2.4; }
+.mx-h2 { margin-top: 14px; margin-bottom: 8px; }
+.med-leg { margin-left: 8px; }
+
+.title-row h2 { max-width: none !important; }
+
+/* Foto en grande */
+.backdrop.zoom { background: rgba(0,0,0,.9) !important; backdrop-filter: none; padding: 0 !important; align-items: center !important; justify-content: center; inset: 0 !important; top: 0 !important; height: 100% !important; }
+.backdrop.zoom .sheet { background: none; box-shadow: none; border: 0; width: 100%; max-width: none; height: 100%; max-height: none; border-radius: 0; display: grid; place-items: center; animation: fadeIn .15s ease; transform: none !important; }
+.backdrop.zoom .grab, .backdrop.zoom .sheet-h, .backdrop.zoom .sheet-f { display: none !important; }
+.backdrop.zoom .sheet-b { padding: 0; overflow: hidden; display: grid; place-items: center; width: 100%; height: 100%; }
+.backdrop.zoom img { max-width: 94vw; max-height: 88vh; border-radius: 12px; object-fit: contain; cursor: zoom-out; }
+
+/* Subiendo… (en medio, sin dejar tocar nada) */
+.prog-ov { position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,.28); display: grid; place-items: center; animation: fadeIn .12s ease; }
+.prog-c { background: var(--surface); color: var(--text); border-radius: 16px; padding: 16px 22px; font-weight: 600; box-shadow: 0 12px 40px rgba(0,0,0,.2); display: flex; align-items: center; }
+.btn.torch.on { background: #f6d365; color: #3d2c00; border-color: #f6d365; }
+.cam-w { aspect-ratio: 3 / 4; }
+.backdrop.full .cam-w { aspect-ratio: auto; }
+
+/* Añadir comida habitual: filas como las de un producto (sin cajas grises), la unidad debajo del nombre */
+.tpl-list { gap: 0; margin: 4px 0 12px; }
+.tpl-row { grid-template-columns: 20px 36px 1fr 72px !important; padding: 8px 2px !important; background: none !important; border-radius: 0 !important; border-bottom: 1px solid var(--line); }
+.tpl-row:last-child { border-bottom: 0; }
+.tpl-row .nm { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.tpl-row .nm span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 550; }
+.tpl-row .nm small { color: var(--muted); font-size: 12.5px; }
+.tpl-row .input { background: var(--surface-2) !important; text-align: right; }
+.tpl-row input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
+
+/* Pesajes del día */
+.wlist { margin-top: 14px; }
+.wl-r { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.wl-r:last-child { border-bottom: 0; }
+.wl-m { flex: 1; display: flex; align-items: center; gap: 10px; border: 0; background: none; padding: 6px 0; color: var(--text); font: inherit; cursor: pointer; text-align: left; }
+.wl-m svg { width: 16px; height: 16px; color: var(--faint); }
+.med-rd:disabled { cursor: default; }
+
+/* Frente a tu objetivo: verde en objetivo, ámbar por encima, azul por debajo (suaves) */
+.bal-bars .bal-b.in i, .bal-leg i.in { background: color-mix(in srgb, var(--accent) 70%, transparent) !important; }
+.bal-bars .bal-b.over i, .bal-leg i.over { background: color-mix(in srgb, #e0a43a 85%, transparent) !important; }
+.bal-bars .bal-b.under i, .bal-leg i.under { background: color-mix(in srgb, #6b8fe0 85%, transparent) !important; }
+
+/* Entreno · Resumen: cifras en una tarjeta, lo destacado en líneas */
+.tstats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 14px 6px; margin-bottom: 12px; }
+.tst { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 1px; padding: 0 4px; border-right: 1px solid var(--line); }
+.tst:last-child { border-right: 0; }
+.tst b { font-size: 21px; font-weight: 760; letter-spacing: -.02em; }
+.tst-l { font-size: 12px; color: var(--muted); }
+.tst em { font-style: normal; font-size: 11.5px; color: var(--faint); min-height: 15px; }
+.tst em.dl.up { color: var(--accent); } .tst em.dl.down { color: #b4691f; }
+.hlc { padding-bottom: 6px; }
+.hlr { display: grid; grid-template-columns: 150px 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; width: 100%; padding: 9px 0; border: 0; border-top: 1px solid var(--line); background: none; color: var(--text); font: inherit; text-align: left; position: relative; }
+.hlr:first-of-type { border-top: 0; }
+.hlr .l { grid-row: span 2; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13.5px; }
+.hlr b { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 20px; }
+.hlr .s { font-size: 12px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 20px; }
+.hlr > svg { position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--faint); }
+.hlr.click { cursor: pointer; }
+@media (max-width: 640px) { .hlr { grid-template-columns: 128px 1fr; } .tst b { font-size: 19px; } }
+/* Pestañas de Entreno repartidas a lo ancho */
+.utabs { justify-content: space-between; gap: 8px; }
+/* Gráficas: deslizar el dedo de lado recorre las barras (no hace scroll) */
+.mchart.bars, .pbars, .bal-bars, .sch, .swk, .sdays { touch-action: pan-y; }
+
+/* Historial de entrenos: nombre completo arriba, la duración a la derecha */
+.wc-h2 { display: flex; align-items: baseline; gap: 10px; }
+.wc-h2 .wc-t { flex: 1; min-width: 0; font-weight: 700; font-size: 16px; }
+.wc-dur { flex: none; color: var(--muted); font-size: 14px; font-weight: 600; }
+.wc-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 3px; font-size: 13px; }
+
+.pf-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 14px 6px; margin-bottom: 14px; }
+.pf-stats > div { display: flex; flex-direction: column; align-items: center; text-align: center; border-right: 1px solid var(--line); padding: 0 4px; }
+.pf-stats > div:last-child { border-right: 0; }
+.pf-stats b { font-size: 19px; font-weight: 760; } .pf-stats span { font-size: 11.5px; color: var(--muted); line-height: 1.25; }
+.pf-stats:empty { display: none; }
+/* KPIs de 3 en móvil: caben siempre (sin desbordar) */
+.kpis.k3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 640px) { .kpis.k3 { gap: 8px; } .kpis.k3 .kpi { padding: 10px; min-width: 0; } .kpis.k3 .kpi .v { font-size: 17px; } .kpis.k3 .kpi .l, .kpis.k3 .kpi .s { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } }
+.hlr .l { white-space: nowrap; } @media (max-width: 640px) { .hlr { grid-template-columns: 140px 1fr; } .hlr .l { font-size: 13px; } }

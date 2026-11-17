@@ -884,7 +884,7 @@ function tResumen(st, ws) {
   // Una sola línea: ‹ periodo › y, a la derecha, semana / mes / año / todo
   const sel = h("div", { class: "pline" },
     R.all ? null : h("button", { class: "icon-btn round", disabled: !R.canPrev, onclick: () => nav(-1), "aria-label": "Anterior" }, icon("left")),
-    h("div", { class: "pl-c" }, h("b", null, R.all ? "Todo" : R.label), h("span", null, `${fmt(days0)} ${days0 === 1 ? "día entrenado" : "días entrenados"}`)),
+    h("div", { class: "pl-c" }, h("b", null, R.all ? "Todo" : R.label), h("span", null, `${fmt(days0)} ${days0 === 1 ? "día entrenado" : "días entrenados"} · racha ${st.streak} sem.`)),
     R.all ? null : h("button", { class: "icon-btn round", disabled: !R.canNext, onclick: () => nav(1), "aria-label": "Siguiente" }, icon("right")),
     h("span", { class: "grow" }), gsel);
   const pv = P.prev, c = P.cur, vs = R.prevLabel ? "vs " + R.prevLabel : "";
@@ -902,25 +902,36 @@ function tResumen(st, ws) {
   ];
   const showBars = P.buckets.length > 1;
   const yr = (b) => (P.gran === "day" ? "" : "");
+  // Las cifras del periodo en una sola tarjeta (cuatro por fila, con su cambio frente al periodo anterior)
+  const stat = (l, v, s_, delta, tipTxt) => tip(h("div", { class: "tst" }, h("b", { class: "num" }, v), h("span", { class: "tst-l" }, l),
+    delta && delta.t ? h("em", { class: "dl " + (delta.v > 0 ? "up" : delta.v < 0 ? "down" : "") }, delta.t) : h("em", null, s_ || "")), tipTxt);
+  const stats = h("div", { class: "card tstats" },
+    stat("Entrenos", fmt(c.n), `${fmt(P.perWeek, 1)}/sem.`, deltaOf(c.n, pv && pv.n), `${c.n} entrenos ${R.all ? "en total" : "· " + R.label}\n${fmt(P.perWeek, 1)} por semana${pv ? `\n${pv.n} ${vs}` : ""}`),
+    stat("Horas", fmt(c.min / 60, 1), c.n ? fmt(c.min / c.n) + " min" : "", deltaOf(c.min / 60, pv && pv.min / 60, (x) => fmt(x, 1)), `${c.n ? fmt(c.min / c.n) + " min por entreno" : ""}${pv ? `\n${fmt(pv.min / 60, 1)} h ${vs}` : ""}`),
+    stat("Toneladas", fmt(c.vol / 1000, 1), "", deltaOf(c.vol / 1000, pv && pv.vol / 1000, (x) => fmt(x, 1)), `${fmt(c.vol)} kg levantados (como en Hevy: todas las series)${pv ? `\n${fmt(pv.vol)} kg ${vs}` : ""}`),
+    stat("Series", fmt(c.sets), "", deltaOf(c.sets, pv && pv.sets), `${c.n ? fmt(c.sets / c.n, 1) + " por entreno" : ""}${pv ? `\n${fmt(pv.sets)} series ${vs}` : ""}`));
+  // Minutos (o entrenos) y volumen en la misma tarjeta: se cambia con el selector
+  S.tChart = S.tChart || "min";
+  const chartBox = h("div");
+  const drawChart = () => chartBox.replaceChildren(S.tChart === "vol"
+    ? bars(P.buckets.map((b) => ({ v: b.vol, label: `${P.bLabel(b)}\n${fmt(b.vol)} kg · ${fmt(b.sets)} series` })), { h: 90 })
+    : bars(P.buckets.map((b) => ({ v: P.gran === "day" ? b.min || (b.n ? 30 : 0) : b.n, label: `${P.bLabel(b)}\n${b.n} ${b.n === 1 ? "entreno" : "entrenos"}${b.min ? " · " + fmt(b.min) + " min" : ""}` })), { h: 90 }),
+    h("div", { class: "axis-row" }, h("span", null, P.bLabel(P.buckets[0]).replace("Semana del ", "")), h("span", null, R.to === todayISO() ? "hoy" : P.bLabel(P.buckets[P.buckets.length - 1]).replace("Semana del ", ""))));
+  const chartSeg = h("div", { class: "seg sm" }, [["min", P.gran === "day" ? "Minutos" : "Entrenos"], ["vol", "Volumen"]].map(([k, l]) =>
+    h("button", { class: S.tChart === k ? "on" : "", onclick: (e) => { S.tChart = k; [...chartSeg.children].forEach((x) => x.classList.toggle("on", x === e.currentTarget)); drawChart(); } }, l)));
+  if (showBars) drawChart();
+  // Lo destacado, compacto: una línea cada cosa
+  const hlBox = h("div", { class: "card panel hlc" }, h("h3", null, "Destacado"),
+    hl.map(([l, v, s_, fn]) => h(fn ? "button" : "div", { class: "hlr" + (fn ? " click" : ""), onclick: fn || undefined },
+      h("span", { class: "l" }, kpiLbl(l)), h("b", null, v), h("span", { class: "s" }, s_), fn ? icon("right") : null)));
   return h("div", null,
     sel,
-    h("div", { class: "kpis five" },
-      kpi("Entrenos", fmt(c.n), `${fmt(P.perWeek, 1)}/sem.`, deltaOf(c.n, pv && pv.n), `${c.n} entrenos ${R.all ? "en total" : "· " + R.label}${pv ? `\n${pv.n} ${vs}` : ""}`),
-      kpi("Tiempo", fmt(c.min / 60, 1) + " h", c.n ? fmt(c.min / c.n) + " min/entreno" : "", deltaOf(c.min / 60, pv && pv.min / 60, (x) => fmt(x, 1) + " h"), pv ? `${fmt(pv.min / 60, 1)} h ${vs}` : null),
-      kpi("Volumen", fmt(c.vol / 1000, 1) + " t", c.n ? fmt(c.vol / c.n) + " kg/entreno" : "", deltaOf(c.vol / 1000, pv && pv.vol / 1000, (x) => fmt(x, 1) + " t"), `${fmt(c.vol)} kg levantados (como en Hevy: todas las series)${pv ? `\n${fmt(pv.vol)} kg ${vs}` : ""}`),
-      kpi("Series", fmt(c.sets), c.n ? fmt(c.sets / c.n, 1) + "/entreno" : "", deltaOf(c.sets, pv && pv.sets), pv ? `${fmt(pv.sets)} series ${vs}` : null),
-      kpi("Racha", st.streak + " sem.", "seguidas", null, "Semanas seguidas con al menos un entreno")),
-    h("div", { class: "hl" }, hl.map(([l, v, s_, fn]) => h(fn ? "button" : "div", { class: "hli" + (fn ? " click" : ""), onclick: fn || undefined }, h("span", { class: "l" }, kpiLbl(l)), h("b", null, v), h("span", { class: "s" }, s_)))),
+    stats,
     lastCard(ws),
-    R.gran === "semana" ? null : h("div", { class: "card panel" }, h("h3", null, "Actividad", h("span", { class: "faint", style: { fontWeight: 400 } }, " · más oscuro = más volumen")),
+    R.gran === "semana" ? null : h("div", { class: "card panel" }, h("h3", null, "Calendario"),
       R.gran === "mes" ? monthCal(st.byDate, R.from, R.end) : heatmap(st.byDate, R.from, R.to)),
-    showBars ? h("div", { class: "grid2 gap-big" },
-      h("div", { class: "card panel" }, h("h3", null, P.gran === "day" ? "Minutos por día" : P.gran === "week" ? "Entrenos por semana" : "Entrenos por mes"),
-        bars(P.buckets.map((b) => ({ v: P.gran === "day" ? b.min || (b.n ? 30 : 0) : b.n, label: `${P.bLabel(b)}\n${b.n} ${b.n === 1 ? "entreno" : "entrenos"}${b.min ? " · " + fmt(b.min) + " min" : ""}` })), { h: 90 }),
-        h("div", { class: "axis-row" }, h("span", null, P.bLabel(P.buckets[0]).replace("Semana del ", "")), h("span", null, R.to === todayISO() ? "hoy" : P.bLabel(P.buckets[P.buckets.length - 1]).replace("Semana del ", "")))),
-      h("div", { class: "card panel" }, h("h3", null, "Volumen"),
-        bars(P.buckets.map((b) => ({ v: b.vol, label: `${P.bLabel(b)}\n${fmt(b.vol)} kg · ${fmt(b.sets)} series` })), { h: 90 }),
-        h("div", { class: "axis-row" }, h("span", null, P.bLabel(P.buckets[0]).replace("Semana del ", "")), h("span", null, R.to === todayISO() ? "hoy" : P.bLabel(P.buckets[P.buckets.length - 1]).replace("Semana del ", ""))))) : null,
+    showBars ? h("div", { class: "card panel" }, h("div", { class: "row", style: { marginBottom: "8px" } }, h("h3", { style: { margin: 0 } }, P.gran === "day" ? "Por día" : P.gran === "week" ? "Por semana" : "Por mes"), h("span", { class: "grow" }), chartSeg), chartBox) : null,
+    hlBox,
     h("div", { class: "grid2 gap-big" },
       h("div", { class: "card panel" }, h("h3", { style: { marginBottom: "2px" } }, "Series por semana y grupo"), h("div", { class: "faint sm", style: { marginBottom: "10px" } }, "En verde, lo recomendado: 10–20 series por semana"),
         h("div", { class: "gbars wk" }, groups.map(([g, n]) => { const pw = n / Math.max(1, R.days / 7), max = 26; const zone = pw < 10 ? "low" : pw > 20 ? "high" : "ok";
@@ -1009,9 +1020,12 @@ function workoutCard(w) {
   return h("div", { class: "card wcard v2", onclick: () => workoutSheet(w.id) },
     h("div", { class: "wdate" }, h("b", null, String(d)), h("span", null, dt.toLocaleDateString("es-ES", { weekday: "short" }))),
     h("div", { class: "wbody" },
-      h("div", { class: "wc-h" }, h("div", { class: "wc-tt" }, h("div", { class: "wc-t" }, w.title), chg(upsChip(w), w.prs_count ? tip(h("span", { class: "prc" }, icon("trophy"), tx(String(w.prs_count))), `${w.prs_count} récords en este entreno`) : null, kcChip(w.kcal))), h("span", { class: "grow" }), h("span", { class: "faint wc-when" }, h("span", { class: "wc-dd" }, dt.toLocaleDateString("es-ES", { weekday: "short", day: "numeric" }) + (w.start_time ? " · " : "")), w.start_time || null)),
+      // El nombre entero en su línea (a la derecha, lo que duró); debajo, cuándo, volumen y series, y los récords y el gasto
+      h("div", { class: "wc-h2" }, h("div", { class: "wc-t" }, w.title), w.duration_min ? h("span", { class: "wc-dur num" }, fmt(w.duration_min) + " min") : null),
+      h("div", { class: "wc-meta" }, h("span", { class: "faint" }, [dt.toLocaleDateString("es-ES", { weekday: "short", day: "numeric" }) + (w.start_time ? " · " + w.start_time : ""),
+        w.volume_kg ? fmt(w.volume_kg) + " kg" : null, w.sets_count + " series"].filter(Boolean).join(" · ")),
+        chg(upsChip(w), w.prs_count ? tip(h("span", { class: "prc" }, icon("trophy"), tx(String(w.prs_count))), `${w.prs_count} récords en este entreno`) : null, kcChip(w.kcal))),
       w.notes ? h("div", { class: "wc-desc" }, w.notes) : null,
-      h("div", { class: "wchips" }, w.duration_min ? h("span", null, fmt(w.duration_min) + " min") : null, w.volume_kg ? h("span", null, fmt(w.volume_kg) + " kg") : null, h("span", null, w.sets_count + " series")),
       h("div", { class: "wc-ex" }, w.exercises.map((ex) => { const b = ex.sets.length ? bestSetOf(ex) : null; return h("div", { class: "wc-exr" }, exIcon(ex.name, 22),
         h("span", { class: "n" }, `${ex.sets.length} × ${ex.name}`), h("span", { class: "b num" }, b ? setShort(ex.kind, b) : "")); }))));
 }

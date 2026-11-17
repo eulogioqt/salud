@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import ipaddress
 import json
+import re
 import mimetypes
 import os
 import sys
@@ -21,7 +22,7 @@ from .training import photo_dir
 WEB_DIR = os.path.join(APP_DIR, "web")
 LOCK = threading.Lock()
 # Windows a veces asocia .js a text/plain en el registro: tipos fijados a mano.
-MIME = {".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml",
+MIME = {".webmanifest": "application/manifest+json", ".png": "image/png", ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml",
         ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".json": "application/json"}
 CONN = None
 # Modo servidor (varias cuentas): directorio de datos con usuarios.json y una BD por persona.
@@ -366,6 +367,25 @@ class Handler(BaseHTTPRequestHandler):
         if not ctx:
             return self._send(401, {"error": "Inicia sesión", "login": True})
         conn, lock, _user = ctx
+        mimg = re.match(r"^/api/foods/(\d+)/image-url$", u.path)
+        if mimg and method == "POST" and body.get("background"):
+            # Foto de Open Food Facts: se descarga en segundo plano (OFF a veces tarda mucho) y la ficha no espera
+            import threading
+            from .mcp import _descargar_imagen
+            from . import training as T
+
+            def _bg(fid=int(mimg.group(1)), url=body.get("url") or "", src=body.get("image_source"), who=getattr(self, "_src", "web")):
+                try:
+                    data = _descargar_imagen(url)
+                    with lock:
+                        T.set_food_image(conn, fid, data_url=data, source=who)
+                        if src:
+                            conn.execute("UPDATE foods SET image_source=? WHERE id=?", (src, fid))
+                        conn.commit()
+                except Exception:  # sin foto: el producto ya está guardado
+                    import traceback; traceback.print_exc()
+            threading.Thread(target=_bg, daemon=True).start()
+            return self._send(202, {"ok": True, "pendiente": True})
         if u.path.startswith("/api/strength/") and method == "GET":
             # Tablas de Strength Level bajo demanda (caché compartida en el directorio de datos)
             from . import strengthlevel as SL
@@ -663,14 +683,22 @@ class Handler(BaseHTTPRequestHandler):
         if not row:
             return self._json(404, {"error": "No existe"}) if method == "POST" else self._page(404, "No existe", "<h1>No existe</h1>")
         if method == "GET":
-            body = ("<h1>Foto de «%s»</h1><p class=who>Elige o haz la foto; se guarda sola.</p>"
-                    "<label class='b p' style='display:block;cursor:pointer'>Elegir foto<input id=f type=file accept='image/*' hidden></label>"
-                    "<p id=m class=who style='margin-top:14px'></p>"
-                    "<script>const m=document.getElementById('m');document.getElementById('f').onchange=async e=>{const file=e.target.files[0];if(!file)return;"
-                    "m.textContent='Subiendo…';try{const bm=await createImageBitmap(file);const k=Math.min(1,1280/Math.max(bm.width,bm.height));"
+            # Página mínima: hacer la foto o elegirla; mientras sube, un indicador; al acabar, la foto y ✓
+            body = ("<style>html,body{height:100%%;overflow:hidden}body{min-height:100dvh}.pv{width:132px;height:132px;margin:4px auto 18px;border-radius:22px;background:var(--bg);display:grid;place-items:center;overflow:hidden}"
+                    ".pv img{width:100%%;height:100%%;object-fit:contain}.pv svg{width:40px;height:40px;color:var(--mut)}.bt{display:flex;gap:10px}.bt label{flex:1;text-align:center;cursor:pointer;padding:13px;border-radius:14px;font-weight:600;border:1px solid var(--line)}"
+                    ".bt label.p{background:var(--acc);border-color:var(--acc);color:#fff}.st{min-height:22px;text-align:center;margin-top:14px;color:var(--mut);font-size:14px}"
+                    ".sp{display:inline-block;width:15px;height:15px;border-radius:50%%;border:2px solid currentColor;border-right-color:transparent;animation:r .7s linear infinite;vertical-align:-2px;margin-right:8px}@keyframes r{to{transform:rotate(360deg)}}"
+                    ".ok{color:var(--acc);font-weight:600}.busy .bt{opacity:.4;pointer-events:none}</style>"
+                    "<h1>%s</h1><div class=pv id=pv><svg viewBox='0 0 24 24' fill=none stroke=currentColor stroke-width=1.8><path d='M4 8h3l2-3h6l2 3h3v11H4zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z'/></svg></div>"
+                    "<div class=bt><label class=p>Hacer foto<input type=file accept='image/*' capture=environment hidden></label><label>Galería<input type=file accept='image/*' hidden></label></div>"
+                    "<div class=st id=m></div>"
+                    "<script>const m=document.getElementById('m'),pv=document.getElementById('pv');document.querySelectorAll('input[type=file]').forEach(i=>i.onchange=async e=>{const file=e.target.files[0];if(!file)return;"
+                    "document.body.classList.add('busy');m.innerHTML='<i class=sp></i>Subiendo…';try{const bm=await createImageBitmap(file);const k=Math.min(1,1024/Math.max(bm.width,bm.height));"
                     "const c=document.createElement('canvas');c.width=Math.round(bm.width*k);c.height=Math.round(bm.height*k);c.getContext('2d').drawImage(bm,0,0,c.width,c.height);"
-                    "const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.85));const r=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'image/jpeg'},body:blob});"
-                    "const j=await r.json();m.textContent=r.ok?'Foto guardada ✓ Ya puedes cerrar esta página.':(j.error||'Error');}catch(err){m.textContent='No se pudo subir: '+err;}};</script>"
+                    "const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.82));pv.innerHTML='<img src=\"'+URL.createObjectURL(blob)+'\">';"
+                    "const r=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'image/jpeg'},body:blob});"
+                    "const j=await r.json().catch(()=>({}));if(r.ok){m.innerHTML='<span class=ok>✓ Foto guardada</span>';document.querySelector('.bt').style.display='none';}else{m.textContent=j.error||'No se pudo guardar';document.body.classList.remove('busy');}}"
+                    "catch(err){m.textContent='No se pudo subir la foto';document.body.classList.remove('busy');}});</script>"
                     ) % self._esc(row["name"])
             return self._page(200, "Subir foto", body)
         ct = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
@@ -684,9 +712,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(400, {"error": "Falta la imagen"})
         import base64
         data = "data:%s;base64,%s" % (ct, base64.b64encode(raw).decode())
-        code, out, err = self.run_cli(["api", "POST", "/api/%s/%d/image" % (tabla, item), json.dumps({"data_url": data})], lock, user)
-        if code != 0:
-            return self._json(400, {"error": (err or out).strip() or "No se pudo guardar"})
+        from . import api as _A
+        try:
+            with lock:
+                _A.dispatch(conn, "POST", "/api/%s/%d/image" % (tabla, item), {}, {"data_url": data}, "web")
+        except _A.ApiError as e:
+            return self._json(e.status if hasattr(e, "status") else 400, {"error": str(e)})
+        except Exception as e:  # noqa: BLE001 — que la página diga qué pasó
+            return self._json(400, {"error": "No se pudo guardar: %s" % e})
         auth.upload_used(tok)
         return self._json(200, {"ok": True, "nombre": row["name"]})
 
@@ -715,7 +748,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith("/api/"):
             return self._api("GET")
         path = unquote(urlparse(self.path).path)
-        public = path in ("/login", "/login.html", "/login.css", "/login.js", "/styles.css") or path.startswith("/logos/")
+        public = path in ("/login", "/login.html", "/login.css", "/login.js", "/styles.css", "/manifest.webmanifest", "/sw.js") or path.startswith(("/logos/", "/icons/"))
         ctx = self._ctx()
         if MULTI and not ctx and not public:
             self.send_response(302)

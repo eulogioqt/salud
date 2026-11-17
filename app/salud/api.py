@@ -95,6 +95,27 @@ def _food_flag(c, q, b, s, fid, flag):
     return core.set_food_flag(c, int(fid), flag, b.get("value", True), s)
 
 
+@route("GET", r"/api/summary")
+def _summary(c, q, b, s):
+    """Para el perfil: desde cuándo, cuántos días apuntados y cerrados, entrenos y el peso de entonces y de ahora."""
+    d0, nd = c.execute("SELECT MIN(date), COUNT(DISTINCT date) FROM entries WHERE deleted_at IS NULL").fetchone()
+    closed = c.execute("SELECT COUNT(*) FROM days WHERE status='cerrado'").fetchone()[0]
+    nw = c.execute("SELECT COUNT(*) FROM workouts WHERE deleted_at IS NULL AND date>=?", (d0 or "9999",)).fetchone()[0]
+    w = c.execute("SELECT weight_kg FROM days WHERE weight_kg IS NOT NULL ORDER BY date LIMIT 1").fetchone()
+    wl = c.execute("SELECT weight_kg FROM days WHERE weight_kg IS NOT NULL ORDER BY date DESC LIMIT 1").fetchone()
+    return {"since": d0, "days_logged": nd, "days_closed": closed, "workouts": nw, "weight_first": w and w[0], "weight_last": wl and wl[0]}
+
+
+@route("GET", r"/api/foods/(\d+)/usage")
+def _food_usage(c, q, b, s, fid):
+    return core.food_usage(c, int(fid))
+
+
+@route("POST", r"/api/foods/(\d+)/replace")
+def _food_replace(c, q, b, s, fid):
+    return core.replace_food(c, int(fid), int(b["by"]), s)
+
+
 @route("POST", r"/api/recipes")
 def _recipe_new(c, q, b, s):
     return core.create_recipe(c, b, s)

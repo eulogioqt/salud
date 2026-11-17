@@ -667,8 +667,9 @@ class TestOffRacion(unittest.TestCase):
         self.assertEqual(sv("150 g (6 x 25 g)", 25, "25g")["label"], "1 unidad (25 g)")
         self.assertTrue(sv("150 g (6 x 25 g)", 25, "25g")["per_unit"])
         self.assertEqual(sv("138 g", 23, "23 g", ["en:cereal-bars"])["label"], "1 unidad (23 g)")
-        self.assertEqual(sv("375 g", 30, "30 g")["label"], "1 ración (30 g)")
-        self.assertFalse(sv("375 g", 30, "30 g")["per_unit"])
+        self.assertIsNone(sv("375 g", 30, "30 g"))  # una ración de X g sin más no se añade
+        self.assertIsNone(sv("1 l", 100, "100 ml"))
+        self.assertEqual(sv("300 g", 300, "300 g")["label"], "1 paquete (300 g)")
         self.assertEqual(sv("200 g", 23, "1 barrita (23 g)")["label"], "1 barrita (23 g)")
         self.assertTrue(sv("200 g", 23, "1 barrita (23 g)")["per_unit"])
 
@@ -762,3 +763,18 @@ class TestSuplementos(Base):
         self.assertEqual(by["2026-11-11"], "miss"); self.assertEqual(by["2026-11-14"], "hoy"); self.assertEqual(by["2026-11-09"], "ok")
         self.assertEqual((st["ok30"], st["due30"], st["pct30"], st["streak"], st["best"]), (4, 5, 80, 2, 2))
         self.assertEqual(st["usual_time"], "14:00")
+
+
+class TestReemplazarAlimento(Base):
+    def test_reemplaza_y_elimina(self):
+        a = core.create_food(self.conn, {"name": "Lomo A", "portions": [{"label": "100 g", "amount": 100, "unit": "g", "kcal": 150, "protein_g": 20, "carbs_g": 1, "fat_g": 7, "is_default": 1, "quality": "etiqueta"},
+                                                                       {"label": "1 loncha (10 g)", "amount": 10, "unit": "g", "kcal": 15, "protein_g": 2, "carbs_g": 0.1, "fat_g": 0.7, "quality": "etiqueta"}]}, "test")
+        b = core.create_food(self.conn, {"name": "Lomo B", "portions": [{"label": "100 g", "amount": 100, "unit": "g", "kcal": 200, "protein_g": 22, "carbs_g": 1, "fat_g": 12, "is_default": 1, "quality": "etiqueta"}]}, "test")
+        pid = next(p for p in N.get_portions(self.conn, a["id"]) if p["amount"] == 10)["id"]
+        core.add_entry(self.conn, {"date": D1, "meal": "cena", "food_id": a["id"], "unit_key": "p:%d" % pid, "quantity": 3}, "test")
+        u = core.food_usage(self.conn, a["id"])
+        self.assertEqual(u["entries"], 1)
+        r = core.replace_food(self.conn, a["id"], b["id"], "test")
+        self.assertEqual((r["moved"], r["skipped"], r["deleted"]), (1, 0, True))
+        e = self.conn.execute("SELECT * FROM entries WHERE food_id=?", (b["id"],)).fetchone()
+        self.assertEqual((e["unit_key"], e["quantity"], e["kcal"]), ("g", 30, 60))

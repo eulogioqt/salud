@@ -752,6 +752,70 @@ def set_food_flag(conn, food_id, flag, value, source="web"):
     return {"ok": True}
 
 
+def food_usage(conn, food_id):
+    """Dónde se usa un alimento: lo apuntado (cuántas veces y en qué días), comidas habituales y recetas."""
+    n, days, d0, d1 = conn.execute("SELECT COUNT(*), COUNT(DISTINCT date), MIN(date), MAX(date) FROM entries WHERE deleted_at IS NULL AND food_id=?",
+                                   (food_id,)).fetchone()
+    tpls = [r[0] for r in conn.execute("SELECT DISTINCT t.name FROM template_items ti JOIN templates t ON t.id=ti.template_id "
+                                       "WHERE ti.food_id=? AND t.deleted=0 ORDER BY t.name", (food_id,))]
+    recs = [r[0] for r in conn.execute("SELECT DISTINCT f.name FROM recipe_items ri JOIN foods f ON f.id=ri.recipe_id "
+                                       "WHERE ri.food_id=? AND f.deleted=0 ORDER BY f.name", (food_id,))]
+    return {"entries": n, "days": days, "first": d0, "last": d1, "templates": tpls, "recipes": recs}
+
+
+def _same_amount(conn, old_id, unit_key, qty, new_id):
+    """La misma cantidad en el otro alimento: por peso (g/ml) si se puede; si no, la medida equivalente."""
+    if unit_key in ("g", "ml"):
+        grams, unit = qty, unit_key
+    else:
+        p = conn.execute("SELECT amount, unit FROM portions WHERE id=?", (int(unit_key[2:]),)).fetchone() if unit_key.startswith("p:") else None
+        grams, unit = (qty * p["amount"], p["unit"]) if p and p["amount"] and p["unit"] in ("g", "ml") else (None, None)
+    opts = {o["key"]: o for o in N.unit_options(conn, N.get_food(conn, new_id))}
+    if grams is not None:
+        for u in (unit, "g" if unit == "ml" else "ml"):  # sin densidad: 1 ml ≈ 1 g
+            if u in opts:
+                return u, round(grams, 2)
+        for k, o in opts.items():  # una medida con peso
+            if k.startswith("p:") and o.get("amount") and o.get("unit") == unit:
+                return k, round(grams / o["amount"], 3)
+    per = [k for k in opts if k.startswith("p:")]
+    if len(per) == 1:  # «1 unidad» → «1 unidad»
+        return per[0], qty
+    return None
+
+
+def replace_food(conn, food_id, by, source="web"):
+    """Cambia un alimento por otro en todo lo apuntado (también días cerrados: es el mismo alimento), las comidas habituales y
+    las recetas, y lo elimina. Lo que no se puede pasar (sin peso conocido) se queda como estaba."""
+    food_id, by = int(food_id), int(by)
+    if food_id == by:
+        raise ValidationError("Elige otro alimento")
+    N.get_food(conn, food_id); new = N.get_food(conn, by)
+    moved = skipped = 0
+    with tx(conn, "replace_food", source, ref=food_id, payload={"by": by}):
+        for e in rows(conn.execute("SELECT * FROM entries WHERE deleted_at IS NULL AND food_id=?", (food_id,))):
+            m = _same_amount(conn, food_id, e["unit_key"], e["quantity"], by)
+            if not m:
+                skipped += 1
+                continue
+            nu, qual, label, snap = N.compute(conn, by, m[0], m[1])
+            conn.execute("UPDATE entries SET food_id=?,unit_key=?,quantity=?,name=?,unit_label=?,kcal=?,protein_g=?,carbs_g=?,fat_g=?,missing=?,"
+                         "quality=?,snapshot=?,updated_at=? WHERE id=?",
+                         (by, m[0], m[1], display_name(new["name"], new.get("brand")), label, nu["kcal"], nu["protein_g"], nu["carbs_g"], nu["fat_g"],
+                          json.dumps(nu["missing"]), qual, json.dumps(snap, ensure_ascii=False), ts(), e["id"]))
+            moved += 1
+        for tbl, col in (("template_items", "template_id"), ("recipe_items", "recipe_id")):
+            for it in rows(conn.execute("SELECT * FROM %s WHERE food_id=?" % tbl, (food_id,))):
+                m = _same_amount(conn, food_id, it["unit_key"], it["quantity"], by)
+                if m:
+                    conn.execute("UPDATE %s SET food_id=?, unit_key=?, quantity=? WHERE id=?" % tbl, (by, m[0], m[1], it["id"]))
+                else:
+                    skipped += 1
+        if not skipped:
+            conn.execute("UPDATE foods SET deleted=1, updated_at=? WHERE id=?", (ts(), food_id))
+    return {"ok": True, "moved": moved, "skipped": skipped, "deleted": not skipped}
+
+
 def _write_recipe_items(conn, recipe_id, items):
     if not items:
         raise ValidationError("Una receta necesita al menos un ingrediente")

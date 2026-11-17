@@ -171,8 +171,12 @@ def unit_options(conn, food, depth=0):
                          "basis": "escalado desde «%s»" % b["label"],
                          "default_qty": b["amount"] if b["amount"] != 100 else 100})
     for p in portions:
+        # Una medida con su peso («1 huevo L (~58 g)») toma los valores de la base por 100 g: lo aproximado es el peso, no los
+        # valores; así que la calidad de los valores es la de la base
+        b = pick_basis(portions, p["unit"]) if p["amount"] and p["unit"] in ("g", "ml") else None
+        pq = b["quality"] if b and b["id"] != p["id"] else p["quality"]
         opts.append({"key": "p:%d" % p["id"], "label": p["label"], "per": from_row(p),
-                     "quality": worst(p["quality"], food["status"]), "basis": "ración registrada",
+                     "quality": worst(pq, food["status"]), "basis": "ración registrada",
                      "default_qty": 1, "amount": p["amount"], "unit": p["unit"]})
     if not portions:
         opts.append({"key": "x", "label": "ración (sin datos)", "per": nutr(), "quality": "pendiente",

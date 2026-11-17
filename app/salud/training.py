@@ -611,7 +611,20 @@ def list_body(conn, a=None, b=None):
         q += " AND date>=?"; args.append(a)
     if b:
         q += " AND date<=?"; args.append(b)
-    return rows(conn.execute(q + " ORDER BY date DESC, COALESCE(time,'') DESC, id DESC", args))
+    out = rows(conn.execute(q + " ORDER BY date DESC, COALESCE(time,'') DESC, id DESC", args))
+    # Lo que se puede calcular aunque la báscula no lo mande: IMC (con la altura) y masa magra (peso − grasa)
+    try:
+        h = float(core.settings(conn).get("altura_cm") or 0) / 100
+    except ValueError:
+        h = 0
+    for r in out:
+        w = r.get("weight_kg")
+        if r.get("bmi") is None and w and h > 1:
+            r["bmi"], r["bmi_calc"] = round(w / (h * h), 1), True
+        fat = r.get("fat_kg") if r.get("fat_kg") is not None else (w * r["fat_pct"] / 100 if w and r.get("fat_pct") is not None else None)
+        if r.get("lean_kg") is None and w and fat is not None:
+            r["lean_kg"], r["lean_calc"] = round(w - fat, 1), True
+    return out
 
 
 # --------------------------------------------------------------------- fotos
