@@ -364,7 +364,7 @@ function estBadges(es) {
 }
 const estTag = (es) => { const b = estBadges(es); return b.length ? h("span", { class: "estb" }, b) : null; };
 // Valores de la etiqueta (a mano o de Open Food Facts): una marca discreta junto al nombre
-const lblMark = (f) => f && f.status === "etiqueta" && f.kind !== "receta" ? h("span", { class: "lblm", title: "Valores de la etiqueta" }, icon("ok")) : null;
+const lblMark = (f) => f && f.status === "etiqueta" && f.kind !== "receta" && !isSupp(f) ? h("span", { class: "lblm", title: "Valores de la etiqueta" }, icon("ok")) : null;
 function qBadge(q) { return q && q !== "etiqueta" ? h("span", { class: "q " + q, title: QUAL[q] }, QUAL[q]) : null; }
 function macroTxt(n, cls = "mc") {
   return h("span", { class: cls }, h("span", { class: "p" }, "P ", v(n, "protein_g")), " · ", h("span", { class: "c" }, "C ", v(n, "carbs_g")), " · ", h("span", { class: "g" }, "G ", v(n, "fat_g")));
@@ -676,11 +676,13 @@ function bodyStrip(st) {
     h("div", { class: "lbl" }, h("span", null, h("span", { class: "sic e" }, "🏋"), "Entreno"),
       ws.length ? h("span", { class: "lnk" }, "Ver") : pend.length ? h("span", { class: "det-badge", title: "El móvil ha detectado un entreno y falta subirlo" }, h("span", { class: "det-i" }, "!"), h("span", { class: "det-bt" }, "Falta subirlo")) : S.me && !closed && !trainOn ? h("button", { class: "lnk-btn", title: "Que se sepa solo cuándo entrenas", onclick: (e) => { e.stopPropagation(); stepsConnectSheet("entreno"); } }, "🔗 Conectar") : null),
     h("div", { class: "acts" }, ws.length || other.length
-      ? [...ws.map((w) => h("div", { class: "a wk" },
-          h("div", { class: "wk-t" }, h("b", null, w.title), chg(upsChip(w), w.prs_count ? h("span", { class: "prc", title: "Récords batidos en este entreno" }, icon("trophy"), tx(String(w.prs_count))) : null,
-            w.activity_id ? kcChip((en.exercise.find((x) => x.id === w.activity_id) || {}).kcal) : null)),
+      ? [...ws.map((w) => h("div", { class: "a wk wk-hoy" },
+          // Igual que en Entreno: el nombre (hasta dos líneas), la descripción y debajo las pastillas con la duración y las series
+          h("div", { class: "wk-t2" }, w.title),
           w.notes ? h("div", { class: "wk-d" }, w.notes) : null,
-          h("div", { class: "wk-s" }, [w.duration_min ? fmt(w.duration_min) + " min" : null, w.sets_count + " series", fmt(w.volume_kg) + " kg"].filter(Boolean).join(" · ")))),
+          h("div", { class: "wk-chips" }, upsChip(w), w.prs_count ? h("span", { class: "prc", title: "Récords batidos en este entreno" }, icon("trophy"), tx(String(w.prs_count))) : null,
+            w.activity_id ? kcChip((en.exercise.find((x) => x.id === w.activity_id) || {}).kcal) : null,
+            h("span", { class: "wk-x faint" }, [w.duration_min ? fmt(w.duration_min) + " min" : null, w.sets_count + " series"].filter(Boolean).join(" · "))))),
          ...other.map((a) => h("div", { class: "a" }, h("b", null, (ACT_TYPES.find((x) => x[0] === a.type) || [0, a.type])[1]), ` ${a.minutes ? fmt(a.minutes) + "′" : ""}`, h("span", { class: "faint" }, " · " + kc(a.id) + " kcal")))]
       : pend.length ? h("div", { class: "acts" }, pend.map((x) => h("div", { class: "a wk det" },
           h("div", { class: "wk-t" }, h("b", null, x.titulo || "Entreno")),
@@ -1342,7 +1344,9 @@ function photoField(o) {
   });
   const guard = (fn) => () => { const m = o.blocked && o.blocked(); if (m) return toast(m); fn(); };
   const draw = () => {
-    const src = o.src(), fr = photoFrame(o.name() || "?", o.cat(), src);
+    const src = o.src(), alt = !src && o.fallback ? o.fallback().slice(0, 2) : [];
+    const fr = alt.length ? h("div", { class: "pframe duo" + (alt.length > 1 ? " two" : "") }, alt.map((im) => h("img", { src: /^(\/|data:|https?:)/.test(im) ? im : "/" + im, alt: "" })))
+      : photoFrame(o.name() || "?", o.cat(), src);
     fr.classList.add("pick");
     fr.onclick = (e) => { e.stopPropagation(); photoSheet(o.name(), o.cat(), src, guard(() => fileIn.click()), guard(() => cameraSheet(use)),
       src && o.remove ? async () => { await o.remove(); draw(); } : null, o.credit && o.credit()); };
@@ -1576,7 +1580,7 @@ function amountForm(food, init) {
   const meal = mealChips(init.meal), timeIn = h("input", { class: "input", type: "time", value: init.time || "" });
   const prev = h("div", { class: "mprev mprev1" }), note = h("div", { class: "note" });
   let qtyEst = !!init.qty_est;
-  const noteIn = init.editing ? h("textarea", { class: "input", rows: 2, placeholder: "Nota" }, init.note || "") : null;  // al editar: la nota de la entrada
+  const noteIn = null;  // sin nota: el nombre y la cantidad lo dicen todo (las de antes se ven en la ficha de la entrada)
   const qeBtn = h("button", { type: "button", class: "qe-btn" + (qtyEst ? " on" : ""), title: "Márcalo si no lo has pesado ni contado", onclick: () => { qtyEst = !qtyEst; qeBtn.classList.toggle("on", qtyEst); draw(); } },
     h("i", { class: "qe-box" }, icon("check")), "Cantidad a ojo (sin pesar)");
   const draw = () => {
@@ -2398,9 +2402,12 @@ function itemsEditor(items, excludeId, onChange, opts = {}) {
       const f = foodById(it.food_id) || { name: "?", units: [] };
       const q = numIn(it.quantity, "");
       q.addEventListener("input", () => { it.quantity = parseNum(q.value); drawTotal(); });
-      const u = h("select", { class: "input" }, (f.units || []).map((x) => h("option", { value: x.key, selected: x.key === it.unit_key }, x.key === "g" ? "g" : x.key === "ml" ? "ml" : x.label)));
+      const uLbl = (x) => x.key === "g" ? "gramos" : x.key === "ml" ? "mililitros" : x.label.replace(/^1\s+/, "");
+      const u = h("select", { class: opts.photos ? "ing-u" : "input" }, (f.units || []).filter((x) => x.key !== "x").map((x) => h("option", { value: x.key, selected: x.key === it.unit_key }, uLbl(x))));
       u.addEventListener("change", () => { it.unit_key = u.value; drawTotal(); });
-      return h("div", { class: "ing" }, h("div", { class: "nm", title: f.name }, f.name), q, u, h("button", { class: "icon-btn", onclick: () => { items.splice(i, 1); draw(); } }, icon("x")));
+      const x = h("button", { type: "button", class: "icon-btn ing-x", "aria-label": "Quitar", onclick: () => { items.splice(i, 1); draw(); } }, icon("x"));
+      if (opts.photos) return h("div", { class: "ing2" }, mono(f.name, f.category, f.image), h("div", { class: "ing-m" }, h("div", { class: "nm", title: f.name }, dname(f)), u), q, x);
+      return h("div", { class: "ing" }, h("div", { class: "nm", title: f.name }, f.name), q, u, x);
     }));
     drawTotal();
   };
@@ -2455,26 +2462,32 @@ function templateEditor(t) {
   const isNew = !t;
   t = t || { name: "", meal: null, items: [], servings: null };
   const items = (t.items || []).map((it) => ({ food_id: it.food_id, unit_key: it.unit_key, quantity: it.quantity }));
-  const name = h("input", { class: "input", value: t.name, placeholder: "Ej.: Batido habitual" });
+  const name = h("input", { class: "input ed-name", value: t.name, placeholder: "Nombre" });
   const meal = h("select", { class: "input" }, h("option", { value: "" }, "—"), MEALS.map(([k, l]) => h("option", { value: k, selected: k === t.meal }, l)));
+  // Arriba lo que suma la receta entera (kcal y cada macro con su color); las raciones, en su sitio, con lo que es cada una
+  const sumEl = h("div", { class: "rsum" }), perEl = h("span", { class: "faint rs-per" });
   const serv = numIn(t.servings > 1 ? t.servings : null, "1");
-  const perEl = h("div", { class: "faint sm tpl-per" });
-  const drawPer = (n) => { const k = parseNum(serv.value); perEl.textContent = k > 1 && n ? `Por ración: ${v(scaleN(n, 1 / k), "kcal")} kcal · P ${v(scaleN(n, 1 / k), "protein_g")} · C ${v(scaleN(n, 1 / k), "carbs_g")} · G ${v(scaleN(n, 1 / k), "fat_g")}` : ""; };
-  const ed = itemsEditor(items, null, drawPer, { totalsApart: true, addLabel: "Añadir alimento" });
-  serv.addEventListener("input", () => drawPer(ed.totals()));
+  const drawSum = (n) => {
+    const k = parseNum(serv.value) > 1 ? parseNum(serv.value) : 1;
+    const mac = (cls, l, key) => h("div", { class: "rs-m " + cls }, h("b", { class: "num" }, v(n, key), h("small", null, " g")), h("span", null, h("i"), l));
+    sumEl.replaceChildren(h("div", { class: "rs-k" }, h("b", { class: "num" }, v(n, "kcal")), h("span", null, k > 1 ? "kcal en total" : "kcal")),
+      mac("p", "Proteína", "protein_g"), mac("c", "Carbohidratos", "carbs_g"), mac("g", "Grasas", "fat_g"));
+    perEl.textContent = k > 1 && n ? `${v(scaleN(n, 1 / k), "kcal")} kcal cada una` : "";
+  };
+  const ed = itemsEditor(items, null, drawSum, { totalsApart: true, addLabel: "Añadir alimento", photos: true });
+  serv.addEventListener("input", () => drawSum(ed.totals()));
   const tph = photoField({
     name: () => name.value || t.name, cat: () => "habitual", src: () => t.image,
+    fallback: () => items.map((it) => (foodById(it.food_id) || {}).image).filter(Boolean),
     blocked: () => isNew ? "Guarda primero la receta" : null,
     save: async (url) => { const r = await api("POST", `/api/templates/${t.id}/image`, { data_url: url }); t.image = r.image; t.image_source = null; loadCatalog().then(render).catch(() => {}); },
     remove: async () => { await act(() => api("PUT", "/api/templates/" + t.id, { image: null })); t.image = null; await loadCatalog(); },
   });
-  const tPhoto = tph.el;
-  name.classList.add("ed-name"); name.placeholder = "Nombre";
-  // Arriba lo que suma; luego los alimentos; lo demás, en «Más»
-  const body = [edHead(name, tPhoto), ed.totalEl, perEl,
-    h("div", { class: "sec-t" }, "Alimentos"), ed.el,
-    h("details", { class: "fe-more", open: t.servings > 1 }, h("summary", null, "Más"),
-      h("div", { class: "grid2" }, field("Raciones que salen", serv), field("Comida por defecto", meal)))];
+  drawSum(ed.totals());
+  const body = [edHead(name, tph.el), sumEl,
+    h("div", { class: "rs-serv" }, h("b", null, "Raciones"), perEl, h("span", { class: "grow" }), serv),
+    h("div", { class: "mx-h mx-h2" }, h("b", null, "Alimentos")), ed.el,
+    h("details", { class: "fe-more" }, h("summary", null, "Más"), field("Comida por defecto", meal))];
   const save = async (accept) => {
     if (!items.length) return toast("Añade al menos un alimento", { error: true });
     if (items.some((i) => !(i.quantity > 0))) return toast("Cantidad no válida", { error: true });
