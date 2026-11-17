@@ -802,3 +802,13 @@ class TestRecetaUnificada(unittest.TestCase):
         self.assertEqual(f["status"], "estimacion")
         g = core.create_food(self.conn, {"name": "Y", "source": "Open Food Facts · 12345678", "portions": [{"label": "100 g", "amount": 100, "unit": "g", "kcal": 1}]})
         self.assertEqual(g["status"], "etiqueta")
+
+
+class TestOffPaquete(unittest.TestCase):
+    def test_paquete_entero_no_por_defecto(self):
+        from salud.off import _serving as sv
+        P = lambda q, ss, sq: {"quantity": q, "serving_size": ss, "serving_quantity": sq}
+        a = sv(P("500 g", "Package (500 g)", 500), "g")
+        self.assertEqual((a["label"], a["per_unit"]), ("1 paquete (500 g)", False))
+        b = sv(P("330 ml", "330 ml", 330), "ml")
+        self.assertEqual((b["label"], b["per_unit"]), ("1 envase (330 ml)", True))

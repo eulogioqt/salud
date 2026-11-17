@@ -2784,3 +2784,8 @@ body.rp-on { overflow: hidden; }
 .mu.z0 { fill: var(--line-2, #d9d4c7); }
 .bm-leg { gap: 8px; font-size: 11px; }
 .datec.dt { text-transform: none; }
+/* Medidas: «Gramos» como opción por defecto; menos aire hasta «Más» */
+.med-g .med-top { min-height: 30px; }
+.med-g span { font-size: 14.5px; color: var(--muted); padding-left: 2px; }
+.mx-h2 { margin-bottom: 6px; }
+.fe-more { margin-top: 10px; }

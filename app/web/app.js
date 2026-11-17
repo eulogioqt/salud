@@ -2003,14 +2003,15 @@ function measuresEditor(f, onDirty, onUnlock) {
       const i = meds.indexOf(m); if (i < 0) return; if (m.id) deleted.push(m.id); meds.splice(i, 1); if (def === m) def = null; drawMeds(); onDirty(); } }, icon("x"));
     m.el = h("div", { class: "med" }, h("div", { class: "med-top" }, m.star, m.label, m.wEl, m.x), m.ownEl);
     for (const el of [m.label, m.amt, ...Object.values(m.own)]) el.addEventListener("input", () => { refresh(); onDirty(); });
-    meds.push(m); if (fresh) { drawMeds(); setTimeout(() => m.label.focus(), 30); }
+    meds.push(m); if (fresh) { if (!def && meds.length === 1) def = m; drawMeds(); setTimeout(() => m.label.focus(), 30); }
     return m;
   };
   for (const p of P) if (p !== unit0 && p.id !== baseId) addMed(p);
   { const k = f.default_unit || ""; def = meds.find((m) => m.id && "p:" + m.id === k) || null;
     if (!def && !k && base0 && base0.id !== baseId) def = meds.find((m) => m.id === base0.id) || null; }
-  // Por defecto al añadir: si hay una medida, esa; si hay varias, la de la estrella (o la primera); si no hay, los gramos
-  const defMed = () => (mode === "ud" ? null : meds.length === 1 ? meds[0] : def && meds.includes(def) ? def : meds[0] || null);
+  // Por defecto al añadir: la medida marcada o, si no hay ninguna marcada, los gramos (una medida nueva a mano sale marcada;
+  // el paquete entero de Open Food Facts, no)
+  const defMed = () => (mode === "ud" ? null : def && meds.includes(def) ? def : null);
   const vals = () => Object.fromEntries(MK.map((k) => [k, parseNum(vIn[k].value)]));
   const calc = (m) => { const a = parseNum(m.amt.value), v = vals();
     return a > 0 && mode !== "ud" ? Object.fromEntries(MK.map((k) => [k, v[k] == null || Number.isNaN(v[k]) ? null : r1((v[k] * a) / 100)])) : null; };
@@ -2019,21 +2020,25 @@ function measuresEditor(f, onDirty, onUnlock) {
   modeSel.addEventListener("change", () => { mode = modeSel.value; drawVals(); drawMeds(); onDirty(); });
   const lockLnk = h("button", { type: "button", class: "mx-lock hidden", title: "Los valores vienen de Open Food Facts", onclick: () => onUnlock && onUnlock() }, icon("lock"), "Open Food Facts · ", h("u", null, "editar"));
   const valsBox = h("div"), medsBox = h("div", { class: "meds" }), legend = h("span", { class: "med-leg hidden" }, h("i"), "por defecto");
+  // Los gramos también se pueden elegir por defecto (lo normal si la única medida es el paquete entero)
+  const gStar = h("button", { type: "button", class: "med-rd", "aria-label": "Por defecto: gramos", onclick: () => { def = null; refresh(); onDirty(); } });
+  const gTx = h("span", null, "Gramos"), gRow = h("div", { class: "med med-g" }, h("div", { class: "med-top" }, gStar, gTx));
   const addBtn = h("button", { type: "button", class: "icon-btn round mx-add", title: "Añadir medida", "aria-label": "Añadir medida", onclick: () => addMed({}, true) }, icon("plus"));
   function refresh() {
     const dm = defMed();
-    legend.classList.toggle("hidden", meds.length < 2);
+    legend.classList.toggle("hidden", !meds.length || mode === "ud");
+    gRow.classList.toggle("hidden", !meds.length || mode === "ud"); gTx.textContent = mode === "ml" ? "Mililitros" : "Gramos"; gStar.classList.toggle("on", !dm);
     meds.forEach((m) => {
       const c = calc(m), hasW = parseNum(m.amt.value) > 0;
       m.wEl.classList.toggle("hidden", mode === "ud"); m.unitTx.textContent = mode; m.amt.placeholder = mode === "ml" ? "ml" : "g";
       m.vEl.classList.add("hidden"); m.ownEl.classList.toggle("hidden", !!c || (mode !== "ud" && !m.legacy));  // una medida es lo que pesa: sus valores salen de los gramos
       if (c) m.vEl.textContent = `${c.kcal == null ? "?" : fmt(c.kcal)} kcal · P ${c.protein_g == null ? "?" : fmt(c.protein_g, 1)} · C ${c.carbs_g == null ? "?" : fmt(c.carbs_g, 1)} · G ${c.fat_g == null ? "?" : fmt(c.fat_g, 1)}`;
-      m.star.classList.toggle("hidden", meds.length < 2); m.star.classList.toggle("on", dm === m);
-      m.el.classList.toggle("def", dm === m && meds.length > 1);
+      m.star.classList.toggle("hidden", mode === "ud"); m.star.classList.toggle("on", dm === m);
+      m.el.classList.toggle("def", dm === m);
     });
   }
   function drawMeds() {
-    medsBox.replaceChildren(...meds.map((m) => m.el));
+    medsBox.replaceChildren(...(meds.length ? [gRow] : []), ...meds.map((m) => m.el));
     refresh(); lockApply();
   }
   const drawVals = () => valsBox.replaceChildren(...[mode === "ud" ? field("Una unidad es", unitLabel) : null,

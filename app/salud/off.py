@@ -49,12 +49,30 @@ def _qty(txt):
     return total, n, each
 
 
+# Raciones que vienen en inglés en Open Food Facts («Package (500 g)», «1 serving», «2 cookies»)
+_EN_ES = [(r"packages?|packs?|bags?", "paquete"), (r"servings?|portions?", "ración"), (r"pieces?|units?|pcs", "unidad"), (r"bars?", "barrita"),
+          (r"cans?", "lata"), (r"bottles?", "botella"), (r"cups?|glass(es)?", "vaso"), (r"slices?", "rebanada"), (r"cookies?|biscuits?", "galleta"),
+          (r"tablespoons?|tbsp", "cucharada"), (r"teaspoons?|tsp", "cucharadita"), (r"sachets?", "sobre"), (r"pots?|tubs?", "tarrina")]
+
+
+def _es_label(ss):
+    t = ss.strip()
+    plural = lambda w: w[:-2] + "ones" if w.endswith("ón") else w + ("es" if w.endswith("d") else "s")
+    for rx, es in _EN_ES:
+        t = re.sub(r"\b(%s)\b" % rx, lambda m, es=es: plural(es) if m.group(0).lower().endswith("s") and m.group(0).lower() not in ("glass", "pcs") else es, t, flags=re.I)
+    if t and not re.match(r"^\d", t):
+        t = "1 " + t[0].lower() + t[1:]
+    return t
+
+
 def _serving(p, unit):
     """La ración de Open Food Facts con un nombre que diga qué es.
     - Caja de varias unidades («6 x 25 g») o ración = el envase entero (una lata de 330 ml): «1 unidad (25 g)» y por unidad.
     - Si ya trae nombre («1 barrita (23 g)», «2 galletas (25 g)»), se respeta; si es de una pieza, va por unidad.
     - Un peso a secas sin más («30 g» de cereales, «100 ml» de leche): no se añade (no aporta nada frente a los gramos).
-    - La ración que es el envase entero: «1 paquete (300 g)» o «1 envase (330 ml)»."""
+    - La ración que es el envase entero: «1 paquete (300 g)» o «1 envase (330 ml)»; solo la bebida pequeña (≤ 500 ml) va por
+      unidad: un paquete de comida se apunta por defecto en gramos.
+    - Lo que viene en inglés («Package», «1 serving») se traduce."""
     sq = _num(p.get("serving_quantity"))
     ss = (p.get("serving_size") or "").strip()
     total, n, each = _qty(p.get("quantity"))
@@ -72,15 +90,21 @@ def _serving(p, unit):
         cats = " ".join(p.get("categories_tags") or [])
         if 2 <= round(r) <= 30 and abs(r - round(r)) < 0.03 and re.search(r"bars|yogh?urt|dessert|ice-cream|muffin|croissant|cake|madalena|magdalena|pastr", cats):
             pack, n = True, round(r)
+    whole = bool(total and abs(total - sq) < 0.6)  # la «ración» es el envase entero
     if bare and not pack:
         return None  # una «ración» de X g sin más no dice nada (y si es 100 g, es lo mismo que la base): no se añade
-    if bare:
-        whole = bool(total and abs(total - sq) < 0.6)  # el envase entero (un paquete de kebab de 300 g, una lata de 330 ml)
-        label = ("1 %s (%s %s)" % ("envase" if unit == "ml" else "paquete", num, unit)) if whole else "1 unidad (%s %s)" % (num, unit)
+    if whole and not (n and n > 1):
+        # El envase entero: una bebida pequeña (lata, botellín) se toma entera y va por unidad; un paquete de comida, no
+        # (por defecto se apunta en gramos; el paquete queda como medida)
+        drink = unit == "ml" and sq <= 500
+        label = _es_label(ss) if not bare else "1 %s (%s %s)" % ("envase" if unit == "ml" else "paquete", num, unit)
+        per_unit = drink
+    elif bare:
+        label = "1 unidad (%s %s)" % (num, unit)
         per_unit = True
     else:
-        label = ss
-        per_unit = pack or bool(re.match(r"^\s*1\s+(%s)" % _UNIT_WORDS, ss.lower()))
+        label = _es_label(ss)
+        per_unit = pack or bool(re.match(r"^\s*1\s+(%s)" % _UNIT_WORDS, label.lower()))
     out = {"label": label, "amount": sq, "unit": unit, "per_unit": per_unit}
     if n and pack:
         out["pack_units"] = n
