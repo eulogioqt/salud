@@ -188,8 +188,9 @@ def main(argv=None):
     p.add_argument("--pesado", dest="a_ojo", action="store_false", help="cantidad pesada")
     p = sp.add_parser("del", help="Eliminar entrada (reversible)"); p.add_argument("id", type=int)
     p = sp.add_parser("undo", help="Restaurar entrada eliminada"); p.add_argument("id", type=int)
-    p = sp.add_parser("habitual", help="Añadir una comida habitual")
+    p = sp.add_parser("habitual", help="Añadir una receta (sus alimentos por separado)")
     p.add_argument("nombre"); p.add_argument("-c", "--comida"); p.add_argument("--hora"); p.add_argument("--fecha")
+    p.add_argument("--raciones", type=float, help="raciones que se come (de las que salen)")
     p.add_argument("--set", action="append", default=[], help="item_id=cantidad (solo esta vez)")
     p.add_argument("--skip", action="append", default=[], type=int)
     p = sp.add_parser("peso", help="Peso matutino"); p.add_argument("kg", type=float); p.add_argument("--fecha"); p.add_argument("--hora")
@@ -325,7 +326,7 @@ def main(argv=None):
         t = core.find_template(conn, a.nombre)
         items = [{"id": int(s.split("=")[0]), "quantity": float(s.split("=")[1])} for s in a.set]
         items += [{"id": i, "skip": True} for i in a.skip]
-        r = call("POST", "/api/templates/%d/apply" % t["id"], {"date": d, "meal": a.comida, "time": a.hora, "items": items})
+        r = call("POST", "/api/templates/%d/apply" % t["id"], {"date": d, "meal": a.comida, "time": a.hora, "items": items, "servings": a.raciones})
         print("Añadida «%s»: entradas %s" % (t["name"], r["entry_ids"]))
     elif c == "peso":
         call("PUT", "/api/days/%s" % d, {"weight_kg": a.kg, "weight_time": a.hora}); print("Peso %s: %s kg" % (d, f(a.kg, 1)))

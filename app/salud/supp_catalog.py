@@ -127,8 +127,8 @@ def listing():
 def food_data(key):
     """Datos para crear el producto (sin el dibujo, que se pone después)."""
     key_, name, (lab, amount, unit), when, extra, notes, _draw, _rx = BY_KEY[key]
-    return {"name": name, "category": "Suplemento", "status": "historico", "source": "Catálogo de Salud", "notes": notes,
-            "portions": [{"label": lab, "amount": amount, "unit": unit, "kcal": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0, "quality": "historico", "is_default": True}],
+    return {"name": name, "category": "Suplemento", "status": "etiqueta", "source": "Catálogo de Salud", "notes": notes,
+            "portions": [{"label": lab, "amount": amount, "unit": unit, "kcal": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0, "quality": "etiqueta", "is_default": True}],
             "supp_when": when, "supp_key": key, **extra}
 
 

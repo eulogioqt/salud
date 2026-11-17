@@ -248,7 +248,13 @@ def brand_short(brand):
     b, prev = (brand or "").strip(), None
     while b and b != prev:
         prev, b = b, _CORP.sub("", b).strip(" ,.")
+    if b.isupper() and len(b) > 3:  # «MERCADONA» → «Mercadona»
+        b = " ".join(w.capitalize() for w in b.split())
     return b
+
+
+# Marcas propias de una cadena: si el nombre ya dice la cadena, no se repite la marca («Cogollos (Mercadona)», no «… (Hacendado)»)
+_STORE_BRANDS = {"hacendado": "mercadona", "deliplus": "mercadona", "bosque verde": "mercadona", "milbona": "lidl", "chef select": "lidl"}
 
 
 def display_name(name, brand):
@@ -257,6 +263,8 @@ def display_name(name, brand):
     if not b or not name:
         return name
     n = _norm(name)
+    if _STORE_BRANDS.get(_norm(b)) and _STORE_BRANDS[_norm(b)] in n:
+        return name
     if any(w in n for w in re.findall(r"\w+", _norm(b)) if len(w) >= 3):
         return name
     return "%s (%s)" % (name, b)
@@ -635,9 +643,10 @@ def _portion_values(p):
     unit = p.get("unit") or None
     if unit not in (None, "g", "ml", "ud"):
         raise ValidationError("Unidad de ración no válida: %s" % unit)
-    q = p.get("quality") or "historico"
+    q = p.get("quality") or "estimacion"
     if q not in N.QUALITY_ORDER:
         raise ValidationError("Calidad no válida: %s" % q)
+    q = N.norm_q(q)
     label = (p.get("label") or "").strip()
     amount = _num(p.get("amount"), "cantidad de ración", 0, 100000)
     if not label:
@@ -657,9 +666,10 @@ def create_food(conn, data, source="web"):
     name = (data.get("name") or "").strip()
     if not name:
         raise ValidationError("Falta el nombre")
-    status = data.get("status") or "historico"
+    status = data.get("status") or N.q_from_source(data.get("source"))
     if status not in N.QUALITY_ORDER:
         raise ValidationError("Estado no válido: %s" % status)
+    status = N.norm_q(status)
     portions = data.get("portions") or []
     vals = [_portion_values(p) for p in portions]
     # Sin repetidos: el mismo código de barras, o el mismo nombre y marca creado hace nada (doble toque)
@@ -703,6 +713,8 @@ def update_food(conn, food_id, data, source="web", apply_open_days=True):
                 raise ValidationError("El nombre no puede quedar vacío")
             if k == "status" and v not in N.QUALITY_ORDER:
                 raise ValidationError("Estado no válido: %s" % v)
+            if k == "status":
+                v = N.norm_q(v)
             if k in ("favorite", "hidden", "reviewed"):
                 v = 1 if v else 0
             sets.append("%s=?" % k)
@@ -832,6 +844,15 @@ def _write_recipe_items(conn, recipe_id, items):
 
 
 def create_recipe(conn, data, source="web"):
+    """Las recetas ahora son de las mismas que las comidas habituales (se apuntan sus alimentos por separado, con raciones)."""
+    d = dict(data)
+    if d.get("recipe_servings") and not d.get("servings"):
+        d["servings"] = d["recipe_servings"]
+    return create_template(conn, d, source)
+
+
+def create_recipe_food(conn, data, source="web"):
+    """Receta como un solo alimento (lo de antes; ya no se usa desde la web ni el agente, se mantiene para lo ya apuntado)."""
     name = (data.get("name") or "").strip()
     if not name:
         raise ValidationError("Falta el nombre")
@@ -921,7 +942,7 @@ def template_detail(conn, t):
 def get_template(conn, tid):
     t = row(conn.execute("SELECT * FROM templates WHERE id=?", (tid,)).fetchone())
     if not t:
-        raise NotFound("Comida habitual %s no encontrada" % tid)
+        raise NotFound("Receta %s no encontrada" % tid)
     return template_detail(conn, t)
 
 
@@ -933,16 +954,16 @@ def find_template(conn, ref):
     if len(c) == 1:
         return template_detail(conn, c[0])
     if not c:
-        raise NotFound("Ninguna comida habitual coincide con «%s»" % ref)
+        raise NotFound("Ninguna receta coincide con «%s»" % ref)
     raise ValidationError("«%s» es ambiguo: %s" % (ref, "; ".join(t["name"] for t in c)))
 
 
 def _write_template_items(conn, tid, items):
     if not items:
-        raise ValidationError("Una comida habitual necesita al menos un alimento")
+        raise ValidationError("Una receta necesita al menos un alimento")
     if len(items) < 2:
-        # Una comida habitual es un conjunto (desayuno, táper, batido); un producto suelto es un producto
-        raise ValidationError("Una comida habitual junta varios alimentos (un desayuno, un táper, un batido). "
+        # Una receta es un conjunto (un plato, un desayuno, un batido); un producto suelto es un producto
+        raise ValidationError("Una receta junta varios alimentos (un plato, un desayuno, un batido). "
                               "Un producto suelto (una barrita, una lata, un yogur) va como producto y se apunta por unidad.")
     conn.execute("DELETE FROM template_items WHERE template_id=?", (tid,))
     for i, it in enumerate(items):
@@ -960,8 +981,10 @@ def create_template(conn, data, source="web"):
     if meal and meal not in MEALS:
         raise ValidationError("Franja no válida")
     with tx(conn, "create_template", source, payload=data):
-        cur = conn.execute("INSERT INTO templates(name,meal,notes,favorite,reviewed,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
-                           (name, meal, data.get("notes"), 1 if data.get("favorite") else 0, _auto_reviewed(conn, data, source), ts(), ts()))
+        serv = _num(data.get("servings"), "raciones", 0.01, 1000)
+        cur = conn.execute("INSERT INTO templates(name,meal,notes,favorite,servings,reviewed,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
+                           (name, meal, data.get("notes"), 1 if data.get("favorite") else 0, serv if serv and serv != 1 else None,
+                            _auto_reviewed(conn, data, source), ts(), ts()))
         _write_template_items(conn, cur.lastrowid, data.get("items") or [])
     return get_template(conn, cur.lastrowid)
 
@@ -969,9 +992,12 @@ def create_template(conn, data, source="web"):
 def update_template(conn, tid, data, source="web"):
     get_template(conn, tid)
     with tx(conn, "update_template", source, ref=tid, payload=data):
-        for k in ("name", "meal", "notes", "favorite", "hidden", "deleted", "reviewed", "image", "image_source"):
+        for k in ("name", "meal", "notes", "favorite", "hidden", "deleted", "reviewed", "image", "image_source", "servings"):
             if k in data:
                 v = data[k]
+                if k == "servings":
+                    v = _num(v, "raciones", 0.01, 1000)
+                    v = v if v and v != 1 else None
                 if k == "meal" and v and v not in MEALS:
                     raise ValidationError("Franja no válida")
                 if k in ("favorite", "hidden", "deleted", "reviewed"):
@@ -1138,13 +1164,15 @@ def restore_entry(conn, eid, source="web"):
 
 
 def apply_template(conn, tid, data, source="web"):
-    """Añade los alimentos de una comida habitual. `items` permite cambiar
-    cantidades u omitir alimentos solo para esta vez."""
+    """Añade los alimentos de una receta. `items` permite cambiar cantidades u omitir alimentos solo para esta vez;
+    `servings` (raciones que se comen, de las que salen) escala las cantidades que no se cambian."""
     t = get_template(conn, tid)
     d = _date(data.get("date"))
     meal = _meal(data.get("meal") or t["meal"] or "otro")
     time = _time(data.get("time"))
     overrides = {int(o["id"]): o for o in (data.get("items") or []) if o.get("id")}
+    eat = _num(data.get("servings"), "raciones", 0.001, 1000)
+    k = (eat / (t.get("servings") or 1)) if eat else 1
     ids = []
     with tx(conn, "apply_template", source, d, ref=tid, payload=data):
         ensure_open(conn, d)
@@ -1153,7 +1181,7 @@ def apply_template(conn, tid, data, source="web"):
             o = overrides.get(it["id"], {})
             if o.get("skip"):
                 continue
-            q = _num(o.get("quantity", it["quantity"]), "cantidad", 0.0001, 100000, allow_none=False)
+            q = _num(o.get("quantity", it["quantity"] * k), "cantidad", 0.0001, 100000, allow_none=False)
             ids.append(_insert_food_entry(conn, d, meal, it["food_id"], o.get("unit_key", it["unit_key"]), q, time,
                                           None, tid))
     return {"ok": True, "entry_ids": ids}
@@ -1801,14 +1829,15 @@ def calibration(conn, days=56, apply=True):
 
 def expected_weights(hist):
     """Peso esperado por el modelo (con la calibración aplicada), a partir de history(): parte de la media de 7 días y
-    suma cada día (ingesta − gasto)/7700; donde falta la comida de un día se corta y vuelve a empezar desde el peso real."""
+    suma cada día (ingesta − gasto)/7700; donde falta la comida de un día (o el día no está cerrado: puede estar a medias)
+    se corta y vuelve a empezar desde el peso real."""
     out, cur = {}, None
     for h in hist:
         if cur is None and h["avg7"] is not None:
             cur = h["avg7"]
         if cur is not None:
             out[h["date"]] = round(cur, 2)
-        ok = h["entries"] > 0 and h["kcal"] is not None and "kcal" not in (h["missing"] or []) and h["tdee"] is not None and h["tdee_complete"]
+        ok = h["status"] == "cerrado" and h["entries"] > 0 and h["kcal"] is not None and "kcal" not in (h["missing"] or []) and h["tdee"] is not None and h["tdee_complete"]
         cur = cur + (h["kcal"] - h["tdee"]) / 7700 if (ok and cur is not None) else None
     return out
 

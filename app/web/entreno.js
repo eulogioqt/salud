@@ -223,8 +223,8 @@ document.addEventListener("pointerdown", (e) => {
   HOLD.x = e.clientX; HOLD.y = e.clientY;
   HOLD.t = setTimeout(() => { HOLD.t = null; HOLD.shown = true; HOLD.eatClick = true; clearTimeout(TIP_T); showTipAt(t.dataset.tip, t); if (navigator.vibrate) navigator.vibrate(8); }, HOLD_MS);
 });
-// (en una gráfica, al soltar el dedo el dato se queda unos segundos)
-const holdEnd = (e) => { if (e.pointerType === "mouse") return; if (SCRUB && e.pointerId === SCRUB.id) { SCRUB = null; clearTimeout(TIP_T); if (e.type === "pointercancel") hideTip(); else TIP_T = setTimeout(hideTip, 2500); return; } clearTimeout(HOLD.t); HOLD.t = null; if (HOLD.shown) { HOLD.shown = false; clearTimeout(TIP_T); TIP_T = setTimeout(hideTip, 1500); setTimeout(() => { HOLD.eatClick = false; }, 450); } };
+// (en una gráfica, como en las demás, el dato se quita al soltar el dedo)
+const holdEnd = (e) => { if (e.pointerType === "mouse") return; if (SCRUB && e.pointerId === SCRUB.id) { SCRUB = null; clearTimeout(TIP_T); hideTip(); return; } clearTimeout(HOLD.t); HOLD.t = null; if (HOLD.shown) { HOLD.shown = false; clearTimeout(TIP_T); TIP_T = setTimeout(hideTip, 1500); setTimeout(() => { HOLD.eatClick = false; }, 450); } };
 document.addEventListener("pointerup", holdEnd); document.addEventListener("pointercancel", holdEnd);
 document.addEventListener("click", (e) => { if (HOLD.eatClick) { HOLD.eatClick = false; e.preventDefault(); e.stopPropagation(); } }, true);
 document.addEventListener("contextmenu", (e) => { if (tipTarget(e) && e.pointerType !== "mouse") e.preventDefault(); });
@@ -792,7 +792,7 @@ function heatmap(byDate, from, to) {
     const mo = Number(iso.slice(5, 7));
     if (mo !== lastMonth && Number(iso.slice(8)) <= 7) { lastMonth = mo; const t = svgEl("text", { x: wk * (cell + gap), y: 10, class: "axis" }); t.textContent = dateLabel(iso, { month: "short" }); svg.append(t); }
   }
-  const wrap = h("div", { class: "heat-wrap" }, svg);
+  const wrap = h("div", { class: "heat-wrap" }, scrub2d(svg));
   if (W > avail) requestAnimationFrame(() => { wrap.scrollLeft = wrap.scrollWidth; });
   return wrap;
 }
@@ -818,7 +818,58 @@ function monthCal(byDate, from, end) {
     if (iso > todayISO()) c.setAttribute("opacity", ".35");
     svg.append(c);
   }
-  return h("div", { class: "heat-wrap cal" }, svg);
+  return h("div", { class: "heat-wrap cal" }, scrub2d(svg));
+}
+// Calendarios: mantener el dedo y moverlo en cualquier dirección va enseñando cada día (si se mueve enseguida, hace scroll)
+function scrub2d(el) {
+  let t0 = 0, lock = false;
+  el.addEventListener("touchstart", () => { t0 = Date.now(); lock = false; }, { passive: true });
+  el.addEventListener("touchmove", (e) => { if (!lock && Date.now() - t0 > 180) lock = true; if (lock && e.cancelable) e.preventDefault(); }, { passive: false });
+  return el;
+}
+
+// ------------------------------------------------------- mapa de músculos
+// Figura de frente y de espaldas con cada grupo coloreado según las series efectivas por semana (10–20 = lo recomendado).
+// Dibujo propio y sencillo: media figura y su reflejo.
+const BODY_SIL = "M44 30 C38 31 33 33 29 36 C24 39 21 44 21 52 L18 86 L13 118 L11 132 L15 138 L20 130 L23 116 L26 93 L30 66 L32 82 L33 100 L31 118 L29 150 L31 168 L29 190 L33 211 L30 220 L44 220 L43 210 L44 190 L45 168 L48 130 L50 124 L50 26 Z";
+const BODY_MU = {
+  front: [
+    ["Hombro", "M30 36 C24 38 20 44 21 55 C25 52 30 48 34 43 C34 40 32 37 30 36 Z"],
+    ["Pecho", "M35 42 C40 39 46 39 49.5 41 L49.5 58 C44 62 37 61 33 56 C32 50 33 45 35 42 Z"],
+    ["Brazos", "M22 58 C20 66 20 75 22 85 C25 82 27 74 27.5 63 C26 60 24 58 22 58 Z"],
+    ["Brazos", "M18.5 92 C16 102 14.5 111 15 118 C18 114 21 104 23.5 94 C22 92 20 91 18.5 92 Z"],
+    ["Core", "M42.5 63 L49.5 63 L49.5 104 L43.5 102 C41.5 90 41.5 75 42.5 63 Z"],
+    ["Core", "M35 64 C38 74 39.5 88 40.5 100 L34.5 98 C33.5 86 33.5 74 35 64 Z"],
+    ["Pierna", "M32.5 121 C30.5 135 30.5 150 33 164 L40.5 166 C43.5 152 46.5 138 47.5 128 C43 126 37 124 32.5 121 Z"],
+    ["Pierna", "M31.5 176 C30.5 186 31 196 34 206 L38 206 C38.5 196 38.5 186 37.5 176 Z"],
+  ],
+  back: [
+    ["Espalda", "M41 30 L49.5 28 L49.5 50 C45 46 40 41 34 36.5 C36 33 38 31 41 30 Z"],
+    ["Espalda", "M33.5 45 C38 51 44 55 49.5 57 L49.5 84 C43 84 38 80 34.5 70 C32.5 62 32.5 53 33.5 45 Z"],
+    ["Hombro", "M30 36 C24 38 20 44 21 55 C25 52 30 48 33 42 C33 39 32 37 30 36 Z"],
+    ["Brazos", "M22 58 C20 67 21 76 23 84 C26 80 27.5 71 27.5 61 C26 59 24 58 22 58 Z"],
+    ["Brazos", "M18.5 92 C16 102 14.5 111 15 118 C18 114 21 104 23.5 94 C22 92 20 91 18.5 92 Z"],
+    ["Core", "M41 87 L49.5 87 L49.5 104 L41.5 102 C40.5 96 40.5 91 41 87 Z"],
+    ["Pierna", "M33 106 C38 103.5 45 105 49.5 109 L49.5 123 C43 127 36.5 126 32 120 C31.5 115 32 110 33 106 Z"],
+    ["Pierna", "M32 129 C31 141 32 153 34 165 L41 165 C44 153 46 141 47 131 C42 131 37 130 32 129 Z"],
+    ["Pierna", "M31 172 C29.5 182 30 192 34 202 L39 202 C40 192 40 182 37.5 172 Z"],
+  ],
+};
+const muZone = (pw) => (!pw ? 0 : pw < 10 ? 1 : pw <= 20 ? 2 : 3);
+const MU_ZTXT = ["Sin series", "Por debajo de 10/semana: poco estímulo para crecer", "Dentro de lo recomendado (10–20)", "Más de 20/semana: mucho volumen, vigila la recuperación"];
+// pw: series efectivas por semana de cada grupo; n: series del periodo (para el tooltip)
+function bodyMap(pw, n = {}, opts = {}) {
+  const fig = (side, label) => {
+    const svg = svgEl("svg", { viewBox: "0 0 100 224", class: "bmap", width: opts.w || 92, height: Math.round((opts.w || 92) * 2.24) });
+    const half = (d, cls, extra = {}) => { const g = svgEl("g", extra); for (const tr of ["", "translate(100 0) scale(-1 1)"]) g.append(svgEl("path", { d, class: cls, transform: tr })); return g; };
+    svg.append(half(BODY_SIL, "bm-sil"), svgEl("circle", { cx: 50, cy: 16, r: 10.5, class: "bm-sil" }));
+    for (const [g, d] of BODY_MU[side]) {
+      const v = pw[g] || 0;
+      svg.append(half(d, "mu z" + muZone(v), opts.static ? {} : { "data-tip": `${g}: ${fmt(v, v < 10 ? 1 : 0)} series por semana${n[g] != null ? ` (${fmt(n[g])} en el periodo)` : ""}\n${MU_ZTXT[muZone(v)]}` }));
+    }
+    return h("div", { class: "bm-f" }, svg, h("span", null, label));
+  };
+  return h("div", { class: "bmaps" }, fig("front", "Frente"), fig("back", "Espalda"));
 }
 
 // ------------------------------------------------------------- vista
@@ -832,7 +883,7 @@ function viewTraining() {
     h("p", { class: "muted" }, "Dime «entreno hecho» por el chat y lo traigo de Hevy, o importa el CSV de Hevy.")));
   const st = S.tStats && S.tStats._src === ws && S.tStats._bw === S.weights && S.tStats._set === S.exSet ? S.tStats : (S.tStats = Object.assign(trainingStats(ws, S.bw), { _src: ws, _bw: S.weights, _set: S.exSet }));
   // Pestañas de texto con subrayado (una sola fila, sin cajas); el periodo va en una línea propia solo en Resumen
-  const tabs = h("div", { class: "utabs" }, [["resumen", "Resumen"], ["historial", "Historial"], ["ejercicios", "Ejercicios"], ["records", "Récords"], ["nivel", "Rango"]]
+  const tabs = h("div", { class: "utabs" }, [["resumen", "Resumen"], ["historial", "Entrenos"], ["ejercicios", "Ejercicios"], ["records", "Récords"], ["nivel", "Rangos"]]
     .map(([k, l]) => h("button", { class: S.tTab === k ? "on" : "", onclick: () => { S.tTab = k; render(); } }, l)));
   const body = { resumen: tResumen, historial: tHistorial, ejercicios: tEjercicios, records: tRecords, nivel: tNivel }[S.tTab](st, ws);
   return h("div", { class: "training" }, head, tabs, body);
@@ -862,6 +913,19 @@ function kcChip(v, what = "del entreno", lg = false) {
 }
 // Chips de un entreno juntos: si no caben al lado del título, bajan todos a la línea siguiente
 function chg(...c) { c = c.filter(Boolean); return c.length ? h("span", { class: "chg" }, ...c) : null; }
+// Lo mismo en todas las tarjetas de un entreno (último entreno, lista de entrenos y su ficha):
+// el título (con la duración a la derecha), la descripción y una fila de pastillas: la fecha (gris), rangos, récords y gasto
+const wkDate = (w) => cap1(dateLabel(w.date, { weekday: "short", day: "numeric", month: "short" }).replace(",", "")) + (w.start_time ? " · " + w.start_time : "");
+function wkChips(w, extra) {
+  return h("div", { class: "wk-chips" }, h("span", { class: "datec" }, tx(wkDate(w))), upsChip(w),
+    w.prs_count ? tip(h("span", { class: "prc" }, icon("trophy"), tx(String(w.prs_count))), `${w.prs_count} récords en este entreno`) : null, kcChip(w.kcal),
+    extra ? h("span", { class: "wk-x faint" }, extra) : null);
+}
+function wkHead(w) {
+  return [h("div", { class: "wk-h" }, h("div", { class: "wk-t" }, w.title), w.duration_min ? h("span", { class: "wk-dur num" }, fmt(w.duration_min) + " min") : null),
+    w.notes ? h("div", { class: "wk-desc" }, w.notes) : null,
+    wkChips(w, [w.volume_kg ? fmt(w.volume_kg) + " kg" : null, w.sets_count ? w.sets_count + " series" : null].filter(Boolean).join(" · "))];
+}
 // Último entreno (en Resumen, encima de «Actividad»)
 function lastCard(ws) {
   const w = [...(ws || [])].sort((a, b) => (b.date + (b.start_time || "")).localeCompare(a.date + (a.start_time || "")))[0];
@@ -869,11 +933,7 @@ function lastCard(ws) {
   const ago = Math.round((new Date(todayISO()) - new Date(w.date)) / 864e5);
   return h("button", { class: "card lastw", onclick: () => workoutSheet(w.id) },
     h("div", { class: "lw-top" }, h("span", { class: "lw-l" }, "Último entreno"), h("span", { class: "lw-ago" }, ago === 0 ? "hoy" : ago === 1 ? "ayer" : `hace ${ago} días`)),
-    h("div", { class: "lw-m" }, h("b", null, w.title), chg(upsChip(w), w.prs_count ? h("span", { class: "prc" }, icon("trophy"), tx(String(w.prs_count))) : null, kcChip(w.kcal))),
-    w.notes ? h("div", { class: "lw-d" }, w.notes) : null,
-    h("div", { class: "lw-s" }, [dateLabel(w.date, { weekday: "long", day: "numeric", month: "long" }) + (w.start_time ? " · " + w.start_time : ""), w.duration_min ? fmt(w.duration_min) + " min" : null,
-      w.sets_count + " series", fmt(w.volume_kg) + " kg"].filter(Boolean).join(" · ")),
-    h("span", { class: "chev" }, icon("right")));
+    ...wkHead(w));
 }
 function tResumen(st, ws) {
   const R = periodRange(S.tGran, S.tOff, st), P = periodStats(st, ws, R);
@@ -898,7 +958,7 @@ function tResumen(st, ws) {
     ["Récords", P.prs.length ? String(P.prs.length) : "0", P.prs.length ? "último: " + P.prs[0].name : "ninguno en el periodo", () => { S.tTab = "records"; render(); }],
     ["Más trabajado", groups[0] && groups[0][1] ? groups[0][0] : "—", groups[0] && groups[0][1] ? `${groups[0][1]} series efectivas` : "", null],
     ["Menos trabajado", weakG ? weakG[0] : "—", weakG ? `${weakG[1]} series` : "", null],
-    ["Tu punto fuerte", lv[0] ? lv[0].name : "—", lv[0] ? LVL[lv[0].level.idx] + (S.bw ? "" : "") : "", () => { S.tTab = "nivel"; render(); }],
+    ["Tu punto fuerte", lv[0] ? lv[0].name : "—", lv[0] ? h("span", { class: "hl-lv" }, lvlShield(lv[0].level, 15), LVL[lv[0].level.idx]) : "", () => { S.tTab = "nivel"; render(); }],
   ];
   const showBars = P.buckets.length > 1;
   const yr = (b) => (P.gran === "day" ? "" : "");
@@ -933,17 +993,18 @@ function tResumen(st, ws) {
     showBars ? h("div", { class: "card panel" }, h("div", { class: "row", style: { marginBottom: "8px" } }, h("h3", { style: { margin: 0 } }, P.gran === "day" ? "Por día" : P.gran === "week" ? "Por semana" : "Por mes"), h("span", { class: "grow" }), chartSeg), chartBox) : null,
     hlBox,
     h("div", { class: "grid2 gap-big" },
-      h("div", { class: "card panel" }, h("h3", { style: { marginBottom: "2px" } }, "Series por semana y grupo"), h("div", { class: "faint sm", style: { marginBottom: "10px" } }, "En verde, lo recomendado: 10–20 series por semana"),
-        h("div", { class: "gbars wk" }, groups.map(([g, n]) => { const pw = n / Math.max(1, R.days / 7), max = 26; const zone = pw < 10 ? "low" : pw > 20 ? "high" : "ok";
-          return tip(h("div", { class: "gb" }, h("span", { class: "gl" }, g),
-            h("span", { class: "gt" }, h("span", { class: "zone", style: { left: (100 * 10 / max) + "%", width: (100 * 10 / max) + "%" } }), h("i", { style: { width: Math.min(100, 100 * pw / max) + "%", "--h": GROUP_HUE[g] } })),
-            h("b", { class: "num " + zone }, fmt(pw, pw < 10 ? 1 : 0))),
-            `${g}: ${fmt(pw, 1)} series efectivas por semana (${n} en el periodo)\n${zone === "low" ? "Por debajo de 10/semana: poco estímulo para crecer" : zone === "high" ? "Más de 20/semana: mucho volumen, vigila la recuperación" : "Dentro de lo recomendado (10–20)"}`); }))),
+      (() => { const wk = Math.max(1, R.days / 7), pw = Object.fromEntries(groups.map(([g, n]) => [g, n / wk]));
+        const rows = MAIN_GROUPS.map((g) => [g, pw[g] || 0]).sort((a, b) => b[1] - a[1]);
+        return h("div", { class: "card panel" }, h("h3", { style: { marginBottom: "2px" } }, "Músculos trabajados"), h("div", { class: "faint sm" }, "Series efectivas por semana · lo recomendado, 10–20"),
+          h("div", { class: "bm-wrap" }, bodyMap(pw, P.groups),
+            h("div", { class: "bm-list" }, rows.map(([g, v]) => h("div", { class: "bm-r" }, h("i", { class: "mu-sw z" + muZone(v) }), h("span", null, g), h("b", { class: "num z" + muZone(v) }, fmt(v, v < 10 ? 1 : 0)))),
+              h("div", { class: "bm-leg" }, [[1, "Poco"], [2, "Óptimo"], [3, "Mucho"]].map(([z, l]) => h("span", null, h("i", { class: "mu-sw z" + z }), l)))))); })(),
       h("div", { class: "card panel" }, h("h3", null, "Lo que más has hecho"),
         P.top.length ? h("div", { class: "exlist" }, P.top.slice(0, 6).map(({ e, n }) => exRow(e, null, `${n} ${n === 1 ? "sesión" : "sesiones"} en el periodo`))) : h("div", { class: "muted" }, "Nada en este periodo."))),
-    P.prs.length ? h("div", { class: "card panel" }, h("div", { class: "row", style: { marginBottom: "6px" } }, h("h3", { style: { margin: 0 } }, "Récords del periodo"), h("span", { class: "grow" }),
-      P.prs.length > 6 ? h("button", { class: "lnk-more", onclick: () => sheet(`Récords · ${R.label}`, h("div", { class: "exlist" }, P.prs.map((p) => prRow(p))), null, { sub: `${P.prs.length} récords, del más reciente al más antiguo` }) }, `Ver todos (${P.prs.length})`) : null),
-      h("div", { class: "exlist" }, P.prs.slice(0, 6).map((p) => prRow(p)))) : null,
+    P.prs.length ? (() => { const G = prGroups(P.prs);
+      return h("div", { class: "card panel" }, h("div", { class: "row", style: { marginBottom: "6px" } }, h("h3", { style: { margin: 0 } }, "Nuevos récords"), h("span", { class: "grow" }),
+        G.length > 5 ? h("button", { class: "lnk-more", onclick: () => sheet(`Nuevos récords · ${R.label}`, h("div", { class: "exlist" }, G.map(prGroupRow)), null, { sub: `${P.prs.length} récords en ${G.length} ${G.length === 1 ? "ejercicio" : "ejercicios"}` }) }, `Ver todos (${G.length})`) : null),
+        h("div", { class: "exlist" }, G.slice(0, 5).map(prGroupRow))); })() : null,
     P.ups.length ? h("div", { class: "card panel" }, h("div", { class: "row", style: { marginBottom: "6px" } }, h("h3", { style: { margin: 0 } }, "Nuevos rangos"), h("span", { class: "grow" }),
       P.ups.length > 6 ? h("button", { class: "lnk-more", onclick: () => sheet(`Nuevos rangos · ${R.label}`, h("div", { class: "exlist" }, P.ups.map((u) => upRow(u))), null, { sub: `${P.ups.length} rangos nuevos, del más reciente al más antiguo` }) }, `Ver todos (${P.ups.length})`) : null),
       h("div", { class: "exlist" }, P.ups.slice(0, 6).map((u) => upRow(u)))) : null);
@@ -985,6 +1046,22 @@ function prRow(p) {
     h("div", { class: "exr-v pr" }, h("b", { class: "num" }, h("span", { class: "trophy" }, icon("trophy")), recTxt(p.type, p.value, p.kind)), h("span", null, REC_LABEL[p.type])));
 }
 
+// Récords agrupados por ejercicio y día: una fila con el ejercicio, qué récords batió (pastillas) y el principal a la derecha
+const PR_PRIO = ["e1", "w", "sv", "vol", "reps", "sreps", "secs", "stime", "dist"];
+function prGroups(prs) {
+  const m = new Map();
+  for (const p of prs) { const k = exKeyName(p.name) + "|" + p.date; if (!m.has(k)) m.set(k, { name: p.name, date: p.date, kind: p.kind, prs: [] }); m.get(k).prs.push(p); }
+  return [...m.values()].map((g) => { g.prs.sort((a, b) => PR_PRIO.indexOf(a.type) - PR_PRIO.indexOf(b.type)); return g; }).sort((a, b) => b.date.localeCompare(a.date));
+}
+function prGroupRow(g) {
+  const top = g.prs[0], e = (S.tStats && S.tStats.list || []).find((x) => exKeyName(x.name) === exKeyName(g.name));
+  return tip(h("button", { class: "exrow prg", onclick: () => exerciseSheet(g.name) }, exIcon(g.name, 34),
+    h("div", { class: "exr-t" }, h("div", { class: "exr-n" }, e && e.level ? lvlShield(e.level, 18) : null, h("span", null, dispName(g.name))),
+      h("div", { class: "exr-s prg-s" }, h("span", null, dateLabel(g.date, { weekday: "short", day: "numeric", month: "short" })), g.prs.map((p) => h("span", { class: "prp" }, PR_SHORT[p.type] || p.type)))),
+    h("div", { class: "exr-v pr" }, h("b", { class: "num" }, h("span", { class: "trophy" }, icon("trophy")), recTxt(top.type, top.value, top.kind)), h("span", null, PR_SHORT[top.type] || ""))),
+    g.prs.map((p) => `${REC_LABEL[p.type]}: ${recTxt(p.type, p.value, p.kind)} (antes ${recTxt(p.type, p.prev, p.kind)})`).join("\n"));
+}
+
 // Historial: se pintan de 20 en 20 (al llegar al final de la lista se cargan los siguientes solos)
 const HIST_PAGE = 20;
 function tHistorial(st, ws) {
@@ -1015,19 +1092,9 @@ function bestSetOf(ex) {
   return ws_.reduce((a, s_) => ((s_.seconds || 0) + (s_.distance_m || 0) + (s_.weight_kg || 0) * 10 + (s_.reps || 0) > (a.seconds || 0) + (a.distance_m || 0) + (a.weight_kg || 0) * 10 + (a.reps || 0) ? s_ : a), ws_[0]);
 }
 function workoutCard(w) {
-  const [y, m, d] = w.date.split("-").map(Number);
-  const dt = new Date(y, m - 1, d);
-  return h("div", { class: "card wcard v2", onclick: () => workoutSheet(w.id) },
-    h("div", { class: "wdate" }, h("b", null, String(d)), h("span", null, dt.toLocaleDateString("es-ES", { weekday: "short" }))),
-    h("div", { class: "wbody" },
-      // El nombre entero en su línea (a la derecha, lo que duró); debajo, cuándo, volumen y series, y los récords y el gasto
-      h("div", { class: "wc-h2" }, h("div", { class: "wc-t" }, w.title), w.duration_min ? h("span", { class: "wc-dur num" }, fmt(w.duration_min) + " min") : null),
-      h("div", { class: "wc-meta" }, h("span", { class: "faint" }, [dt.toLocaleDateString("es-ES", { weekday: "short", day: "numeric" }) + (w.start_time ? " · " + w.start_time : ""),
-        w.volume_kg ? fmt(w.volume_kg) + " kg" : null, w.sets_count + " series"].filter(Boolean).join(" · ")),
-        chg(upsChip(w), w.prs_count ? tip(h("span", { class: "prc" }, icon("trophy"), tx(String(w.prs_count))), `${w.prs_count} récords en este entreno`) : null, kcChip(w.kcal))),
-      w.notes ? h("div", { class: "wc-desc" }, w.notes) : null,
-      h("div", { class: "wc-ex" }, w.exercises.map((ex) => { const b = ex.sets.length ? bestSetOf(ex) : null; return h("div", { class: "wc-exr" }, exIcon(ex.name, 22),
-        h("span", { class: "n" }, `${ex.sets.length} × ${ex.name}`), h("span", { class: "b num" }, b ? setShort(ex.kind, b) : "")); }))));
+  return h("div", { class: "card wcard v3", onclick: () => workoutSheet(w.id) }, ...wkHead(w),
+    h("div", { class: "wc-ex" }, w.exercises.map((ex) => { const b = ex.sets.length ? bestSetOf(ex) : null; return h("div", { class: "wc-exr" }, exIcon(ex.name, 22),
+      h("span", { class: "n" }, `${ex.sets.length} × ${ex.name}`), h("span", { class: "b num" }, b ? setShort(ex.kind, b) : "")); })));
 }
 
 function tEjercicios(st) {
@@ -1501,14 +1568,14 @@ async function workoutSheet_(id) {
   // Etiquetas con versión larga y corta: si en la cabecera no caben, se usa la corta (ver fitc)
   const two = (l, sh_) => [h("span", { class: "cl tx" }, l), h("span", { class: "cs tx" }, sh_)];
   const mkChips = (sm) => [
+    h("span", { class: "datec dt" }, ...(() => { const t = w.start_time ? " · " + w.start_time : "", s_ = wkDate(w);
+      return sm ? [tx(s_)] : two(cap1(dateLabel(w.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" }).replace(",", "")) + t, s_); })()),
     wUps.length ? tip(h("span", { class: "upchip lg" }, icon("up"), ...(sm ? [tx(String(wUps.length))] : two(`${wUps.length} ${wUps.length === 1 ? "rango nuevo" : "rangos nuevos"}`, String(wUps.length)))), upTip) : null,
     nPR ? tip(h("span", { class: "prc lg" }, icon("trophy"), ...(sm ? [tx(String(nPR))] : two(`${nPR} ${nPR === 1 ? "récord" : "récords"}`, String(nPR)))), prTip) : null,
     w.activity_id && w.kcal != null ? tip(kcChip(w.kcal, "del entreno", true),
       w.kcal_source === "agente" ? "Gasto del entreno (kcal netas, por encima del reposo): lo que suma al gasto del día. Lo ha estimado tu agente analizando los ejercicios, las series, las cargas y la duración."
         : `Gasto del entreno (kcal netas): lo que suma al gasto del día. Sale del tipo de entreno, la duración, tu peso y la intensidad (${w.intensity || "normal"}).`) : null,
-    bwAt(w.date) ? tip(h("span", { class: "datec" }, tx(`${fmt(bwAt(w.date), 1)} kg`)), bwExact(w.date) ? "Tu peso ese día (pesaje)" : "Tu peso ese día (interpolado entre pesajes)") : null,
-    h("span", { class: "datec dt" }, ...(() => { const t = w.start_time ? " · " + w.start_time : "", s_ = dateLabel(w.date, { day: "numeric", month: "short" }) + t;
-      return sm ? [tx(s_)] : two(dateLabel(w.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) + t, s_); })())].filter(Boolean);
+    bwAt(w.date) ? tip(h("span", { class: "datec" }, tx(`${fmt(bwAt(w.date), 1)} kg`)), bwExact(w.date) ? "Tu peso ese día (pesaje)" : "Tu peso ese día (interpolado entre pesajes)") : null].filter(Boolean);
   sh.set(w.title, [
     fitc(h("div", { class: "wchips" }, mkChips())),
     h("div", { class: "wstats big tiles4" },

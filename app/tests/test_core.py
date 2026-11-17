@@ -112,7 +112,7 @@ class TestRecipes(Base):
     def make_recipe(self):
         arroz = self.food("arroz en bolsa")
         soja = self.food("soja")
-        return core.create_recipe(self.conn, {"name": "Arroz con soja", "recipe_servings": 2, "items": [
+        return core.create_recipe_food(self.conn, {"name": "Arroz con soja", "recipe_servings": 2, "items": [
             {"food_id": arroz["id"], "unit_key": "p:%d" % self.portion("arroz en bolsa", "bolsa habitual 167 g")["id"], "quantity": 2},
             {"food_id": soja["id"], "unit_key": "g", "quantity": 80}]})
 
@@ -778,3 +778,27 @@ class TestReemplazarAlimento(Base):
         self.assertEqual((r["moved"], r["skipped"], r["deleted"]), (1, 0, True))
         e = self.conn.execute("SELECT * FROM entries WHERE food_id=?", (b["id"],)).fetchone()
         self.assertEqual((e["unit_key"], e["quantity"], e["kcal"]), ("g", 30, 60))
+
+
+class TestRecetaUnificada(unittest.TestCase):
+    """Recetas = comidas habituales con raciones: al añadir se apuntan sus alimentos por separado, escalados."""
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(); self.conn = connect(os.path.join(self.tmp.name, "t.db")); init_db(self.conn)
+        mk = lambda n, k: core.create_food(self.conn, {"name": n, "status": "etiqueta", "portions": [{"label": "100 g", "amount": 100, "unit": "g", "kcal": k, "protein_g": 1, "carbs_g": 1, "fat_g": 1, "is_default": True}]})
+        self.a, self.b = mk("Harina", 350), mk("Leche", 50)
+
+    def test_raciones(self):
+        t = core.create_recipe(self.conn, {"name": "Crepes", "recipe_servings": 4, "items": [
+            {"food_id": self.a["id"], "unit_key": "g", "quantity": 200}, {"food_id": self.b["id"], "unit_key": "g", "quantity": 400}]})
+        self.assertEqual(t["servings"], 4)
+        r = core.apply_template(self.conn, t["id"], {"date": "2026-01-02", "meal": "cena", "servings": 1})
+        es = core.day_entries(self.conn, "2026-01-02")
+        self.assertEqual(len(r["entry_ids"]), 2)
+        self.assertEqual(sorted(e["quantity"] for e in es), [50, 100])
+        self.assertEqual(round(sum(e["kcal"] for e in es)), 175 + 50)
+
+    def test_calidad_normalizada(self):
+        f = core.create_food(self.conn, {"name": "X", "status": "historico", "portions": [{"label": "100 g", "amount": 100, "unit": "g", "kcal": 1, "quality": "provisional"}]})
+        self.assertEqual(f["status"], "estimacion")
+        g = core.create_food(self.conn, {"name": "Y", "source": "Open Food Facts · 12345678", "portions": [{"label": "100 g", "amount": 100, "unit": "g", "kcal": 1}]})
+        self.assertEqual(g["status"], "etiqueta")

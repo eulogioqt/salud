@@ -2660,7 +2660,7 @@ body.rp-on { overflow: hidden; }
 .tst em.dl.up { color: var(--accent); } .tst em.dl.down { color: #b4691f; }
 .hlc { padding-bottom: 6px; }
 .hlr { display: grid; grid-template-columns: 150px 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; width: 100%; padding: 9px 0; border: 0; border-top: 1px solid var(--line); background: none; color: var(--text); font: inherit; text-align: left; position: relative; }
-.hlr:first-of-type { border-top: 0; }
+.hlc h3 + .hlr { border-top: 0; }
 .hlr .l { grid-row: span 2; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13.5px; }
 .hlr b { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 20px; }
 .hlr .s { font-size: 12px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 20px; }
@@ -2687,3 +2687,100 @@ body.rp-on { overflow: hidden; }
 .kpis.k3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 640px) { .kpis.k3 { gap: 8px; } .kpis.k3 .kpi { padding: 10px; min-width: 0; } .kpis.k3 .kpi .v { font-size: 17px; } .kpis.k3 .kpi .l, .kpis.k3 .kpi .s { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } }
 .hlr .l { white-space: nowrap; } @media (max-width: 640px) { .hlr { grid-template-columns: 140px 1fr; } .hlr .l { font-size: 13px; } }
+/* Valores de la etiqueta: marca junto al nombre */
+.lblm { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; background: var(--accent); color: #fff; margin-left: 5px; vertical-align: 1px; flex: none; }
+.lblm svg { width: 11px; height: 11px; stroke-width: 3; }
+.tile .tn .lblm { width: 14px; height: 14px; }
+/* Sin medidas: la línea de «Más» justo debajo */
+.meds:empty { display: none; }
+.mx:has(.meds:empty) ~ .fe-more { margin-top: 6px; }
+/* Receta apuntada: la flecha despliega sus alimentos; la fila abre su resumen */
+.tpl-chev { border: 0; background: none; padding: 6px 0 6px 6px; margin-right: -4px; color: var(--faint); cursor: pointer; display: grid; place-items: center; align-self: center; }
+.tpl-chev svg { width: 18px; height: 18px; stroke-width: 2.2; transition: transform .15s; }
+.item.tpl.open .tpl-chev svg { transform: rotate(90deg); }
+.tpl-sum { margin-top: 10px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.tpl-sum .item.child { padding-left: 12px; }
+/* Añadir receta: raciones y los alimentos plegados */
+.tpl-serv { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 4px; font-weight: 600; font-size: 14.5px; }
+.tpl-serv .input { width: 84px; text-align: right; }
+.tpl-det { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin: 10px 0 12px; }
+.tpl-det > summary { cursor: pointer; list-style: none; padding: 11px 0; font-weight: 600; font-size: 14.5px; display: flex; align-items: center; gap: 6px; }
+.tpl-det > summary::-webkit-details-marker { display: none; }
+.tpl-det > summary::after { content: "›"; margin-left: auto; color: var(--faint); font-size: 18px; transition: transform .15s; }
+.tpl-det[open] > summary::after { transform: rotate(90deg); }
+.tpl-det .tpl-list { margin-top: 0; }
+.tpl-det .tpl-row:last-child { border-bottom: 0; }
+.tpl-per { margin: -4px 0 8px; }
+.item.b.tpl { grid-template-columns: auto 1fr auto auto; }
+/* Pasos (Más): cuatro cifras en 2×2 y la media por día de la semana */
+.kpis.k2x2 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 640px) { .kpis.k2x2 { grid-template-columns: 1fr 1fr; gap: 8px; } }
+.wdb { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-top: 10px; }
+.wdb-c { display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
+.wdb-c b { font-size: 12.5px; color: var(--text); font-weight: 650; }
+.wdb-t { width: 100%; max-width: 34px; height: 90px; display: flex; align-items: flex-end; background: var(--surface-2); border-radius: 7px; overflow: hidden; }
+.wdb-t i { display: block; width: 100%; background: var(--line-2, #d9d4c7); border-radius: 7px 7px 0 0; }
+.wdb-t i.ok { background: #e2bd6f; }
+.wdb-c.best span { color: var(--text); font-weight: 700; }
+/* Comida (Más): media al día frente al objetivo */
+.mbars { display: grid; gap: 12px; margin-top: 14px; }
+.mbar-h { display: flex; align-items: baseline; gap: 6px; font-size: 13.5px; }
+.mbar-h .sw { width: 9px; height: 9px; border-radius: 3px; display: inline-block; align-self: center; }
+.mbar-h .sw.k { background: var(--k); } .mbar-h .sw.p { background: var(--p); } .mbar-h .sw.c { background: var(--c); } .mbar-h .sw.g { background: var(--g); }
+.mbar-t { position: relative; height: 7px; background: var(--surface-2); border-radius: 4px; margin-top: 6px; overflow: hidden; }
+.mbar-t i { display: block; height: 100%; border-radius: 4px; }
+.mbar-t.k i { background: var(--k); } .mbar-t.p i { background: var(--p); } .mbar-t.c i { background: var(--c); } .mbar-t.g i { background: var(--g); }
+/* Mapa de músculos */
+.bm-wrap { display: flex; align-items: center; gap: 18px; margin-top: 12px; }
+.bmaps { display: flex; gap: 6px; flex: none; }
+.bm-f { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; color: var(--faint); }
+.bmap { display: block; touch-action: pan-y; }
+.bm-sil { fill: var(--surface-2); }
+.mu { stroke: var(--surface); stroke-width: .8; transition: opacity .12s; }
+.mu.z0, .mu-sw.z0 { fill: var(--line); background: var(--line); }
+.mu.z1, .mu-sw.z1 { fill: color-mix(in srgb, var(--accent) 38%, var(--surface)); background: color-mix(in srgb, var(--accent) 38%, var(--surface)); }
+.mu.z2, .mu-sw.z2 { fill: var(--accent); background: var(--accent); }
+.mu.z3, .mu-sw.z3 { fill: #d0782e; background: #d0782e; }
+.bm-list { flex: 1; min-width: 0; display: grid; gap: 7px; }
+.bm-r { display: grid; grid-template-columns: 10px 1fr auto; gap: 8px; align-items: center; font-size: 13.5px; }
+.bm-r b { font-weight: 650; } .bm-r b.z0 { color: var(--faint); } .bm-r b.z3 { color: #d0782e; }
+.mu-sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.bm-leg { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--line); }
+.bm-leg span { display: inline-flex; align-items: center; gap: 4px; }
+@media (max-width: 640px) { .bm-wrap { gap: 12px; } }
+
+/* Destacado: más apretado; el rango con su escudo a la izquierda */
+.hlr { grid-template-columns: 132px 1fr; padding: 8px 0; }
+@media (max-width: 640px) { .hlr { grid-template-columns: 128px 1fr; } }
+.hl-lv { display: inline-flex; align-items: center; gap: 5px; }
+.hlr .s .hl-lv svg { flex: none; }
+/* Nuevos récords: los de un ejercicio en una fila, con pastillas */
+.prg-s { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; white-space: normal; }
+.prp { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 99px; background: var(--surface-2); color: var(--muted); }
+/* Entreno (último, lista y ficha): título con la duración, descripción y pastillas (la fecha en gris) */
+.wk-h { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.wk-t { flex: 1; min-width: 0; font-weight: 650; font-size: 16.5px; line-height: 1.25; }
+.wk-dur { flex: none; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+.wk-desc { font-size: 13px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+.wk-chips { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.wk-chips > * { margin: 0 !important; }
+.wk-chips .wk-x { font-size: 12.5px; margin-left: 2px !important; }
+.card.lastw { padding: 14px 16px; gap: 0; }
+.card.lastw .lw-top { margin-bottom: 4px; }
+.card.wcard.v3 { display: block; padding: 14px 16px; cursor: pointer; }
+.card.wcard.v3 .wc-ex { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.wk-chips .datec, .wk-chips .prc, .wk-chips .upchip, .wk-chips .kcc { height: 22px; font-size: 11.5px; padding: 0 8px; }
+.wk-chips .datec { text-transform: none; font-weight: 600; }
+.rx-mu { display: flex; align-items: center; gap: 22px; }
+.rx-mu .rx-gb { flex: 1; min-width: 0; }
+.rx-mu .bmaps { gap: 4px; }
+/* El título de las fichas alineado con su contenido */
+@media (max-width: 640px) { .sheet-h { padding-left: 16px; padding-right: 14px; } }
+/* Mientras carga la cuenta: huecos grises */
+.skel, .av.skel, .nav-av.skel { background: var(--surface-2) !important; color: transparent !important; }
+.skel-t { display: block; width: 120px; height: 14px; border-radius: 6px; background: var(--surface-2); margin: 4px 0; }
+.skel-t.sm { width: 70px; height: 11px; }
+.bm-sil { fill: color-mix(in srgb, var(--surface-2) 70%, var(--line)); }
+.mu.z0 { fill: var(--line-2, #d9d4c7); }
+.bm-leg { gap: 8px; font-size: 11px; }
+.datec.dt { text-transform: none; }

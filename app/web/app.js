@@ -46,7 +46,8 @@ const foodText = (f) => norm([f.name, f.original_name, f.brand].filter(Boolean).
 const FIELDS = ["kcal", "protein_g", "carbs_g", "fat_g"];
 const MEALS = [["desayuno", "Desayuno"], ["almuerzo", "Almuerzo"], ["merienda", "Merienda"], ["cena", "Cena"], ["otro", "Otro"]];
 // Lo que no viene de una etiqueta o del histórico es «Aprox.» (aproximado, estimación de comida fuera o sin datos oficiales)
-const QUAL = { etiqueta: "Etiqueta", historico: "Histórico", provisional: "Sin etiqueta", estimacion: "Valores estimados", pendiente: "Sin etiqueta" };
+// Los valores son de la etiqueta (a mano o de Open Food Facts) o estimados; los estados antiguos cuentan como estimados
+const QUAL = { etiqueta: "Etiqueta", historico: "Estimación", provisional: "Estimación", estimacion: "Estimación", pendiente: "Estimación" };
 const QORDER = ["etiqueta", "historico", "provisional", "estimacion", "pendiente"];
 const ACT_TYPES = [["fuerza", "Fuerza"], ["calistenia", "Calistenia"], ["hyrox", "HYROX"], ["carrera", "Carrera"], ["bici", "Bici"], ["natacion", "Natación"], ["caminata", "Caminata"], ["otro", "Otro"]];
 const STEP_TYPES = ["carrera", "hyrox", "caminata"];
@@ -328,7 +329,7 @@ const tx = (s) => h("span", { class: "tx" }, s);
 function icon(name) {
   const P = {
     x: "M6 6l12 12M18 6L6 18", back: "M15 18l-6-6 6-6", left: "M15 18l-6-6 6-6", right: "M9 18l6-6-6-6",
-    plus: "M12 5v14M5 12h14", key: "M7.5 15a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7zM11 11.5h10M18 11.5v3M15 11.5v2", edit: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4", search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3", lock: "M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z",
+    plus: "M12 5v14M5 12h14", ok: "M5.5 12.5l4 4L18.5 7.5", key: "M7.5 15a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7zM11 11.5h10M18 11.5v3M15 11.5v2", edit: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4", search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3", lock: "M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z",
     star: "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z", chev: "M6 9l6 6 6-6",
     minus: "M5 12h14", image: "M4 5h16v14H4zM8.5 10.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM20 15l-5-5-9 9", bars: "M5 20v-7M12 20V5M19 20v-11", barcode: "M4 5v14M7 5v14M10 5v14M14 5v14M16 5v14M20 5v14", camera: "M4 8h3l2-3h6l2 3h3v11H4zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", out: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6",
     phone: "M8 2.5h8a1.5 1.5 0 0 1 1.5 1.5v16a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 20V4A1.5 1.5 0 0 1 8 2.5zM11 18.5h2",
@@ -362,7 +363,9 @@ function estBadges(es) {
     vals ? h("span", { class: "q estimacion", title: whole ? "Comida estimada: los valores son una estimación" : "Los valores no son de la etiqueta: estimados o sin confirmar" }, "Valores a ojo") : null].filter(Boolean);
 }
 const estTag = (es) => { const b = estBadges(es); return b.length ? h("span", { class: "estb" }, b) : null; };
-function qBadge(q) { return q && !["historico", "etiqueta"].includes(q) ? h("span", { class: "q " + q, title: QUAL[q] }, QUAL[q]) : null; }
+// Valores de la etiqueta (a mano o de Open Food Facts): una marca discreta junto al nombre
+const lblMark = (f) => f && f.status === "etiqueta" && f.kind !== "receta" ? h("span", { class: "lblm", title: "Valores de la etiqueta" }, icon("ok")) : null;
+function qBadge(q) { return q && q !== "etiqueta" ? h("span", { class: "q " + q, title: QUAL[q] }, QUAL[q]) : null; }
 function macroTxt(n, cls = "mc") {
   return h("span", { class: cls }, h("span", { class: "p" }, "P ", v(n, "protein_g")), " · ", h("span", { class: "c" }, "C ", v(n, "carbs_g")), " · ", h("span", { class: "g" }, "G ", v(n, "fat_g")));
 }
@@ -1219,6 +1222,18 @@ function suppStatsPanel(L) {
         h("span", { class: "grow" }, h("b", null, x.name), h("span", { class: "sst-strip" }, x.days.slice(-28).map((c) => h("i", { class: "s-" + c.s, title: dateLabel(c.date) + (SST_TXT[c.s] ? " · " + SST_TXT[c.s] : "") })))),
         h("b", { class: "sst-pc num" + cls }, x.supp_when === "manual" ? x.days.filter((c) => c.n).length + " d" : pc == null ? "—" : pc + " %")); })));
 }
+// Resumen de una receta apuntada: lo que suma y sus alimentos (cada uno se abre); quitarla entera
+function groupSheet(name, tpl, grp, tot, closed, itemEl) {
+  const e0 = grp[0];
+  const body = [
+    h("div", { class: "mprev mprev1" }, h("div", { class: "mp2" }, h("b", { class: "num" }, v(tot, "kcal")), h("span", null, " kcal")), chipsOf(tot)),
+    h("div", { class: "list tpl-sum" }, grp.map((x) => itemEl(x, true)))];
+  const sh = sheet(name, body, closed ? null : [
+    h("button", { class: "btn ghost danger", onclick: (ev) => confirmDel(ev, async () => {
+      await act(async () => { for (const x of grp) await api("DELETE", "/api/entries/" + x.id); }, `${name} quitada`); sh.close(); }) }, "Quitar"),
+    h("span", { class: "grow" }), h("button", { class: "btn", onclick: () => sh.close() }, "Cerrar")],
+    { sub: [MEALS.find((m) => m[0] === e0.meal)[1], e0.time, `${grp.length} alimentos`].filter(Boolean).join(" · "), key: "grp" });
+}
 function mealBlock(st, meal, closed) {
   const supIds = new Set((st.supplements || []).map((x) => x.id));
   const supHide = new Set(Object.values(st.meals).flatMap((m) => m.entries).filter((e) => supIds.has(e.food_id)).map((e) => e.id));
@@ -1237,7 +1252,7 @@ function mealBlock(st, meal, closed) {
       mono(e.name, fo.category, fo.image),
       h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, fo.id && e.name === fo.name ? dname(fo) : e.name), estTag(e)),
         h("div", { class: "sub" }, estTag(e), [e.kind === "estimacion" ? null : e.time, e.kind === "estimacion" && e.unit_label === "ración estimada" ? null : e.unit_label, e.kind === "estimacion" ? e.time : null].filter(Boolean).join(" · ")),
-        e.note ? h("div", { class: "enote" }, e.note) : null, chips(e)),
+        chips(e)),
       h("div", { class: "kc num" }, v(e, "kcal"), h("small", null, "kcal"))); };
   // Las comidas habituales se muestran como un solo plato (desplegable con sus ingredientes)
   const es = m.entries;
@@ -1256,11 +1271,14 @@ function mealBlock(st, meal, closed) {
     const key = e.date + ":" + e.template_id + ":" + e.id;
     S.openTpl = S.openTpl || {};
     const kids = h("div", { class: "tpl-kids" + (S.openTpl[key] ? "" : " hidden") }, grp.map((x) => itemEl(x, true)));
-    const row = h("div", { class: "item b tpl" + (S.openTpl[key] ? " open" : ""), onclick: () => { S.openTpl[key] = !S.openTpl[key]; kids.classList.toggle("hidden"); row.classList.toggle("open"); } },
-      mono(tpl ? tpl.name : "Comida habitual", "comida", tpl && tpl.image),
-      h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, tpl ? tpl.name : "Comida habitual"), estTag(grp), h("span", { class: "chev" }, icon("right"))),
-        h("div", { class: "sub" }, estTag(grp), [e.time, `comida habitual · ${grp.length} ${grp.length === 1 ? "alimento" : "alimentos"}`].filter(Boolean).join(" · ")), chips(tot)),
-      h("div", { class: "kc num" }, v(tot, "kcal"), h("small", null, "kcal")));
+    // Tocar la fila: su resumen (lo que suma y sus alimentos); la flecha: desplegar los alimentos aquí mismo
+    const tname = tpl ? tpl.name : "Receta";
+    const chev = h("button", { type: "button", class: "tpl-chev", "aria-label": "Ver los alimentos", onclick: (ev) => { ev.stopPropagation(); S.openTpl[key] = !S.openTpl[key]; kids.classList.toggle("hidden"); row.classList.toggle("open"); } }, icon("right"));
+    const row = h("div", { class: "item b tpl" + (S.openTpl[key] ? " open" : ""), onclick: () => groupSheet(tname, tpl, grp, tot, closed, itemEl) },
+      mono(tname, "comida", tpl && tpl.image),
+      h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, tname), estTag(grp)),
+        h("div", { class: "sub" }, estTag(grp), [e.time, `${grp.length} ${grp.length === 1 ? "alimento" : "alimentos"}`].filter(Boolean).join(" · ")), chips(tot)),
+      h("div", { class: "kc num" }, v(tot, "kcal"), h("small", null, "kcal")), chev);
     list.append(h("div", { class: "tpl-grp" }, row, kids));
   }
   return h("div", { class: "meal" }, head, list);
@@ -1391,17 +1409,16 @@ function tilePhoto(name, cat, img) {
 function foodTile(f, onclick) {
   const cat = f.kind === "receta" ? "receta" : f.category;
   const [n, lbl] = foodBasis(f);
-  const tag = (["pendiente", "provisional", "estimacion"].includes(f.status) ? h("span", { class: "miss", title: "Los valores no son de la etiqueta: estimados o sin confirmar" }, "Valores a ojo") : null);
   return h("button", { class: "tile", onclick, type: "button" }, tilePhoto(f.name, cat, f.image),
-    h("div", { class: "tile-tx" }, h("div", { class: "tn" }, dname(f)), h("div", { class: "ts" }, tag, tag && f.kind === "receta" ? " · " : "", f.kind === "receta" ? "Receta" : "", !tag && f.kind !== "receta" ? (dname(f) !== f.name ? f.category || "" : f.brand || f.category || "") : ""),
+    h("div", { class: "tile-tx" }, h("div", { class: "tn" }, dname(f), lblMark(f)), h("div", { class: "ts" }, f.kind === "receta" ? "Receta" : dname(f) !== f.name ? f.category || "" : f.brand || f.category || ""),
       macroBadges(n, lbl)));
 }
 function tplTile(t, onclick) {
   const imgs = t.image ? [t.image] : t.items.map((it) => (foodById(it.food_id) || {}).image).filter(Boolean).slice(0, 2);
   const ph = imgs.length ? h("div", { class: "ph" + (imgs.length > 1 ? " duo" : "") }, imgs.map((im) => h("img", { src: /^(\/|https?:)/.test(im) ? im : "/" + im, alt: "", loading: "lazy", onerror: (e) => e.target.remove() }))) : h("div", { class: "ph none" }, mono(t.name, "habitual", null, true));
   return h("button", { class: "tile", onclick, type: "button" }, ph,
-    h("div", { class: "tile-tx" }, h("div", { class: "tn" }, t.name), h("div", { class: "ts" }, "Habitual · ", `${t.items.length} alimentos`),
-      macroBadges(t.nutr, "plato")));
+    h("div", { class: "tile-tx" }, h("div", { class: "tn" }, t.name), h("div", { class: "ts" }, `${t.items.length} alimentos` + (t.servings > 1 ? ` · ${fmt(t.servings, 1)} raciones` : "")),
+      macroBadges(t.servings > 1 ? scaleN(t.nutr, 1 / t.servings) : t.nutr, t.servings > 1 ? "ración" : "plato")));
 }
 const foodById = (id) => S.catalog.foods.find((f) => f.id === id);
 
@@ -1409,7 +1426,7 @@ function addSheet(meal) {
   const ctx = { meal, time: S.date === todayISO() ? nowHM() : "", q: "" };
   const sh = sheet("Añadir a " + MEALS.find((x) => x[0] === meal)[1].toLowerCase(), []);
   const list = h("div");
-  const search = h("input", { class: "input lg", placeholder: "Buscar alimento, receta o comida habitual", autocomplete: "off" });
+  const search = h("input", { class: "input lg", placeholder: "Buscar alimento o receta", autocomplete: "off" });
   const drawList = () => {
     const q = norm(search.value.trim());
     const foods = S.catalog.foods.filter((f) => !f.hidden && !f.deleted && f.reviewed);
@@ -1419,10 +1436,10 @@ function addSheet(meal) {
     if (q) {
       const ft = tpls.filter((t) => norm(t.name).includes(q));
       const ff = foods.filter((f) => foodText(f).includes(q));
-      if (ft.length) secs.push(["Comidas habituales", ft.map((t) => tplTile(t, () => pickTemplate(t)))]);
+      if (ft.length) secs.push(["Recetas", ft.map((t) => tplTile(t, () => pickTemplate(t)))]);
       secs.push([ff.length ? "Alimentos" : "Sin resultados", ff.map((f) => foodTile(f, () => pickFood(f)))]);
     } else {
-      if (tpls.length) secs.push(["Comidas habituales", tpls.map((t) => tplTile(t, () => pickTemplate(t)))]);
+      if (tpls.length) secs.push(["Recetas", tpls.map((t) => tplTile(t, () => pickTemplate(t)))]);
       const freq = foods.filter((f) => f.uses_60d > 0).sort((a, b) => b.uses_60d - a.uses_60d).slice(0, 8);
       if (freq.length) secs.push(["Frecuentes", freq.map((f) => foodTile(f, () => pickFood(f)))]);
       const rest = foods.slice().sort((a, b) => (b.favorite - a.favorite) || dname(a).localeCompare(dname(b), "es"));
@@ -1455,34 +1472,41 @@ function addSheet(meal) {
     }
   };
   const pickTemplate = (t) => {
-    const rows = t.items.map((it) => ({ it, on: true, qty: it.quantity }));
-    const food = (id) => foodById(id);
-    // Igual que al añadir un producto: arriba la comida (foto y nombre), luego sus alimentos y lo que suma en una línea
+    // Las cantidades de la receta son para todas sus raciones; se elige cuántas raciones se come (escala todo) y,
+    // si hace falta, se cambia o se quita algún alimento solo esta vez
+    const nServ = t.servings > 1 ? t.servings : 1;
+    const rows = t.items.map((it) => ({ it, on: true, qty: it.quantity / nServ, inp: null }));
+    const food = (id) => foodById(id) || {};
     const totalEl = h("div", { class: "mprev mprev1" });
     const drawTotal = () => {
       const parts = rows.filter((r) => r.on && r.qty > 0).map((r) => { const u = (food(r.it.food_id).units || []).find((x) => x.key === r.it.unit_key); return u ? scaleN(u.per, r.qty) : { kcal: null, protein_g: null, carbs_g: null, fat_g: null }; });
       const n = sumN(parts);
       totalEl.replaceChildren(h("div", { class: "mp2" }, h("b", { class: "num" }, v(n, "kcal")), h("span", null, " kcal")), chipsOf(n));
     };
+    const fq = (x) => String(Math.round(x * 10) / 10).replace(".", ",");
+    const serv = h("input", { class: "input num sm", value: "1", inputMode: "decimal" });
+    serv.addEventListener("input", () => { const k = parseNum(serv.value); if (!(k > 0)) return; rows.forEach((r) => { r.qty = (r.it.quantity / nServ) * k; r.inp.value = fq(r.qty); }); drawTotal(); });
     const meal = mealChips(t.meal || ctx.meal), timeIn = h("input", { class: "input", type: "time", value: ctx.time });
     const tImg = t.image ? (/^(\/|data:|https?:)/.test(t.image) ? t.image : "/" + t.image) : null;
+    const list = h("div", { class: "tpl-list" }, rows.map((r) => {
+      const f = food(r.it.food_id); const u = (f.units || []).find((x) => x.key === r.it.unit_key) || { label: r.it.unit_key, key: r.it.unit_key };
+      r.inp = h("input", { class: "input num sm", value: fq(r.qty), inputMode: "decimal", oninput: (e) => { r.qty = parseNum(e.target.value); drawTotal(); } });
+      const row_ = h("label", { class: "tpl-row" });
+      const cb = h("input", { type: "checkbox", checked: true, onchange: (e) => { r.on = e.target.checked; row_.classList.toggle("off", !r.on); drawTotal(); } });
+      const ul = ["g", "ml"].includes(u.key) ? u.key : (u.label || "").replace(/\s*\([^)]*\)\s*$/, "").replace(/^1\s+/, "");
+      row_.append(cb, mono(f.name || "?", f.category, f.image), h("div", { class: "nm" }, h("span", null, dname(f)), h("small", null, ul)), r.inp);
+      return row_;
+    }));
     const body = [
       h("div", { class: "food-head" }, tImg ? h("div", { class: "pframe sm" }, h("img", { src: tImg, alt: "" })) : mono(t.name, "habitual", null, true),
-        h("div", { class: "fh-t" }, h("div", { class: "fh-n" }, t.name), h("div", { class: "fh-s" }, `Comida habitual · ${rows.length} alimentos`))),
-      h("div", { class: "tpl-list" }, rows.map((r) => {
-        const f = food(r.it.food_id); const u = (f.units || []).find((x) => x.key === r.it.unit_key) || { label: r.it.unit_key, key: r.it.unit_key };
-        const q = h("input", { class: "input num sm", value: String(r.qty).replace(".", ","), inputMode: "decimal", oninput: (e) => { r.qty = parseNum(e.target.value); drawTotal(); } });
-        const row_ = h("label", { class: "tpl-row" });
-        const cb = h("input", { type: "checkbox", checked: true, onchange: (e) => { r.on = e.target.checked; row_.classList.toggle("off", !r.on); drawTotal(); } });
-        const ul = ["g", "ml"].includes(u.key) ? u.key : u.label.replace(/\s*\([^)]*\)\s*$/, "").replace(/^1\s+/, "");
-        row_.append(cb, mono(f.name, f.category, f.image), h("div", { class: "nm" }, h("span", null, dname(f)), h("small", null, ul)), q);
-        return row_;
-      })),
+        h("div", { class: "fh-t" }, h("div", { class: "fh-n" }, t.name), h("div", { class: "fh-s" }, `Receta · ${rows.length} alimentos` + (nServ > 1 ? ` · salen ${fmt(nServ, 1)} raciones` : "")))),
       totalEl,
+      h("div", { class: "tpl-serv" }, h("span", null, "Raciones"), serv),
+      h("details", { class: "tpl-det" }, h("summary", null, `Alimentos (${rows.length})`), list),
       whenRow(meal, timeIn),
     ];
     drawTotal();
-    sh.set("Añadir comida", body, [h("span", { class: "grow" }),
+    sh.set("Añadir receta", body, [h("span", { class: "grow" }),
       h("button", { class: "btn primary lg", onclick: async () => {
         if (rows.some((r) => r.on && !(r.qty > 0))) return toast("Cantidad no válida", { error: true });
         await act(() => api("POST", `/api/templates/${t.id}/apply`, { date: S.date, meal: meal.value, time: timeIn.value || null,
@@ -1632,7 +1656,7 @@ function entryInfo(e) {
     h("div", { class: "ei-l" },
       row("Cantidad", est && e.unit_label === "ración estimada" ? null : e.unit_label),
       row("Comida", (MEALS.find((m) => m[0] === e.meal) || [0, e.meal])[1]), row("Hora", e.time),
-      row("Tipo", est ? "Comida fuera (estimación)" : e.template_id ? "De una comida habitual" : fo.kind === "receta" ? "Receta" : "Producto"),
+      row("Tipo", est ? "Comida fuera (estimación)" : e.template_id ? "De una receta" : fo.kind === "receta" ? "Receta" : "Producto"),
       row("Valores", est ? "a ojo" : QUAL[e.quality] || e.quality)),
     h("div", { class: "note" }, icon("lock"), " Día cerrado: para cambiar algo, reábrelo.")],
     null, { big: true, sub: dateLabel(e.date, { weekday: "long", day: "numeric", month: "long" }) });
@@ -1814,13 +1838,13 @@ function reopenSheet(date) {
 
 // ------------------------------------------------------------- biblioteca
 // Fuente de los valores de un producto (la misma lista que en su ficha)
-const SRC_KINDS = [["etiqueta", "Etiqueta (a mano)"], ["off", "Open Food Facts"], ["estimacion", "Estimación"], ["otra", "Otra o sin fuente"]];
-const srcKind = (f) => { const s = f.source || ""; return /open food facts/i.test(s) ? "off" : /^etiqueta/i.test(s) ? "etiqueta" : /^estimaci/i.test(s) ? "estimacion" : "otra"; };
+const SRC_KINDS = [["etiqueta", "Etiqueta"], ["off", "Open Food Facts"], ["estimacion", "Estimación"]];
+const srcKind = (f) => /^open food facts/i.test(f.source || "") ? "off" : f.status === "etiqueta" ? "etiqueta" : "estimacion";
 function viewLibrary() {
   const c = S.catalog; if (!c) return h("div");
   if (S.libFilter == null) S.libFilter = "todo";
-  const filters = [["todo", "Todo"], ["producto", "Productos"], ["receta", "Recetas"], ["habitual", "Comidas habituales"], ["supl", "Suplementos"]];
-  if (!["todo", "producto", "receta", "habitual", "supl", "oculto"].includes(S.libFilter)) S.libFilter = "todo";
+  const filters = [["todo", "Todo"], ["producto", "Productos"], ["receta", "Recetas"], ["supl", "Suplementos"]];
+  if (!["todo", "producto", "receta", "supl", "oculto"].includes(S.libFilter)) S.libFilter = "todo";
   // De dónde salen los valores de cada producto: para repasar los que no son de una etiqueta
   const srcSel = h("select", { class: "input lib-src", onchange: (e) => { S.libSrc = e.target.value; drawGrid(); } },
     [["", "Cualquier fuente"], ...SRC_KINDS].map(([k, l]) => h("option", { value: k, selected: (S.libSrc || "") === k }, l)));
@@ -1840,15 +1864,16 @@ function viewLibrary() {
     const sk = S.libSrc || "";
     const foods = c.foods.filter((f) => !f.deleted && match(f.name + " " + (f.original_name || "") + " " + (f.brand || "")) && (F === "oculto" ? f.hidden : !f.hidden) &&
       (!sk || (f.kind === "producto" && srcKind(f) === sk)) &&
-      (F === "todo" || F === "oculto" || (F === "supl" && isSupp(f)) || (F === "producto" && f.kind === "producto") || (F === "receta" && f.kind === "receta")));
-    const tpls = c.templates.filter((t) => !t.deleted && match(t.name) && (F === "oculto" ? t.hidden : !t.hidden) && !sk && ["todo", "habitual", "oculto"].includes(F));
+      (F === "todo" || F === "oculto" || (F === "supl" && isSupp(f)) || (F === "producto" && f.kind === "producto") || (F === "oculto" && f.kind === "receta")));
+    const tpls = c.templates.filter((t) => !t.deleted && match(t.name) && (F === "oculto" ? t.hidden : !t.hidden) && !sk && ["todo", "receta", "oculto"].includes(F));
     const secs = [];
-    if (tpls.length) secs.push(["Comidas habituales", order(tpls).map((t) => tplTile(t, () => templateEditor(t)))]);
+    if (tpls.length) secs.push(["Recetas", order(tpls).map((t) => tplTile(t, () => templateEditor(t)))]);
+    // Recetas antiguas (un solo alimento con ingredientes): ocultas; lo ya apuntado con ellas sigue igual
     const recs = order(foods.filter((f) => f.kind === "receta")), prods = order(foods.filter((f) => f.kind === "producto"));
-    if (recs.length) secs.push(["Recetas", recs.map((f) => foodTile(f, () => recipeEditor(f)))]);
+    if (recs.length) secs.push(["Recetas antiguas", recs.map((f) => foodTile(f, () => recipeEditor(f)))]);
     const sups = prods.filter(isSupp), plain = prods.filter((f) => !isSupp(f));
     if (sups.length && ["todo", "supl", "revisar", "oculto", "pendiente"].includes(F)) secs.push(["Suplementos", sups.map((f) => foodTile(f, () => foodEditor(f)))]);
-    if (plain.length && !["habitual", "supl"].includes(F)) secs.push(["Productos", plain.map((f) => foodTile(f, () => foodEditor(f)))]);
+    if (plain.length && !["receta", "supl"].includes(F)) secs.push(["Productos", plain.map((f) => foodTile(f, () => foodEditor(f)))]);
     if (F === "supl" && !sups.length) secs.push(["Suplementos", [h("button", { class: "tile add-supp", onclick: () => suppCatalogSheet() }, h("b", null, "+ Añadir un suplemento"), h("span", { class: "faint" }, "creatina, vitaminas… (la dosis como ración)"))]]);
     grid.replaceChildren(...(secs.length ? secs.map(([t, tiles]) => [h("div", { class: "sec-t" }, `${t} · ${tiles.length}`), h("div", { class: "tiles" }, tiles)]).flat()
       : [h("div", { class: "muted", style: { padding: "20px 0" } }, "Nada por aquí.")]));
@@ -1859,7 +1884,7 @@ function viewLibrary() {
   const newBtn = h("button", { class: "btn primary lib-new", onclick: (e) => { e.stopPropagation(); newMenu(e.currentTarget); } }, icon("plus"), h("span", null, "Nuevo"));
   const newMenu = (anchor) => {
     const old = document.querySelector(".lib-menu"); if (old) { old.remove(); return; }
-    const m = h("div", { class: "acct-menu lib-menu" }, [["Producto", () => foodEditor(null)], ["Receta", () => recipeEditor(null)], ["Comida habitual", () => templateEditor(null)], ["Suplemento", () => suppCatalogSheet()]]
+    const m = h("div", { class: "acct-menu lib-menu" }, [["Producto", () => foodEditor(null)], ["Receta", () => templateEditor(null)], ["Suplemento", () => suppCatalogSheet()]]
       .map(([l, fn]) => h("button", { onclick: () => { m.remove(); fn(); } }, l)));
     document.body.append(m); const r = anchor.getBoundingClientRect();
     m.style.top = r.bottom + 6 + "px"; m.style.right = Math.max(8, window.innerWidth - r.right) + "px";
@@ -1966,14 +1991,14 @@ function measuresEditor(f, onDirty, onUnlock) {
     // se ve solo el nombre («lata»); al guardar queda «1 lata (330 ml)»
     let shown = isW(p) ? (p.label || "").replace(/\s*\(\s*[\d.,]+\s*(g|ml)\s*\)\s*$/i, "").replace(/^1\s+/, "") : (p.label || "");
     if (/^[\d.,]+\s*(g|ml)$/i.test(shown)) shown = "";
-    const m = { id: p.id || null, label: h("input", { class: "input", value: shown, placeholder: "lata, cucharada…" }),
+    const m = { id: p.id || null, legacy: !!p.id && !isW(p) && MK.some((k) => p[k] != null), label: h("input", { class: "input", value: shown, placeholder: "lata, cucharada…" }),
       amt: numIn(isW(p) ? p.amount : null, mode === "ml" ? "ml" : "g"), own: {} };
     for (const k of MK) m.own[k] = numIn(isW(p) ? null : p[k]);
     m.unitTx = h("span", null, mode);
     m.wEl = h("label", { class: "med-w" }, m.amt, m.unitTx);
     m.star = h("button", { type: "button", class: "med-rd", title: "Por defecto al añadirlo", "aria-label": "Por defecto", onclick: () => { def = m; refresh(); onDirty(); } });
     m.vEl = h("div", { class: "med-v num" });
-    m.ownEl = h("div", { class: "med-own" }, h("div", { class: "faint sm" }, "Sin peso: pon cuánto pesa o, si no lo sabes, sus valores"), h("div", { class: "grid4" }, MK.map((k) => field(MKL[k], m.own[k]))));
+    m.ownEl = h("div", { class: "med-own" }, h("div", { class: "grid4" }, MK.map((k) => field(MKL[k], m.own[k]))));
     m.x = h("button", { type: "button", class: "icon-btn med-x", title: "Quitar esta medida", onclick: () => {
       const i = meds.indexOf(m); if (i < 0) return; if (m.id) deleted.push(m.id); meds.splice(i, 1); if (def === m) def = null; drawMeds(); onDirty(); } }, icon("x"));
     m.el = h("div", { class: "med" }, h("div", { class: "med-top" }, m.star, m.label, m.wEl, m.x), m.ownEl);
@@ -2001,7 +2026,7 @@ function measuresEditor(f, onDirty, onUnlock) {
     meds.forEach((m) => {
       const c = calc(m), hasW = parseNum(m.amt.value) > 0;
       m.wEl.classList.toggle("hidden", mode === "ud"); m.unitTx.textContent = mode; m.amt.placeholder = mode === "ml" ? "ml" : "g";
-      m.vEl.classList.add("hidden"); m.ownEl.classList.toggle("hidden", !!c || (mode !== "ud" && !m.label.value.trim() && !hasW));
+      m.vEl.classList.add("hidden"); m.ownEl.classList.toggle("hidden", !!c || (mode !== "ud" && !m.legacy));  // una medida es lo que pesa: sus valores salen de los gramos
       if (c) m.vEl.textContent = `${c.kcal == null ? "?" : fmt(c.kcal)} kcal · P ${c.protein_g == null ? "?" : fmt(c.protein_g, 1)} · C ${c.carbs_g == null ? "?" : fmt(c.carbs_g, 1)} · G ${c.fat_g == null ? "?" : fmt(c.fat_g, 1)}`;
       m.star.classList.toggle("hidden", meds.length < 2); m.star.classList.toggle("on", dm === m);
       m.el.classList.toggle("def", dm === m && meds.length > 1);
@@ -2051,7 +2076,8 @@ function measuresEditor(f, onDirty, onUnlock) {
         if (!label && !a) continue;  // fila vacía
         if (!label) return { error: `Ponle nombre a la medida de ${fmt(a)} ${mode}` };
         else if (c) label = `${/^\d/.test(label) ? "" : "1 "}${label.replace(/\s*\([^)]*\)\s*$/, "")} (${fmt(a)} ${mode})`;  // «lata» → «1 lata (330 ml)»
-        if (!c && MK.every((k) => own[k] == null)) return { error: `Pon cuánto pesa «${label}» (o sus valores)` };
+        if (!c && mode !== "ud" && !m.legacy) return { error: `Pon cuánto pesa «${label}»` };
+        if (!c && MK.every((k) => own[k] == null)) return { error: `Pon los valores de «${label}»` };
         out.push({ id: m.id, label, amount: c ? a : null, unit: c ? mode : "ud", quality, is_default: false, ...(c || own), ...(dm === m && !m.id ? { by_unit: true } : {}) });
       }
       for (const id of deleted) out.push({ id, deleted: true });
@@ -2069,17 +2095,17 @@ function foodEditor(f, opt = {}) {
   const cat = h("input", { class: "input", value: f.category || "", list: "cats", placeholder: "Categoría" });
   const dl = h("datalist", { id: "cats" }, cats.map((c) => h("option", { value: c })));
   const brand = h("input", { class: "input", value: f.brand || "", placeholder: "Marca (opcional)" });
-  const status = h("select", { class: "input" }, Object.entries(QUAL).map(([k, l]) => h("option", { value: k, selected: k === f.status }, l)));
-  // Fuente: de dónde salen los valores (y con ella, el estado del dato)
-  const SRC = [["etiqueta", "Etiqueta (a mano)", "etiqueta"], ["off", "Código de barras (Open Food Facts)", "etiqueta"], ["estimacion", "Estimación", "estimacion"], ["otra", "Otra", null]];
-  const src0 = f.source || "", srcKind0 = !src0 ? (isNew ? "etiqueta" : "otra") : /^open food facts/i.test(src0) ? "off" : /^etiqueta/i.test(src0) ? "etiqueta"
-    : /^estimaci/i.test(src0) ? "estimacion" : "otra";
+  // De dónde salen los valores: de la etiqueta (a mano), de Open Food Facts (la etiqueta, por su código) o estimados. Con eso, su estado.
+  const src0 = f.source || "";
   let offCode = (src0.match(/(\d{8,14})/) || [])[1] || null;
-  const srcSel = h("select", { class: "input" }, SRC.map(([k, l]) => h("option", { value: k, selected: k === srcKind0 }, l)));
-  const srcOther = h("input", { class: "input" + (srcKind0 === "otra" ? "" : " hidden"), value: srcKind0 === "otra" ? src0 : "", placeholder: "¿De dónde salen los valores?", style: { marginTop: "6px" } });
-  const source = h("div", null, srcSel, srcOther);
-  srcSel.addEventListener("change", () => { srcOther.classList.toggle("hidden", srcSel.value !== "otra"); const st_ = (SRC.find((x) => x[0] === srcSel.value) || [])[2]; if (st_) status.value = st_; });
-  const sourceText = () => ({ etiqueta: "Etiqueta", off: "Open Food Facts" + (offCode ? " · " + offCode : ""), estimacion: "Estimación", otra: srcOther.value.trim() || null })[srcSel.value];
+  const srcKind0 = /^open food facts/i.test(src0) ? "off" : isNew || f.status === "etiqueta" ? "etiqueta" : "estimacion";
+  const srcSel = new EventTarget(); srcSel.value = srcKind0;
+  const srcSeg = h("div", { class: "seg full src-seg" });
+  const drawSrc = () => srcSeg.replaceChildren(...[["etiqueta", "Etiqueta"], offCode ? ["off", "Open Food Facts"] : null, ["estimacion", "Estimación"]].filter(Boolean)
+    .map(([k, l]) => h("button", { type: "button", class: srcSel.value === k ? "on" : "", onclick: () => { if (srcSel.value === k) return; srcSel.value = k; drawSrc(); srcSel.dispatchEvent(new Event("change")); dirtyF(); } }, l)));
+  srcSel.addEventListener("change", drawSrc); drawSrc();
+  const status = { get value() { return srcSel.value === "estimacion" ? "estimacion" : "etiqueta"; }, set value(_) {} };
+  const sourceText = () => ({ etiqueta: /^cat[aá]logo/i.test(src0) ? src0 : "Etiqueta", off: "Open Food Facts" + (offCode ? " · " + offCode : ""), estimacion: /^(etiqueta|open food facts)/i.test(src0) || !src0 ? "Estimación" : src0 })[srcSel.value];
   const notes = h("textarea", { class: "input", rows: 2, placeholder: "Notas" }, f.notes || "");
   const dirtyF = () => { if (typeof sh !== "undefined" && sh && sh.markDirty) sh.markDirty(); };
   // Valores de Open Food Facts: bloqueados; «editar» los pasa a mano (y la fuente deja de ser Open Food Facts)
@@ -2104,11 +2130,9 @@ function foodEditor(f, opt = {}) {
     if (typeof sh !== "undefined" && sh.markDirty) sh.markDirty();
     if (!name.value.trim() || isNew) name.value = o.name || name.value;
     if (!brand.value.trim() && o.brand) brand.value = o.brand;
-    offCode = o.code; srcSel.value = "off"; srcOther.classList.add("hidden");
+    offCode = o.code; srcSel.value = "off"; drawSrc();
     if (completeBtn) completeBtn.remove();
     setTimeout(() => applyLock(), 0);
-    const q = o.complete ? "etiqueta" : "provisional";
-    status.value = q;
     mx.fromOff(o);
     const hadPhoto = !!(f.image || pendingImg);
     if (o.image_url && !hadPhoto) { offImg = o.image_url; pendingImg = o.image_url; drawPhoto(); }
@@ -2132,7 +2156,7 @@ function foodEditor(f, opt = {}) {
   // Lo importante a la vista (foto, nombre, valores y medidas); lo demás, en «Más datos»
   const more = h("details", { class: "fe-more" }, h("summary", null, "Más"),
     h("div", { class: "grid2" }, field("Marca", brand), field("Categoría", cat)),
-    h("div", { class: "grid2 gap-top" }, field("De dónde salen los valores", source), field("Estado del dato", status)),
+    h("div", { class: "gap-top" }, field("Valores", srcSeg)),
     h("div", { class: "gap-top" }, field("Notas", notes)), orig);
   const body = [dl, completeBtn, offNote,
     edHead(name, photoBox),
@@ -2197,7 +2221,7 @@ function offChooser(onFound, big, onManual, selfId) {
       const ds = sheet(mine.length === 1 ? "Ya tienes este producto" : `Ya tienes ${mine.length} productos con este código`,
         h("div", { class: "list" }, mine.map((x) => { const fo = foodOf(x.id);
           return h("div", { class: "item b", onclick: () => { ds.close(); close(); foodEditor(fo.id ? fo : null); } }, mono(x.name, fo.category, fo.image),
-            h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, dname(fo.id ? fo : x))), h("div", { class: "sub" }, fo.id ? foodSub(fo) : "")),
+            h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, dname(fo.id ? fo : x)), lblMark(fo)), h("div", { class: "sub" }, fo.id ? foodSub(fo) : "")),
             h("span", { class: "chev" }, icon("right"))); })),
         [h("span", { class: "grow" }), h("button", { class: "btn", onclick: () => ds.close() }, "Cerrar")], { center: true, key: "off-dup" });
     } catch (e) { note.className = "note warn"; note.textContent = e.message + (onManual ? "." : "."); }
@@ -2336,7 +2360,7 @@ function foodPicker(title, onPick, excludeId) {
     const L = S.catalog.foods.filter((f) => !f.deleted && f.id !== excludeId && (!t || norm(f.name + " " + (f.brand || "")).includes(t)))
       .sort((a, b) => (b.favorite || 0) - (a.favorite || 0) || (b.uses_60d || 0) - (a.uses_60d || 0) || a.name.localeCompare(b.name)).slice(0, 60);
     res.replaceChildren(...(L.length ? L.map((f) => h("div", { class: "item b", onclick: () => { ps.close(); onPick(f); } }, mono(f.name, f.kind === "receta" ? "receta" : f.category, f.image),
-      h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, dname(f))), h("div", { class: "sub" }, foodSub(f))))) : [h("div", { class: "muted", style: { padding: "18px 0", textAlign: "center" } }, "Sin resultados")]));
+      h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, dname(f)), lblMark(f)), h("div", { class: "sub" }, foodSub(f))))) : [h("div", { class: "muted", style: { padding: "18px 0", textAlign: "center" } }, "Sin resultados")]));
   };
   q.addEventListener("input", drawRes);
   const ps = sheet(title, [h("div", { class: "search lg" }, icon("search"), q), res], null, { full: true, key: "picker" });
@@ -2356,7 +2380,7 @@ async function deleteFoodSheet(f, after) {
   const ds = sheet("Eliminar " + dname(f), [
     used ? h("div", { class: "ei-l" },
       li("Apuntado", u.entries ? `${u.entries} ${u.entries === 1 ? "vez" : "veces"} · ${u.days === 1 ? dateLabel(u.first, { day: "numeric", month: "short" }) : `del ${dateLabel(u.first, { day: "numeric", month: "short" })} al ${dateLabel(u.last, { day: "numeric", month: "short" })}`}` : null),
-      li("Comidas habituales", u.templates.join(", ")), li("Recetas", u.recipes.join(", "))) : h("div", { class: "muted" }, "No se usa en ningún sitio."),
+      li("Recetas", [...u.templates, ...u.recipes].join(", "))) : h("div", { class: "muted" }, "No se usa en ningún sitio."),
     used ? h("div", { class: "faint sm", style: { marginTop: "10px" } }, "Al reemplazarlo, todo pasa al otro producto con la misma cantidad.") : null],
     [h("button", { class: "btn ghost danger", onclick: del }, used ? "Eliminar igualmente" : "Eliminar"), h("span", { class: "grow" }),
       used ? h("button", { class: "btn primary", onclick: replace }, icon("swap"), "Reemplazar por…") : null], { center: true, key: "del-food" });
@@ -2424,32 +2448,38 @@ function recipeEditor(r) {
 
 function templateEditor(t) {
   const isNew = !t;
-  t = t || { name: "", meal: null, items: [] };
+  t = t || { name: "", meal: null, items: [], servings: null };
   const items = (t.items || []).map((it) => ({ food_id: it.food_id, unit_key: it.unit_key, quantity: it.quantity }));
   const name = h("input", { class: "input", value: t.name, placeholder: "Ej.: Batido habitual" });
   const meal = h("select", { class: "input" }, h("option", { value: "" }, "—"), MEALS.map(([k, l]) => h("option", { value: k, selected: k === t.meal }, l)));
-  const ed = itemsEditor(items, null, null, { totalsApart: true, addLabel: "Añadir alimento" });
+  const serv = numIn(t.servings > 1 ? t.servings : null, "1");
+  const perEl = h("div", { class: "faint sm tpl-per" });
+  const drawPer = (n) => { const k = parseNum(serv.value); perEl.textContent = k > 1 && n ? `Por ración: ${v(scaleN(n, 1 / k), "kcal")} kcal · P ${v(scaleN(n, 1 / k), "protein_g")} · C ${v(scaleN(n, 1 / k), "carbs_g")} · G ${v(scaleN(n, 1 / k), "fat_g")}` : ""; };
+  const ed = itemsEditor(items, null, drawPer, { totalsApart: true, addLabel: "Añadir alimento" });
+  serv.addEventListener("input", () => drawPer(ed.totals()));
   const tph = photoField({
     name: () => name.value || t.name, cat: () => "habitual", src: () => t.image,
-    blocked: () => isNew ? "Guarda primero la comida habitual" : null,
+    blocked: () => isNew ? "Guarda primero la receta" : null,
     save: async (url) => { const r = await api("POST", `/api/templates/${t.id}/image`, { data_url: url }); t.image = r.image; t.image_source = null; loadCatalog().then(render).catch(() => {}); },
     remove: async () => { await act(() => api("PUT", "/api/templates/" + t.id, { image: null })); t.image = null; await loadCatalog(); },
   });
   const tPhoto = tph.el;
   name.classList.add("ed-name"); name.placeholder = "Nombre";
   // Arriba lo que suma; luego los alimentos; lo demás, en «Más»
-  const body = [edHead(name, tPhoto), ed.totalEl,
+  const body = [edHead(name, tPhoto), ed.totalEl, perEl,
     h("div", { class: "sec-t" }, "Alimentos"), ed.el,
-    h("details", { class: "fe-more" }, h("summary", null, "Más"), field("Comida por defecto", meal))];
+    h("details", { class: "fe-more", open: t.servings > 1 }, h("summary", null, "Más"),
+      h("div", { class: "grid2" }, field("Raciones que salen", serv), field("Comida por defecto", meal)))];
   const save = async (accept) => {
     if (!items.length) return toast("Añade al menos un alimento", { error: true });
     if (items.some((i) => !(i.quantity > 0))) return toast("Cantidad no válida", { error: true });
-    const data = { name: name.value.trim(), meal: meal.value || null, items, ...(accept === true ? { reviewed: 1 } : {}) };
-    if (isNew) await act(() => api("POST", "/api/templates", data), "Comida habitual creada");
+    const k = parseNum(serv.value); if (Number.isNaN(k) || k <= 0) return toast("Raciones no válidas", { error: true });
+    const data = { name: name.value.trim(), meal: meal.value || null, servings: k || 1, items, ...(accept === true ? { reviewed: 1 } : {}) };
+    if (isNew) await act(() => api("POST", "/api/templates", data), "Receta creada");
     else await act(() => api("PUT", "/api/templates/" + t.id, data), "Guardada");
     sh.close();
   };
-  const sh = sheet(isNew ? "Nueva comida habitual" : t.name, body, [
+  const sh = sheet(isNew ? "Nueva receta" : t.name, body, [
     !isNew ? h("button", { class: "btn ghost danger", onclick: (e) => confirmDel(e, () => act(() => api("PUT", "/api/templates/" + t.id, { deleted: 1 }), "Eliminada").then(sh.close)) }, "Eliminar") : null,
     h("span", { class: "grow" }), ...saveButtons(isNew, t, save)], { wide: true, guard: true, sub: reviewSub(isNew, t),
     titleExtra: isNew ? null : favButton(!!t.favorite, async (nv) => { await act(() => api("PUT", "/api/templates/" + t.id, { favorite: nv ? 1 : 0 })); t.favorite = nv ? 1 : 0; await loadCatalog(); }, "Quitar de favoritas", "Favorita: sale antes al añadir comida") });
@@ -2578,20 +2608,22 @@ function viewProgress() {
   const last = measured[measured.length - 1];
   const lastAvg = [...ws].reverse().find((w) => w.avg7 != null);
   const prevAvg = lastAvg ? ws.find((w) => w.date === addDays(lastAvg.date, -7)) : null;
-  const logged7 = P.history.filter((d) => d.entries > 0 && d.date > addDays(todayISO(), -7));
-  const avgK = logged7.length ? logged7.reduce((a, d) => a + (d.kcal || 0), 0) / logged7.length : null;
-  const avgP = logged7.length ? logged7.reduce((a, d) => a + (d.protein_g || 0), 0) / logged7.length : null;
+  // Todo del periodo elegido: el peso (media de 7 días al final y cuánto ha cambiado), la media de lo que comes los días apuntados y el gasto real
+  const firstAvg = ws.find((w) => w.avg7 != null);
+  const dW = lastAvg && firstAvg && firstAvg !== lastAvg ? lastAvg.avg7 - firstAvg.avg7 : null;
+  const closedD = P.history.filter((d) => d.entries > 0 && d.status === "cerrado"), logged = closedD.length ? closedD : P.history.filter((d) => d.entries > 0);
+  const avgOf = (k) => logged.length ? logged.reduce((a, d) => a + (d[k] || 0), 0) / logged.length : null;
+  const avgN = { kcal: avgOf("kcal"), protein_g: avgOf("protein_g"), carbs_g: avgOf("carbs_g"), fat_g: avgOf("fat_g") };
   const cal = P.calibration;
   const kpi = (l, val, s, fn) => h("div", { class: "kpi" + (fn ? " clickable" : ""), onclick: fn || null }, h("div", { class: "l" }, kpiLbl(l), fn ? h("span", { class: "kpi-go" }, "›") : null), h("div", { class: "v num" }, val), h("div", { class: "s" }, s || ""));
   const range = h("div", { class: "seg" }, [[7, "7 d"], [30, "30 d"], [90, "90 d"], [365, "1 año"]].map(([d, l]) => h("button", { class: S.progDays === d ? "on" : "", onclick: async () => { S.progDays = d; await refresh(); } }, l)));
   return h("div", null,
     h("div", { class: "row prog-head", style: { marginBottom: "12px" } }, h("h2", { class: "vt" }, "Evolución"), h("span", { class: "grow" }),
-      h("button", { class: "btn sm rp-open", title: "Informe en PDF", onclick: reportSheet }, icon("out"), h("span", { class: "rp-lbl" }, "Informe "), "PDF"), range),
-    // Arriba, tres cifras: el peso (media de 7 días y el último pesaje), lo que comes y lo que gastas de verdad
+      range),
     h("div", { class: "kpis k3" },
-      kpi("Peso", lastAvg ? kgf(lastAvg.avg7) + " kg" : "—", prevAvg && prevAvg.avg7 != null ? signedKg(lastAvg.avg7 - prevAvg.avg7) + " kg/sem" : "media 7 días"),
-      kpi("Ingesta", avgK != null ? fmt(avgK) + " kcal" : "—", "media 7 días"),
-      kpi("Gasto", cal.observed_maintenance != null ? fmt(cal.observed_maintenance) + " kcal" : "—", cal.observed_maintenance != null ? "observado" : "faltan datos", () => pgSheet("Calibración del gasto", calPanel(S.progress.calibration)))),
+      kpi("Peso medio", lastAvg ? kgf(lastAvg.avg7) + " kg" : "—", dW != null ? `${signedKg(dW)} kg en ${({ 7: "7 días", 30: "30 días", 90: "90 días", 365: "1 año" })[S.progDays] || "el periodo"}` : "últimos 7 días"),
+      kpi("Ingesta media", avgN.kcal != null ? fmt(avgN.kcal) + " kcal" : "—", avgN.kcal != null ? chipsOf(avgN) : "sin días apuntados"),
+      kpi("Gasto real", cal.observed_maintenance != null ? fmt(cal.observed_maintenance) + " kcal" : "—", cal.observed_maintenance != null ? "según tu peso" : "faltan datos", () => pgSheet("Calibración del gasto", calPanel(S.progress.calibration)))),
     // Una tarjeta por tema con el resumen del periodo; «Más» abre la ficha con todo, y desde ella se ve cada día (la misma ficha que en Hoy)
     h("div", { class: "card panel" }, pgHead("Peso", null, () => weightMore(P)), weightChart(ws, P.body, null, null, { onDay: (d) => openDay(d, weightSheet) })),
     balancePanel(P.history, P),
@@ -2625,7 +2657,7 @@ function trainPanel(t) {
   if (!t || !t.sessions) return null;
   const kpi = (l, v, s_) => h("div", { class: "kpi" }, h("div", { class: "l" }, l), h("div", { class: "v num" }, v), h("div", { class: "s" }, s_ || ""));
   return h("div", { class: "card panel" }, pgHead("Entreno", null, () => { location.hash = "#/training"; }),
-    h("div", { class: "kpis k3" }, kpi("Sesiones", String(t.sessions), `${fmt(t.per_week, 1)} por semana`), kpi("Tiempo", fmt(t.minutes / 60, 1) + " h", `${fmt(t.minutes / t.sessions)} min de media`),
+    h("div", { class: "kpis k3" }, kpi("Entrenos", String(t.sessions), `${fmt(t.per_week, 1)} por semana`), kpi("Tiempo", fmt(t.minutes / 60, 1) + " h", `${fmt(t.minutes / t.sessions)} min de media`),
       kpi("Récords", String(t.prs), t.volume ? `${fmt(t.volume / 1000, 1)} t de volumen` : "")));
 }
 // Comida y gasto: medias, semanas, cada día y la calibración del gasto
@@ -2640,12 +2672,14 @@ function foodMore(P) {
   pgSheet("Comida y gasto", [
     pgDays("lo que comiste y lo que gastaste cada día", () => openDay(last, (st) => energySheet(st))),
     card,
-    h("div", { class: "kpis k4" },
-      kpi("kcal", avg("kcal") != null ? fmt(avg("kcal")) : "—", tg.kcal ? `objetivo ${fmt(tg.kcal)}` : ""),
-      kpi("Proteína", avg("protein_g") != null ? fmt(avg("protein_g")) + " g" : "—", tg.protein_g ? `objetivo ${fmt(tg.protein_g)} g` : ""),
-      kpi("Carbohidratos", avg("carbs_g") != null ? fmt(avg("carbs_g")) + " g" : "—", tg.carbs_g ? `objetivo ${fmt(tg.carbs_g)} g` : ""),
-      kpi("Grasas", avg("fat_g") != null ? fmt(avg("fat_g")) + " g" : "—", tg.fat_mid_g ? `objetivo ${fmt(tg.fat_mid_g)} g` : "")),
-    h("div", { class: "faint sm pg-note" }, `Media al día de ${use.length} ${use.length === 1 ? "día" : "días"}${ds.length ? " cerrados" : " con comida"}.`),
+    // Lo que comes de media al día (los días cerrados), como en los productos: kcal y P/C/G; debajo, cada cosa frente a su objetivo
+    (() => { const n = { kcal: avg("kcal"), protein_g: avg("protein_g"), carbs_g: avg("carbs_g"), fat_g: avg("fat_g") };
+      const bar = (cls, l, val, goal, u) => h("div", { class: "mbar" }, h("div", { class: "mbar-h" }, h("i", { class: "sw " + cls }), h("span", null, l), h("span", { class: "grow" }),
+        h("b", { class: "num" }, val == null ? "—" : fmt(val) + (u || "")), goal ? h("span", { class: "faint num" }, ` / ${fmt(goal)}${u || ""}`) : null),
+        h("div", { class: "mbar-t " + cls }, h("i", { style: { width: goal && val != null ? Math.min(100, (100 * val) / goal) + "%" : "0" } }), goal ? h("u") : null));
+      return h("div", { class: "card panel flat" }, h("h3", null, "Media al día", h("span", { class: "pgc-sub" }, ` · ${use.length} ${use.length === 1 ? "día" : "días"}${ds.length ? " cerrados" : " con comida"}`)),
+        h("div", { class: "mprev mprev1" }, h("div", { class: "mp2" }, h("b", { class: "num" }, v(n, "kcal")), h("span", null, " kcal")), chipsOf(n)),
+        h("div", { class: "mbars" }, bar("k", "Energía", n.kcal, tg.kcal, " kcal"), bar("p", "Proteína", n.protein_g, tg.protein_g, " g"), bar("c", "Carbohidratos", n.carbs_g, tg.carbs_g, " g"), bar("g", "Grasas", n.fat_g, tg.fat_mid_g, " g"))); })(),
     h("div", { class: "card panel flat" }, h("h3", null, "Semanas"), weeksTable(P.weeks || [])),
     calPanel(P.calibration),
     h("details", { class: "card panel flat pg-det" }, h("summary", null, "Todos los días"), daysTable(hist))]);
@@ -2661,7 +2695,7 @@ function reportSheet() {
   let days = 30, mode = "completo";
   const parts = { peso: true, comida: true, pasos: true, entreno: true, supl: true };
   const LBL = { peso: ["Peso y cuerpo", "pesajes, media de 7 días y báscula"], comida: ["Comida", "kcal y macros frente al objetivo"],
-    pasos: ["Pasos", "cada día frente a tu meta"], entreno: ["Entreno", "sesiones, calendario y récords"], supl: ["Suplementos", "constancia"] };
+    pasos: ["Pasos", "cada día frente a tu meta"], entreno: ["Entreno", "entrenos, calendario y récords"], supl: ["Suplementos", "constancia"] };
   const sh = sheet("Informe PDF", []);
   const draw = () => sh.set("Informe PDF", [
     h("div", { class: "sec-t" }, "Periodo"),
@@ -2780,7 +2814,7 @@ async function buildReport(days, parts, mode = "completo") {
     kpi("Peso medio", w1 ? kgf(w1.avg7) : "—", "kg", dW != null ? `${signedKg(dW)} kg en el periodo` : "", "", parts.peso ? spark(a7.map((w) => w.avg7), C.acc) : ""),
     kpi("Comida", kcalAvg != null ? fmt(kcalAvg) : "—", "kcal/día", tgAvg ? `objetivo ${fmt(tgAvg)}` : "", "", spark(allDays.map((d) => okDay(by[d]) ? by[d].kcal : null), C.amber)),
     kpi("Pasos", stepsAvg != null ? fmt(stepsAvg) : "—", "al día", stepsD.length ? `meta ${hitD} de ${stepsD.length} días` : "", stepsD.length ? tone(hitD / stepsD.length >= 0.5) : "", spark(allDays.map((d) => by[d] ? by[d].steps : null), "#c9a24a")),
-    kpi("Entreno", String(wos.length), wos.length === 1 ? "sesión" : "sesiones", wos.length ? `${fmt(mins / 60, 1)} h · ${prs.length} récords` : "", "", ""));
+    kpi("Entreno", String(wos.length), wos.length === 1 ? "entreno" : "entrenos", wos.length ? `${fmt(mins / 60, 1)} h · ${prs.length} récords` : "", "", ""));
   const hlBox = hl.length ? h("div", { class: "rx-hl" }, h("div", { class: "rx-h3" }, "Lo más destacado"), h("ul", null, hl.map(([c, t]) => h("li", { class: "c-" + c }, t)))) : null;
   const bodyRow = (() => { const bs = (P.body || []).filter((b) => b.date >= from && b.fat_pct != null).sort((a, b) => a.date.localeCompare(b.date)); if (!bs.length) return null;
     const a = bs[0], b = bs[bs.length - 1];
@@ -2799,7 +2833,7 @@ async function buildReport(days, parts, mode = "completo") {
   const pasosSec = parts.pasos ? sec("Pasos", `meta ${fmt(goal)} al día`,
     bars(allDays.map((d) => by[d] ? by[d].steps : null), { H_: 112, goalV: [goal], color: (v) => v >= goal ? C.acc : C.sand }) || empty("Sin pasos en este periodo."),
     stepsD.length ? h("div", { class: "rx-stats" }, stat("Media", fmt(stepsAvg)), stat("Meta cumplida", `${hitD} de ${stepsD.length}`), stat("Mejor día", bestSteps ? `${fmt(bestSteps.steps)} · ${D(bestSteps.date)}` : "—"), stat("Total", fmt(stepsD.reduce((a, d) => a + d.steps, 0)))) : null) : null;
-  const entrenoSec = parts.entreno ? sec("Entreno", wos.length ? `${wos.length} sesiones` : "",
+  const entrenoSec = parts.entreno ? sec("Entreno", wos.length ? `${wos.length} entrenos` : "",
     wos.length ? h("div", { class: "rx-tr" }, calendar(),
       h("div", { class: "rx-trs" }, stat("Por semana", fmt(wos.length * 7 / days, 1)), stat("Tiempo", fmt(mins / 60, 1) + " h"), stat("Volumen", fmt(vol / 1000, 1) + " t"), stat("Récords", String(prs.length)))) : empty("Sin entrenos en este periodo."),
     prTop.length ? h("div", { class: "rx-prs" }, h("div", { class: "rx-h3" }, "Récords"), h("ol", null, prTop.map((r) => h("li", null, h("span", null, r.name),
@@ -2841,11 +2875,14 @@ async function buildReport(days, parts, mode = "completo") {
     if (wos.length) {
       const G = {}; wos.forEach((w) => (w.exercises || []).forEach((e) => { const g = (typeof exGroup === "function" && exGroup(e.name)) || "Otros"; G[g] = (G[g] || 0) + (e.sets || []).filter((s_) => s_.type !== "calentamiento").length; }));
       const gl = Object.entries(G).filter(([, n]) => n).sort((a, b) => b[1] - a[1]), gm = Math.max(1, ...gl.map((x) => x[1]));
-      xtra.push(sec("Series por grupo muscular", "series efectivas en el periodo · por semana", h("div", { class: "rx-gb" }, gl.map(([g, n]) => h("div", null, h("span", null, g),
-        h("div", { class: "rx-gbt" }, h("i", { style: { width: 100 * n / gm + "%", background: `hsl(${(typeof GROUP_HUE !== "undefined" && GROUP_HUE[g]) || 0} 45% 52%)` } })), h("b", null, String(n)), h("em", null, fmt(n * 7 / days, 1) + "/sem"))))));
+      const gbars = h("div", { class: "rx-gb" }, gl.map(([g, n]) => h("div", null, h("span", null, g),
+        h("div", { class: "rx-gbt" }, h("i", { style: { width: 100 * n / gm + "%", background: `hsl(${(typeof GROUP_HUE !== "undefined" && GROUP_HUE[g]) || 0} 45% 52%)` } })), h("b", null, String(n)), h("em", null, fmt(n * 7 / days, 1) + "/sem"))));
+      // El mapa de músculos (series por semana: verde = 10–20) al lado de las barras
+      const bmap = typeof bodyMap === "function" ? bodyMap(Object.fromEntries(gl.map(([g, n]) => [g, n * 7 / days])), {}, { w: 70, static: true }) : null;
+      xtra.push(sec("Músculos trabajados", "series efectivas en el periodo · por semana", h("div", { class: "rx-mu" }, bmap, gbars)));
       const L = wos.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 18).reverse();
-      xtra.push(sec("Sesiones", wos.length > 18 ? `las últimas 18 de ${wos.length}` : "",
-        tbl([["Día"], ["Sesión"], ["Min", 1], ["Series", 1], ["Volumen", 1], ["Récords", 1]],
+      xtra.push(sec("Entrenos", wos.length > 18 ? `las últimas 18 de ${wos.length}` : "",
+        tbl([["Día"], ["Entreno"], ["Min", 1], ["Series", 1], ["Volumen", 1], ["Récords", 1]],
           L.map((w) => [D(w.date, { weekday: "short", day: "numeric", month: "short" }), w.title || w.activity_type, w.duration_min ? fmt(w.duration_min) : null, String(w.sets_count || 0), w.volume_kg ? fmt(w.volume_kg) + " kg" : null, w.prs_count ? String(w.prs_count) : ""]))));
     }
     // Báscula
@@ -3022,12 +3059,45 @@ function stepsPanel(hist, goal) {
   const mx = Math.max(goal, ...ds.map((x) => x.steps)) * 1.08, avg = ds.reduce((a, x) => a + x.steps, 0) / ds.length;
   const best = ds.reduce((a, x) => (x.steps > a.steps ? x : a)), hit = ds.filter((x) => x.steps >= goal).length;
   const kpi = (l, v, s_) => h("div", { class: "kpi" }, h("div", { class: "l" }, l), h("div", { class: "v num" }, v), h("div", { class: "s" }, s_ || ""));
-  return h("div", { class: "card panel" }, pgHead("Pasos", `objetivo ${fmt(goal)}`, () => openStepsDay(todayISO())),
+  return h("div", { class: "card panel" }, pgHead("Pasos", `objetivo ${fmt(goal)}`, () => stepsMore(hist, goal)),
     h("div", { class: "kpis k3" }, kpi("Media", fmt(avg), `${ds.length} ${ds.length === 1 ? "día" : "días"}`), kpi("Objetivo", `${hit} de ${ds.length}`, Math.round((100 * hit) / ds.length) + " % de los días"),
       kpi("Mejor día", fmt(best.steps), dateLabel(best.date, { day: "numeric", month: "short" }))),
     h("div", { class: "pbars" }, h("i", { class: "goal", style: { bottom: (100 * goal) / mx + "%" } }),
       days.map((d) => { const v = by[d]; return h("span", { class: v == null ? "gap" : v >= goal ? "ok" : "", onclick: v == null ? null : () => openStepsDay(d), style: { height: v == null ? "0" : Math.max(2, (100 * v) / mx) + "%" }, "data-tip": `${dateLabel(d, { weekday: "long", day: "numeric", month: "short" })}\n${v == null ? "Sin datos" : fmt(v) + " pasos" + (v >= goal ? " · objetivo cumplido" : "")}` }); })),
     h("div", { class: "pbars-x faint" }, h("span", null, dateLabel(days[0], { day: "numeric", month: "short" })), h("span", null, "hoy")));
+}
+// Pasos: arriba el acceso a cada día; las cifras del periodo, la media por día de la semana, las rachas y la gráfica
+function stepsMore(hist, goal) {
+  const ds = (hist || []).filter((x) => x.steps != null);
+  if (!ds.length) return openStepsDay(todayISO());
+  const kpi = (l, v_, s_) => h("div", { class: "kpi" }, h("div", { class: "l" }, l), h("div", { class: "v num" }, v_), h("div", { class: "s" }, s_ || ""));
+  const tot = ds.reduce((a, x) => a + x.steps, 0), avg = tot / ds.length, hit = ds.filter((x) => x.steps >= goal).length;
+  const best = ds.reduce((a, x) => (x.steps > a.steps ? x : a));
+  // Racha: días seguidos cumpliendo (la actual y la mejor del periodo)
+  const sorted = [...ds].sort((a, b) => a.date.localeCompare(b.date));
+  let run = 0, bestRun = 0, prev = null;
+  for (const x of sorted) { run = x.steps >= goal ? (prev && addDays(prev, 1) === x.date && run > 0 ? run + 1 : 1) : 0; if (x.steps < goal) run = 0; bestRun = Math.max(bestRun, run); prev = x.date; }
+  const lastD = sorted[sorted.length - 1], curRun = lastD && (lastD.date === todayISO() || lastD.date === addDays(todayISO(), -1)) ? run : 0;
+  // Media por día de la semana (lunes primero)
+  const wd = Array.from({ length: 7 }, () => []);
+  for (const x of ds) { const [y, m, d] = x.date.split("-").map(Number); wd[(new Date(y, m - 1, d).getDay() + 6) % 7].push(x.steps); }
+  const wavg = wd.map((L) => (L.length ? L.reduce((a, b) => a + b, 0) / L.length : null)), wmx = Math.max(goal, ...wavg.filter((x) => x != null)) * 1.05;
+  const bestWd = wavg.indexOf(Math.max(...wavg.filter((x) => x != null)));
+  const WD = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+  pgSheet("Pasos", [
+    pgDays("los pasos y el gasto de cada día", () => openStepsDay(lastD ? lastD.date : todayISO())),
+    h("div", { class: "kpis k2x2" },
+      kpi("Media", fmt(avg), "pasos al día"), kpi("Objetivo cumplido", `${hit} de ${ds.length}`, Math.round((100 * hit) / ds.length) + " % de los días"),
+      kpi("Mejor día", fmt(best.steps), dateLabel(best.date, { weekday: "short", day: "numeric", month: "short" })),
+      kpi("Racha", `${curRun} ${curRun === 1 ? "día" : "días"}`, `mejor: ${bestRun} ${bestRun === 1 ? "día" : "días"}`)),
+    h("div", { class: "card panel flat" }, h("h3", null, "Por día de la semana"),
+      h("div", { class: "wdb" }, wavg.map((x, i) => h("div", { class: "wdb-c" + (i === bestWd ? " best" : "") },
+        h("b", { class: "num" }, x == null ? "—" : fmt(x / 1000, 1) + "k"),
+        h("div", { class: "wdb-t" }, h("i", { class: x != null && x >= goal ? "ok" : "", style: { height: x == null ? "0" : Math.max(3, (100 * x) / wmx) + "%" } })),
+        h("span", null, WD[i]))))),
+    h("div", { class: "card panel flat" }, h("h3", null, "Cada día"), ...[...stepsPanel(hist, goal).children].slice(2)),
+    h("div", { class: "faint sm" }, `${fmt(tot)} pasos en total · ${ds.length} días con pasos`),
+  ]);
 }
 // Calibración del gasto (Progreso): lo que dicen tus pesajes frente a lo que calcula el modelo
 const CAL_ROWS = [["cal_ajuste_kcal", "Base: metabolismo y día a día", (v) => signed(v) + " kcal/día"], ["cal_pasos_factor", "Pasos", (v) => "× " + fmt(v, 2)], ["cal_ejercicio_factor", "Entrenos", (v) => "× " + fmt(v, 2)]];
@@ -3451,6 +3521,7 @@ async function activitySheet() {
 }
 // Perfil (pestaña del móvil; en el ordenador, el menú de la cuenta abajo en la barra lateral)
 function viewProfile() {
+  if (!S.meReady) return h("div", { class: "profile" }, h("div", { class: "pf-head" }, h("span", { class: "av xl skel" }), h("div", null, h("b", { class: "skel-t" }), h("span", { class: "skel-t sm" }))));
   const name = S.me ? (S.me.nombre || S.me.usuario) : "Este dispositivo";
   const err = (p) => p.catch((e) => toast(e.message, { error: true }));
   const row = (ic, label, fn, extra, cls) => h("button", { class: "pf-row" + (cls ? " " + cls : ""), onclick: fn }, h("span", { class: "pf-ic" }, icon(ic)), h("span", { class: "grow" }, label), extra || null, cls === "danger" ? null : h("span", { class: "chev" }, icon("right")));
@@ -3473,8 +3544,9 @@ function viewProfile() {
     S.me ? h("div", { class: "card pf-list" }, row("out", "Cerrar sesión", async () => { await api("POST", "/api/logout", {}); location.href = "/login"; }, null, "danger")) : null);
 }
 function drawAccount() {
-  const nav = $("#nav-av"); if (nav) { nav.className = "nav-av" + (S.me ? "" : " local"); nav.replaceChildren(S.me ? (S.me.nombre || S.me.usuario)[0].toUpperCase() : icon("lock")); }
+  const nav = $("#nav-av"); if (nav) { nav.className = "nav-av" + (!S.meReady ? " skel" : S.me ? "" : " local"); nav.replaceChildren(!S.meReady ? "" : S.me ? (S.me.nombre || S.me.usuario)[0].toUpperCase() : icon("lock")); }
   const b = $("#btn-acct"); if (!b) return;
+  if (!S.meReady) { b.replaceChildren(h("span", { class: "av skel" }), h("span", { class: "an skel-t" })); return; }
   const name = S.me ? (S.me.nombre || S.me.usuario) : "Local";
   b.replaceChildren(h("span", { class: "av" + (S.me ? "" : " local") }, S.me ? name[0].toUpperCase() : icon("lock"), S.me && !agentConnected() ? h("span", { class: "av-alert", title: "Conecta tu agente" }, "!") : null), h("span", { class: "an" }, name), icon("chev"));
 }
@@ -3509,10 +3581,12 @@ document.addEventListener("keydown", (e) => {
 });
 
 // En modo servidor, saber quién ha iniciado sesión (en local /api/me no existe y no pasa nada)
+// Hasta saber quién es (o que es la versión local), el perfil y el avatar salen como un hueco gris, sin «Versión local»
+const meReady = () => { S.meReady = true; drawAccount(); if (S.view === "perfil") render(); };
 fetch("/api/me").then((r) => (r.ok ? r.json() : null)).then(async (m) => {
-  if (!m || !m.usuario) return;
-  S.me = m; drawAccount(); loadPasos();
+  if (!m || !m.usuario) return meReady();
+  S.me = m; meReady(); loadPasos();
   const n = await api("GET", "/api/notes/bienvenida").catch(() => null);  // primeros pasos hasta terminarlos
   if (n && !/^hecho/.test(n.body || "")) setTimeout(() => welcomeSheet().catch(() => {}), 600);
-}).catch(() => {});
+}).catch(() => meReady());
 route();

@@ -13,10 +13,10 @@ FIELDS = ("kcal", "protein_g", "carbs_g", "fat_g")
 QUALITY_ORDER = ["etiqueta", "historico", "provisional", "estimacion", "pendiente"]
 QUALITY_LABEL = {
     "etiqueta": "Etiqueta",
-    "historico": "Histórico",
-    "provisional": "Provisional",
+    "historico": "Estimación",
+    "provisional": "Estimación",
     "estimacion": "Estimación",
-    "pendiente": "Pendiente",
+    "pendiente": "Estimación",
 }
 SOURCE_TYPE_TO_QUALITY = {
     "label": "etiqueta",
@@ -25,6 +25,17 @@ SOURCE_TYPE_TO_QUALITY = {
     "external_provisional": "provisional",
     "pending": "pendiente",
 }
+
+
+def norm_q(q):
+    """Solo hay dos estados de los valores: de la etiqueta (a mano o de Open Food Facts) o estimados.
+    Los antiguos (histórico, provisional, pendiente) cuentan como estimados."""
+    return "etiqueta" if q == "etiqueta" else "estimacion"
+
+
+def q_from_source(src):
+    import re as _re
+    return "etiqueta" if _re.match(r"\s*(etiqueta|open food facts|cat[aá]logo)", src or "", _re.I) else "estimacion"
 
 
 def worst(*qs):

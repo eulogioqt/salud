@@ -313,6 +313,30 @@ MIGRATIONS = [
     UPDATE templates SET reviewed=1 WHERE reviewed=0;
     DELETE FROM settings WHERE key='revisar_agente';
     """,
+    # v19 — los valores son de la etiqueta (a mano o de Open Food Facts) o estimados; nada de «histórico», «provisional» ni «pendiente»
+    """
+    UPDATE foods SET status='etiqueta' WHERE status<>'etiqueta' AND kind='producto'
+        AND (source LIKE 'Open Food Facts%' OR source LIKE 'Etiqueta%' OR source LIKE 'Catálogo%')
+        AND EXISTS(SELECT 1 FROM portions p WHERE p.food_id=foods.id AND p.deleted=0 AND p.kcal IS NOT NULL);
+    UPDATE foods SET status='estimacion' WHERE status IN ('historico','provisional','pendiente');
+    UPDATE portions SET quality=CASE WHEN (SELECT f.status FROM foods f WHERE f.id=portions.food_id)='etiqueta'
+        AND (unit IN ('g','ml') OR (SELECT f.source FROM foods f WHERE f.id=portions.food_id) LIKE 'Catálogo%') THEN 'etiqueta' ELSE 'estimacion' END
+        WHERE quality IN ('historico','provisional','pendiente');
+    UPDATE entries SET quality=CASE WHEN food_id IS NOT NULL AND (SELECT f.status FROM foods f WHERE f.id=entries.food_id)='etiqueta' THEN 'etiqueta' ELSE 'estimacion' END
+        WHERE quality IN ('historico','provisional','pendiente');
+    """,
+    # v20 — recetas y comidas habituales son lo mismo («Receta»): una lista de alimentos que se apuntan por separado,
+    # con las raciones que salen (al añadir se elige cuántas). Las recetas de antes pasan a ser de estas y se ocultan
+    # (lo ya apuntado con ellas sigue igual).
+    """
+    ALTER TABLE templates ADD COLUMN servings REAL;
+    ALTER TABLE templates ADD COLUMN from_recipe INTEGER;
+    INSERT INTO templates(name,notes,favorite,servings,image,image_source,reviewed,created_at,updated_at,from_recipe)
+        SELECT name,notes,favorite,recipe_servings,image,image_source,1,created_at,updated_at,id FROM foods WHERE kind='receta' AND deleted=0;
+    INSERT INTO template_items(template_id,food_id,unit_key,quantity,sort)
+        SELECT t.id, ri.food_id, ri.unit_key, ri.quantity, ri.sort FROM recipe_items ri JOIN templates t ON t.from_recipe=ri.recipe_id;
+    UPDATE foods SET hidden=1 WHERE kind='receta' AND deleted=0;
+    """,
 ]
 
 
