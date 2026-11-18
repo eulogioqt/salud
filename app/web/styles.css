@@ -2870,3 +2870,11 @@ body.rp-on { overflow: hidden; }
 .lbls.big { width: auto; height: 22px; padding: 0 8px 0 3px; gap: 3px; display: inline-flex; align-items: center; background: var(--surface); border-radius: 99px; filter: none; box-shadow: 0 1px 3px rgba(0,0,0,.14); }
 .lbls.big svg { width: 17px; height: 17px; }
 .lbls.big b { font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: .01em; }
+/* Cantidad: el contador y, al lado, la medida en un desplegable del mismo alto */
+.qty { flex-wrap: nowrap; }
+.unit-pick { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; height: 48px; border-radius: 14px; background: var(--surface-2); cursor: pointer; }
+.unit-sel { appearance: none; -webkit-appearance: none; width: 100%; height: 100%; border: 0; background: none; padding: 0 38px 0 16px; font: inherit; font-size: 15.5px; font-weight: 600; color: var(--text); cursor: pointer; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+.unit-sel:focus { outline: none; }
+.unit-pick:focus-within { box-shadow: 0 0 0 2px var(--accent); }
+.unit-pick svg { position: absolute; right: 14px; width: 18px; height: 18px; color: var(--muted); pointer-events: none; }
+.unit-pick.one { cursor: default; } .unit-pick.one .unit-sel { pointer-events: none; padding-right: 16px; }

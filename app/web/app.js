@@ -1579,13 +1579,17 @@ function amountForm(food, init) {
     let n = Math.round((q + dir * st) * 100) / 100; if (n <= 0) n = st;
     qIn.value = String(n).replace(".", ","); draw();
   };
-  const unitsEl = h("div", { class: "chips" });
-  const drawUnits = () => unitsEl.replaceChildren(...units.map((u) => h("button", { type: "button", class: "chip" + (u.key === unit ? " on" : ""), onclick: () => {
-    const was = isMass(); unit = u.key;
+  // La medida en un desplegable (en el móvil, el selector del sistema): «Media tortilla · 300 g», «gramos»…
+  const uOpt = (u) => uLabel(u) + (u.amount && ["g", "ml"].includes(u.unit) && !["g", "ml"].includes(u.key) ? ` · ${fmt(u.amount)} ${u.unit}` : "");
+  const uSel = h("select", { class: "unit-sel", "aria-label": "Medida" }, units.map((u) => h("option", { value: u.key, selected: u.key === unit }, uOpt(u))));
+  uSel.addEventListener("change", () => {
+    const was = isMass(); unit = uSel.value;
     if (was && !isMass()) qIn.value = "1";
     if (!was && isMass()) { qIn.value = ""; setTimeout(() => qIn.focus(), 30); }
-    drawUnits(); draw();
-  } }, uLabel(u))));
+    draw();
+  });
+  const unitsEl = h("label", { class: "unit-pick" + (units.length < 2 ? " one" : "") }, uSel, units.length > 1 ? icon("chev") : null);
+  const drawUnits = () => { uSel.value = unit; };
   const meal = mealChips(init.meal), timeIn = h("input", { class: "input", type: "time", value: init.time || "" });
   const prev = h("div", { class: "mprev mprev1" }), note = h("div", { class: "note" });
   let qtyEst = !!init.qty_est;
