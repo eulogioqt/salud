@@ -812,3 +812,18 @@ class TestOffPaquete(unittest.TestCase):
         self.assertEqual((a["label"], a["per_unit"]), ("1 paquete (500 g)", False))
         b = sv(P("330 ml", "330 ml", 330), "ml")
         self.assertEqual((b["label"], b["per_unit"]), ("1 envase (330 ml)", True))
+
+
+class TestOffBebida(unittest.TestCase):
+    def test_bebida_en_ml_aunque_diga_100g(self):
+        import json as _j
+        from unittest import mock
+        from salud import off
+        prod = {"status": 1, "product": {"product_name": "Seven UP", "nutrition_data_per": "100g", "serving_size": "100.0g", "serving_quantity": 100,
+                "categories_tags": ["en:beverages", "en:sodas"], "nutriments": {"energy-kcal_100g": 19, "proteins_100g": 0, "carbohydrates_100g": 4.7, "fat_100g": 0}}}
+        class R:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def read(self): return _j.dumps(prod).encode()
+        with mock.patch("urllib.request.urlopen", return_value=R()):
+            self.assertEqual(off.lookup("8410494303365")["unit"], "ml")

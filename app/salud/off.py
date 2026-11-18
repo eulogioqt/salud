@@ -131,7 +131,12 @@ def lookup(q, timeout=10):
     if kcal is None and _num(n.get("energy_100g")) is not None:  # solo kJ
         kcal = round(_num(n.get("energy_100g")) / 4.184, 1)
     per100 = {"kcal": kcal, "protein_g": _num(n.get("proteins_100g")), "carbs_g": _num(n.get("carbohydrates_100g")), "fat_g": _num(n.get("fat_100g"))}
-    unit = "ml" if (p.get("nutrition_data_per") or "").endswith("ml") or re.search(r"\d\s*(ml|cl|l)\b", (p.get("quantity") or "").lower()) else "g"
+    # En ml: si la tabla es por 100 ml, si el envase viene en ml/cl/l o si es una bebida (Open Food Facts guarda muchas
+    # bebidas «por 100 g» y sin envase, como el 7UP)
+    cats = " ".join(p.get("categories_tags") or [])
+    drink = re.search(r"en:(beverages|sodas|soft-drinks|waters|juices|fruit-juices|nectars|beers|wines|alcoholic-beverages|milks|plant-based-milk|dairy-drinks|energy-drinks|iced-teas|sports-drinks)\b", cats) \
+        and not re.search(r"beverage-preparations|powder|instant|syrups", cats)
+    unit = "ml" if (p.get("nutrition_data_per") or "").endswith("ml") or re.search(r"\d\s*(ml|cl|l)\b", (p.get("quantity") or "").lower()) or drink else "g"
     serving = _serving(p, unit)
     name = (p.get("product_name_es") or p.get("product_name") or p.get("generic_name_es") or "").strip()
     brand = (p.get("brands") or "").split(",")[0].strip() or None
