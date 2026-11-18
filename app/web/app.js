@@ -82,7 +82,16 @@ async function act(fn, okMsg) {
 // ----------------------------------------------------------------- estado
 const S = { view: "hoy", date: todayISO(), day: null, catalog: null, rev: null, progress: null, libFilter: null, libQuery: "", progDays: 30, energyOpen: false, sheetOpen: 0, pendingRefresh: false };
 
-async function loadCatalog() { S.catalog = await api("GET", "/api/catalog?all=1"); }
+// Fotos que el servidor está descargando (de Open Food Facts): hasta que llegan, en su sitio sale un cargando
+const PH_LOADING = "__cargando__";
+async function loadCatalog() {
+  S.catalog = await api("GET", "/api/catalog?all=1");
+  for (const id of [...(S.photoPending || [])]) {
+    const f = (S.catalog.foods || []).find((x) => x.id === id);
+    if (f && !f.image) f.image = PH_LOADING; else S.photoPending.delete(id);
+  }
+}
+const phLoading = (lg) => h("div", { class: "ph-load" + (lg ? " lg" : "") }, h("i", { class: "spin" }));
 async function loadDay() {
   let st = await api("GET", "/api/state?date=" + S.date);
   // Al entrar sin fecha: si hoy aún no tiene nada y queda un día anterior sin cerrar, se abre ese (el de anoche, normalmente)
@@ -346,6 +355,7 @@ function icon(name) {
   return s;
 }
 function mono(name, cat, img, lg) {
+  if (img === PH_LOADING) return h("div", { class: "mono" + (lg ? " lg" : "") }, phLoading(lg));
   const words = (name || "?").replace(/[()/—-]/g, " ").split(/\s+/).filter((w) => w.length > 1 || /\d/.test(w));
   const ini = ((words[0] || "?")[0] + ((words[1] || "")[0] || "")).toUpperCase();
   const hue = CAT_HUE[cat] ?? (([...(cat || name)].reduce((a, c) => a + c.charCodeAt(0), 0) * 37) % 360);
@@ -1357,13 +1367,14 @@ function photoField(o) {
       : photoFrame(o.name() || "?", o.cat(), src);
     fr.classList.add("pick");
     fr.onclick = (e) => { e.stopPropagation(); photoSheet(o.name(), o.cat(), src, guard(() => fileIn.click()), guard(() => cameraSheet(use)),
-      src && o.remove ? async () => { await o.remove(); draw(); } : null, o.credit && o.credit()); };
+      src && src !== PH_LOADING && o.remove ? async () => { await o.remove(); draw(); } : null, o.credit && o.credit()); };
     box.replaceChildren(h("div", { class: "ph-ed" }, fr), fileIn);
   };
   draw();
   return { el: box, draw };
 }
 function photoSheet(name, cat, src, gallery, camera, remove, credit) {
+  if (src === PH_LOADING) src = null;
   const s0 = src ? (/^(\/|data:|https?:)/.test(src) ? src : "/" + src) : null;
   const sh = sheet("Foto", [h("div", { class: "ph-big" }, s0 ? h("img", { src: s0, alt: "" }) : mono(name || "?", cat, null, true)),
     credit ? h("div", { class: "faint sm", style: { textAlign: "center", marginTop: "8px" } }, credit) : null],
@@ -1406,6 +1417,7 @@ async function cameraSheet(onShot) {
   };
 }
 function photoFrame(name, cat, img) {
+  if (img === PH_LOADING) return h("div", { class: "pframe none" }, phLoading(true));
   const src = img ? (/^(\/|data:|https?:)/.test(img) ? img : "/" + img) : null;
   const fr = h("div", { class: "pframe" + (src ? "" : " none") });
   if (src) fr.append(h("img", { src, alt: "", class: "zoomable", onerror: () => fr.replaceChildren(mono(name, cat, null, true)) }),
@@ -1414,6 +1426,7 @@ function photoFrame(name, cat, img) {
   return fr;
 }
 function tilePhoto(name, cat, img) {
+  if (img === PH_LOADING) return h("div", { class: "ph none" }, phLoading(true));
   const src = img ? (/^(\/|data:|https?:)/.test(img) ? img : "/" + img) : null;
   if (src) return h("div", { class: "ph" }, h("img", { src, alt: "", loading: "lazy", onerror: (e) => { e.target.replaceWith(mono(name, cat)); } }));
   return h("div", { class: "ph none" }, mono(name, cat, null, true));
@@ -1427,7 +1440,7 @@ function foodTile(f, onclick) {
       macroBadges(n, lbl)));
 }
 function tplTile(t, onclick) {
-  const imgs = t.image ? [t.image] : t.items.map((it) => (foodById(it.food_id) || {}).image).filter(Boolean).slice(0, 2);
+  const imgs = t.image ? [t.image] : t.items.map((it) => (foodById(it.food_id) || {}).image).filter((x) => x && x !== PH_LOADING).slice(0, 2);
   const ph = imgs.length ? h("div", { class: "ph" + (imgs.length > 1 ? " duo" : "") }, imgs.map((im) => h("img", { src: /^(\/|https?:)/.test(im) ? im : "/" + im, alt: "", loading: "lazy", onerror: (e) => e.target.remove() }))) : h("div", { class: "ph none" }, mono(t.name, "habitual", null, true));
   return h("button", { class: "tile", onclick, type: "button" }, ph,
     h("div", { class: "tile-tx" }, h("div", { class: "tn" }, t.name), h("div", { class: "ts" }, `${t.items.length} alimentos` + (t.servings > 1 ? ` · ${fmt(t.servings, 1)} raciones` : "")),
@@ -1620,7 +1633,7 @@ function amountForm(food, init) {
   });
   drawUnits(); draw();
   form.el = h("div", null,
-    h("div", { class: "food-head" }, food.image ? h("div", { class: "pframe sm" }, h("img", { src: /^(\/|data:|https?:)/.test(food.image) ? food.image : "/" + food.image, alt: "" })) : mono(food.name, food.kind === "receta" ? "receta" : food.category, null, true),
+    h("div", { class: "food-head" }, food.image === PH_LOADING ? h("div", { class: "pframe sm none" }, phLoading(true)) : food.image ? h("div", { class: "pframe sm" }, h("img", { src: /^(\/|data:|https?:)/.test(food.image) ? food.image : "/" + food.image, alt: "" })) : mono(food.name, food.kind === "receta" ? "receta" : food.category, null, true),
       h("div", { class: "fh-t" }, h("div", { class: "fh-n" }, food.name), h("div", { class: "fh-s" }, foodSub(food)))),
     h("div", { class: "qty" },
       h("div", { class: "stepper" }, h("button", { type: "button", onclick: () => stepBy(-1), "aria-label": "Menos" }, icon("minus")), qIn,
@@ -2361,8 +2374,16 @@ function busyBtn(b, fn, label = "Guardando") {
 }
 // Foto de Open Food Facts: el servidor la descarga por su cuenta; al rato se recarga el catálogo para que aparezca
 function offPhotoBg(id, url) {
-  api("POST", `/api/foods/${id}/image-url`, { url, image_source: url, background: true }).catch(() => {});
-  setTimeout(() => loadCatalog().then(() => render()).catch(() => {}), 6000);
+  (S.photoPending = S.photoPending || new Set()).add(id);
+  api("POST", `/api/foods/${id}/image-url`, { url, image_source: url, background: true }).catch(() => { S.photoPending.delete(id); });
+  // se mira cada 1,5 s si ya está (como mucho 30 s; si no llega, vuelven las iniciales)
+  let n = 0;
+  const tick = async () => {
+    try { await loadCatalog(); render(); } catch (e) { /* sin conexión: se reintenta */ }
+    if (S.photoPending.has(id) && ++n < 20) setTimeout(tick, 1500);
+    else if (S.photoPending.delete(id)) { await loadCatalog().catch(() => {}); render(); }
+  };
+  setTimeout(tick, 1200);
 }
 function saveButtons(isNew, item, save) {
   const b = h("button", { class: "btn primary lg" }, "Guardar");
@@ -2497,7 +2518,7 @@ function templateEditor(t) {
   serv.addEventListener("input", () => drawSum(ed.totals()));
   const tph = photoField({
     name: () => name.value || t.name, cat: () => "habitual", src: () => t.image,
-    fallback: () => items.map((it) => (foodById(it.food_id) || {}).image).filter(Boolean),
+    fallback: () => items.map((it) => (foodById(it.food_id) || {}).image).filter((x) => x && x !== PH_LOADING),
     blocked: () => isNew ? "Guarda primero la receta" : null,
     save: async (url) => { const r = await api("POST", `/api/templates/${t.id}/image`, { data_url: url }); t.image = r.image; t.image_source = null; loadCatalog().then(render).catch(() => {}); },
     remove: async () => { await act(() => api("PUT", "/api/templates/" + t.id, { image: null })); t.image = null; await loadCatalog(); },
