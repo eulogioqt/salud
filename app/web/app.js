@@ -2022,7 +2022,8 @@ function measuresEditor(f, onDirty, onUnlock) {
   // Por defecto al añadir, sin elegir nada: la primera medida que sea una unidad (lata, barrita, rebanada…); si solo está
   // el paquete o el envase entero, los gramos
   const isWhole = (m) => /^(1\s+)?(paquete|envase|caja|bolsa entera|tarro)\b/i.test(m.label.value.trim()) && !(mode === "ml" && parseNum(m.amt.value) <= 500);
-  const defMed = () => (mode === "ud" ? null : meds.find((m) => m.label.value.trim() && parseNum(m.amt.value) > 0 && !isWhole(m)) || null);
+  // Con varias medidas, el círculo de la izquierda elige cuál (si no se elige, la regla de arriba)
+  const defMed = () => (mode === "ud" ? null : meds.length > 1 && def && meds.includes(def) ? def : meds.find((m) => m.label.value.trim() && parseNum(m.amt.value) > 0 && !isWhole(m)) || null);
   const vals = () => Object.fromEntries(MK.map((k) => [k, parseNum(vIn[k].value)]));
   const calc = (m) => { const a = parseNum(m.amt.value), v = vals();
     return a > 0 && mode !== "ud" ? Object.fromEntries(MK.map((k) => [k, v[k] == null || Number.isNaN(v[k]) ? null : r1((v[k] * a) / 100)])) : null; };
@@ -2031,7 +2032,7 @@ function measuresEditor(f, onDirty, onUnlock) {
   modeSel.addEventListener("change", () => { mode = modeSel.value; drawVals(); drawMeds(); onDirty(); });
   const lockLnk = h("button", { type: "button", class: "mx-lock hidden", title: "Los valores vienen de Open Food Facts", onclick: () => onUnlock && onUnlock() }, icon("lock"), "Open Food Facts · ", h("u", null, "editar"));
   const valsBox = h("div"), medsBox = h("div", { class: "meds" }), legend = h("span", { class: "med-leg hidden" }, h("i"), "por defecto");
-  const addBtn = h("button", { type: "button", class: "icon-btn round mx-add", title: "Añadir medida", "aria-label": "Añadir medida", onclick: () => addMed({}, true) }, icon("plus"));
+  const addBtn = h("button", { type: "button", class: "add-row", onclick: () => addMed({}, true) }, icon("plus"), "Añadir medida");
   function refresh() {
     const dm = defMed();
     legend.classList.add("hidden");
@@ -2040,7 +2041,7 @@ function measuresEditor(f, onDirty, onUnlock) {
       m.wEl.classList.toggle("hidden", mode === "ud"); m.unitTx.textContent = mode; m.amt.placeholder = mode === "ml" ? "ml" : "g";
       m.vEl.classList.add("hidden"); m.ownEl.classList.toggle("hidden", !!c || (mode !== "ud" && !m.legacy));  // una medida es lo que pesa: sus valores salen de los gramos
       if (c) m.vEl.textContent = `${c.kcal == null ? "?" : fmt(c.kcal)} kcal · P ${c.protein_g == null ? "?" : fmt(c.protein_g, 1)} · C ${c.carbs_g == null ? "?" : fmt(c.carbs_g, 1)} · G ${c.fat_g == null ? "?" : fmt(c.fat_g, 1)}`;
-      m.star.classList.add("hidden");
+      m.star.classList.toggle("hidden", meds.length < 2 || mode === "ud"); m.star.classList.toggle("on", dm === m);
       m.el.classList.toggle("def", dm === m);
     });
   }
@@ -2054,7 +2055,7 @@ function measuresEditor(f, onDirty, onUnlock) {
   drawVals(); drawMeds();
   const el = h("div", { class: "mx" },
     h("div", { class: "mx-h" }, h("b", null, "Valores"), modeSel, h("span", { class: "grow" }), lockLnk), valsBox,
-    h("div", { class: "mx-h mx-h2" }, h("b", null, "Medidas"), legend, h("span", { class: "grow" }), addBtn), medsBox);
+    h("div", { class: "mx-h mx-h2" }, h("b", null, "Medidas")), medsBox, addBtn);
   return {
     el,
     lock(on) { locked = on; lockApply(); },
@@ -2424,7 +2425,7 @@ function itemsEditor(items, excludeId, onChange, opts = {}) {
     items.push({ food_id: f.id, unit_key: uu.key, quantity: ["g", "ml"].includes(uu.key) ? 100 : 1 }); draw();
   };
   const pick = () => foodPicker(opts.addLabel || "Añadir ingrediente", add, excludeId);
-  const addBtn = h("button", { type: "button", class: "lnk-btn ie-add", onclick: pick }, "+ " + (opts.addLabel || "Añadir ingrediente"));
+  const addBtn = h("button", { type: "button", class: "add-row ie-add", onclick: pick }, icon("plus"), opts.addLabel || "Añadir ingrediente");
   wrap.append(...[list, addBtn, opts.totalsApart ? null : totalEl].filter(Boolean));
   draw();
   return { el: wrap, totals, totalEl };
