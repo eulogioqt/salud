@@ -638,7 +638,7 @@ function energyTable(en, balance) {
     r("Efecto térmico (TEF)", fmt(en.tef), "10 % de lo ingerido"),
     r("NEAT sin pasos", fmt(en.neat), en.neat_source),
     r("Pasos", en.steps_kcal == null ? h("span", { class: "miss" }, "falta") : fmt(en.steps_kcal),
-      en.steps == null ? null : `${fmt(en.steps_effective)} pasos netos` + (en.steps_in_activities ? ` (−${fmt(en.steps_in_activities)} de sesiones)` : "")),
+      en.steps == null ? null : `${fmt(en.steps_effective)} pasos netos` + (en.steps_in_activities ? ` (−${fmt(en.steps_in_activities)} del entreno)` : "")),
     ...en.exercise.map((x) => r("Ejercicio: " + x.type, fmt(x.kcal), x.source.startsWith("estimado") ? "neto, estimado" : x.source)),
     en.calibration && en.calibration.ajuste_kcal ? r("Calibración de la base", signed(en.calibration.ajuste_kcal), "según tus pesajes") : null,
     h("tr", { class: "tot" }, h("td", null, "Gasto total estimado"), h("td", { class: "num" }, fmt(en.total))),
@@ -824,13 +824,25 @@ async function stepsStatsSheet(st, sh0) {
         await act(() => api("PUT", "/api/settings", { objetivo_pasos: String(Math.round(n)) }), "Objetivo guardado"); g.close(); sh.close(); stepsStatsSheet(st); } }, "Guardar")]);
     setTimeout(() => { inp.focus(); inp.select(); }, 60);
   };
+  // Pasos de los entrenos (lo corrido y andado): se reparten entre las horas del entreno según los pasos de cada hora y se pintan
+  // rayados encima de cada barra; el contador sigue con todos, pero esos no cuentan en el gasto por pasos (ya van en el entreno)
+  const wks = (en.steps_workouts || []).filter((x) => x.steps > 0), wkH = Array(24).fill(0);
+  for (const x of wks) {
+    if (!x.start_time || !x.duration_min) continue;
+    const t0 = +x.start_time.slice(0, 2) * 60 + +x.start_time.slice(3, 5), t1 = t0 + x.duration_min;
+    const ov = hrs.map((v, i) => Math.max(0, Math.min(t1, (i + 1) * 60) - Math.max(t0, i * 60)) / 60 * (v || 0));
+    const tot = ov.reduce((a, b) => a + b, 0);
+    if (tot > 0) ov.forEach((o, i) => { wkH[i] = Math.min(hrs[i], wkH[i] + (x.steps * o) / tot); });
+  }
   const mx = Math.max(1, ...hrs);
   const hchart = h("div", { class: "sch" }, hrs.map((v, i) => {
-    const fut = today && i > now;
+    const fut = today && i > now, wv = Math.round(wkH[i]);
     return tip(h("div", { class: "sc" + (fut ? " fut" : "") + (!fut && !v ? " zero" : "") + (today && i === now ? " now" : "") },
-      h("i", { style: { height: (fut || !v ? 0 : Math.max(3, (100 * v) / mx)) + "%" } })),
-      `${String(i).padStart(2, "0")}:00–${String(i + 1).padStart(2, "0")}:00\n${fut ? "—" : fmt(v) + " pasos"}`);
+      h("i", { style: { height: (fut || !v ? 0 : Math.max(3, (100 * v) / mx)) + "%" } }, wv > 0 ? h("u", { style: { height: (100 * wv) / v + "%" } }) : null)),
+      `${String(i).padStart(2, "0")}:00–${String(i + 1).padStart(2, "0")}:00\n${fut ? "—" : fmt(v) + " pasos"}` + (wv > 0 ? `\n${fmt(wv)} del entreno (no cuentan en el gasto)` : ""));
   }));
+  const wkSteps = en.steps_in_activities || 0;
+  const wkTxt = wks.map((x) => [x.run_km >= 0.05 ? `${fmt(x.run_km, 1)} km corriendo` : null, x.walk_km >= 0.05 ? `${fmt(x.walk_km, 1)} km andando` : null].filter(Boolean).join(" y ")).filter(Boolean).join(" · ");
   const peak = hrs.reduce((b, v, i) => (v > hrs[b] ? i : b), 0);
   const nav = dayNav(st, (st2) => stepsStatsSheet(st2, sh));
   sh.set("Pasos", [nav,
@@ -840,12 +852,14 @@ async function stepsStatsSheet(st, sh0) {
       h("div", { class: "sh2-side" },
         h("div", { class: "sh2-msg" + (steps >= goal ? " ok" : "") }, steps >= goal ? [icon("check"), "Objetivo cumplido"] : `Te faltan ${fmt(goal - steps)} pasos`),
         kv("bolt", "Gasto", en.steps_kcal != null ? `≈ ${fmt(en.steps_kcal)} kcal` : "—"),
+        wkSteps ? kv("dumbbell", "Del entreno", `−${fmt(wkSteps)} pasos`) : null,
         kv("route", "Distancia", km != null ? `${fmt(km, 1)} km` : "—"),
         kv("flame", "Racha", d.streak ? `${d.streak} ${d.streak === 1 ? "día" : "días"}` : "—")),
       h("button", { class: "more-lnk", onclick: () => stepsMoreSheet(st) }, icon("cal"), "Semana, rachas y récords", h("span", { class: "grow" }), "›")),
     h("div", { class: "card panel flat" }, h("h3", { style: { margin: 0 } }, "Por horas"), hchart,
       h("div", { class: "sch-x" }, [0, 6, 12, 18, 24].map((x) => h("span", null, x + " h"))),
-      hrs[peak] ? h("div", { class: "faint sm", style: { marginTop: "6px" } }, `Hora más activa: ${peak}:00 · ${fmt(hrs[peak])} pasos`) : null),
+      hrs[peak] ? h("div", { class: "faint sm", style: { marginTop: "6px" } }, `Hora más activa: ${peak}:00 · ${fmt(hrs[peak])} pasos`) : null,
+      wkSteps ? h("div", { class: "sch-wk" }, h("i"), h("span", null, h("b", null, `${fmt(wkSteps)} pasos del entreno`), wkTxt ? ` (${wkTxt})` : "", " · no suman al gasto por pasos: ya van en el entreno")) : null),
   ], st._nav ? null : stepsFooter(d, sh), { wide: true });
 }
 // Más estadísticas de pasos: semana L–D, rachas y récords, últimos 30 días y media por día de la semana
@@ -3123,6 +3137,7 @@ function stepsPanel(hist, goal) {
   if (!ds.length) return null;
   goal = goal || 8000;
   const by = Object.fromEntries(ds.map((x) => [x.date, x.steps]));
+  const byWk = Object.fromEntries(ds.map((x) => [x.date, x.steps_in_acts || 0]));
   const n = Math.max(14, Math.min(S.progDays || 30, 90)), end = todayISO(), days = Array.from({ length: n }, (_, i) => addDays(end, i - n + 1));
   const mx = Math.max(goal, ...ds.map((x) => x.steps)) * 1.08, avg = ds.reduce((a, x) => a + x.steps, 0) / ds.length;
   const best = ds.reduce((a, x) => (x.steps > a.steps ? x : a)), hit = ds.filter((x) => x.steps >= goal).length;
@@ -3131,7 +3146,8 @@ function stepsPanel(hist, goal) {
     h("div", { class: "kpis k3" }, kpi("Media", fmt(avg), `${ds.length} ${ds.length === 1 ? "día" : "días"}`), kpi("Objetivo", `${hit} de ${ds.length}`, Math.round((100 * hit) / ds.length) + " % de los días"),
       kpi("Mejor día", fmt(best.steps), dateLabel(best.date, { day: "numeric", month: "short" }))),
     h("div", { class: "pbars" }, h("i", { class: "goal", style: { bottom: (100 * goal) / mx + "%" } }),
-      days.map((d) => { const v = by[d]; return h("span", { class: v == null ? "gap" : v >= goal ? "ok" : "", onclick: v == null ? null : () => openStepsDay(d), style: { height: v == null ? "0" : Math.max(2, (100 * v) / mx) + "%" }, "data-tip": `${dateLabel(d, { weekday: "long", day: "numeric", month: "short" })}\n${v == null ? "Sin datos" : fmt(v) + " pasos" + (v >= goal ? " · objetivo cumplido" : "")}` }); })),
+      days.map((d) => { const v = by[d], wv = byWk[d] || 0; return h("span", { class: v == null ? "gap" : v >= goal ? "ok" : "", onclick: v == null ? null : () => openStepsDay(d), style: { height: v == null ? "0" : Math.max(2, (100 * v) / mx) + "%" }, "data-tip": `${dateLabel(d, { weekday: "long", day: "numeric", month: "short" })}\n${v == null ? "Sin datos" : fmt(v) + " pasos" + (v >= goal ? " · objetivo cumplido" : "")}` + (v && wv ? `\n${fmt(wv)} del entreno (no suman al gasto)` : "") },
+        v && wv ? h("u", { style: { height: Math.min(100, (100 * wv) / v) + "%" } }) : null); })),
     h("div", { class: "pbars-x faint" }, h("span", null, dateLabel(days[0], { day: "numeric", month: "short" })), h("span", null, "hoy")));
 }
 // Pasos: arriba el acceso a cada día; las cifras del periodo, la media por día de la semana, las rachas y la gráfica

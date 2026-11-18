@@ -2882,3 +2882,9 @@ body.rp-on { overflow: hidden; }
 .ph-load { width: 100%; height: 100%; display: grid; place-items: center; background: var(--surface-2); border-radius: inherit; }
 .ph-load .spin { width: 16px; height: 16px; margin: 0; border: 2px solid var(--line-2); border-top-color: var(--accent); }
 .ph-load.lg .spin { width: 26px; height: 26px; border-width: 3px; }
+/* Pasos del entreno: la parte de arriba de la barra, rayada (siguen en el contador, no suman al gasto por pasos) */
+.sc i, .pbars span { position: relative; overflow: hidden; }
+.sc i u, .pbars span u { position: absolute; left: 0; right: 0; top: 0; text-decoration: none; background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--surface) 75%, transparent) 0 2px, transparent 2px 5px); border-top: 0; }
+.sch-wk { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.sch-wk i { flex: none; width: 12px; height: 12px; margin-top: 2px; border-radius: 3px; background: #d6a23f repeating-linear-gradient(-45deg, rgba(255,255,255,.75) 0 2px, transparent 2px 5px); }
+.sch-wk b { color: var(--text); font-weight: 600; }

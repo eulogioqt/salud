@@ -1368,39 +1368,30 @@ def energy(conn, d, intake_kcal=None, day=None, acts=None, raw=False):
     if any(abs(neat - v) < 1 for _k, _l, v in NEAT_LEVELS) or abs(neat - float(s["neat_base_kcal"])) < 1:
         neat *= neat_f
     stride_m = (h or 170) * float(s["factor_zancada"]) / 100
-    # Pasos dados durante una sesión de carrera/hyrox/caminata: su gasto ya va en la sesión. Si los pasos llegan del móvil
-    # por tramos, se calculan solos con la hora del entreno; si no, los indica la persona.
-    auto, dist_auto = {}, {}
-    # Entrenos: los pasos que el móvil cuenta durante la sesión ya van en las kcal del entreno (las estima el agente con
-    # todo lo que se movió), así que se descuentan siempre, sea del tipo que sea.
-    if day["steps"] and any(a["steps_in_activity"] is None for a in acts):
-        from datetime import datetime as _dt, timedelta as _td
-        for w in conn.execute("SELECT activity_id, start_time, duration_min FROM workouts WHERE date=? AND deleted_at IS NULL "
-                              "AND activity_id IS NOT NULL AND start_time IS NOT NULL AND duration_min > 0", (d,)):
-            t0 = _dt.fromisoformat("%sT%s:00" % (d, w["start_time"][:5]))
-            t1 = t0 + _td(minutes=float(w["duration_min"]))
-            n = conn.execute("SELECT SUM(steps), COUNT(*) FROM step_buckets WHERE start>=? AND start<? AND (julianday(end)-julianday(start))*24 <= 1.01",
-                             (t0.strftime("%Y-%m-%dT%H:%M:%S"), t1.strftime("%Y-%m-%dT%H:%M:%S"))).fetchone()
-            if n[1]:
-                auto[w["activity_id"]] = int(n[0] or 0)
-        # Sin pasos por tramos (solo el total del día, como con Apple Salud): los de correr y andar del entreno salen de
-        # su distancia (corriendo, la zancada es ~1,45 veces la de andar)
-        for w in conn.execute("SELECT w.activity_id, e.name, SUM(s.distance_m) AS dist FROM workouts w JOIN workout_exercises e ON e.workout_id=w.id "
-                              "JOIN workout_sets s ON s.exercise_id=e.id WHERE w.date=? AND w.deleted_at IS NULL AND w.activity_id IS NOT NULL "
-                              "AND s.distance_m > 0 GROUP BY w.activity_id, e.id", (d,)):
-            nm = _norm(w["name"])
-            run = re.search(r"corr|carrera|run|cinta|trot|jog", nm)
-            walk = re.search(r"camin|andar|walk|paseo|marcha|senderis", nm)
+    # Pasos de los entrenos: lo corrido y andado en un entreno ya va en sus kcal, así que esos pasos no cuentan en el gasto por
+    # pasos. Se estiman con la distancia de cada ejercicio de correr o andar (corriendo, la zancada es ~1,45 veces la de andar);
+    # el contador del día sigue teniendo todos los pasos. Si la persona indica los pasos de una sesión, mandan esos.
+    auto, steps_wk = {}, []
+    if day["steps"]:
+        wk = {}
+        for r in conn.execute("SELECT w.id AS wid, w.activity_id, w.title, w.start_time, w.duration_min, e.name, SUM(s.distance_m) AS dist "
+                              "FROM workouts w JOIN workout_exercises e ON e.workout_id=w.id JOIN workout_sets s ON s.exercise_id=e.id "
+                              "WHERE w.date=? AND w.deleted_at IS NULL AND w.activity_id IS NOT NULL AND s.distance_m > 0 GROUP BY w.id, e.id", (d,)):
+            nm = _norm(r["name"])
+            run = bool(re.search(r"corr|carrera|run\b|running|cinta|trot|jog", nm))
+            walk = not run and bool(re.search(r"camin|andar|walk|paseo|marcha|senderis|zancad|lunge|trineo|sled", nm))
             if not (run or walk):
                 continue
-            st = (h or 170) * float(s["factor_zancada"]) / 100 * (1.45 if run else 1)
-            dist_auto.setdefault(w["activity_id"], 0)
-            dist_auto[w["activity_id"]] += w["dist"] / st
-        for aid, n_ in dist_auto.items():
-            if aid not in auto:
-                auto[aid] = int(min(n_, day["steps"]))
-    steps_in_acts = sum(a["steps_in_activity"] if a["steps_in_activity"] is not None else
-                        auto.get(a["id"], 0) for a in acts)
+            x = wk.setdefault(r["activity_id"], {"workout_id": r["wid"], "activity_id": r["activity_id"], "title": r["title"], "start_time": r["start_time"],
+                                                 "duration_min": r["duration_min"], "run_km": 0.0, "walk_km": 0.0, "steps": 0.0})
+            x["run_km" if run else "walk_km"] += r["dist"] / 1000
+            x["steps"] += r["dist"] / (stride_m * (1.45 if run else 1))
+        for x in wk.values():
+            x.update(steps=int(round(x["steps"])), run_km=round(x["run_km"], 2), walk_km=round(x["walk_km"], 2))
+            auto[x["activity_id"]] = x["steps"]
+            steps_wk.append(x)
+    steps_in_acts = min(day["steps"] or 0, sum(a["steps_in_activity"] if a["steps_in_activity"] is not None else
+                        auto.get(a["id"], 0) for a in acts))
     if day["steps"] is None or kg is None:
         steps_kcal, eff_steps = None, None
     else:
@@ -1432,7 +1423,7 @@ def energy(conn, d, intake_kcal=None, day=None, acts=None, raw=False):
         "neat_source": (neat_label(day["neat_kcal"]) or "elegido para el día") if day["neat_kcal"] is not None else ("normal de momento: se elige al cerrar el día" if neat_pending else "normal"),
         "neat_pending": neat_pending, "neat_factor": round(neat_f, 2),
         "neat_set": day["neat_kcal"] is not None,
-        "steps": day["steps"], "steps_effective": eff_steps, "steps_in_activities": steps_in_acts, "steps_auto_sessions": auto,
+        "steps": day["steps"], "steps_effective": eff_steps, "steps_in_activities": steps_in_acts, "steps_auto_sessions": auto, "steps_workouts": steps_wk,
         "steps_kcal": None if steps_kcal is None else round(steps_kcal),
         "exercise": ex, "exercise_kcal": round(ex_total),
         "total": None if total is None else round(total), "complete": steps_kcal is not None and bmr is not None,
@@ -1527,7 +1518,8 @@ def close_check(conn, d):
     # (los productos «sin datos oficiales» o aproximados no son un aviso: muchos nunca tendrán etiqueta)
     auto = st["energy"].get("steps_auto_sessions") or {}
     for a in st["activities"]:
-        if a["type"] in STEP_TYPES and a["steps_in_activity"] is None and day["steps"] and a["id"] not in auto:
+        if a["type"] in STEP_TYPES and a["steps_in_activity"] is None and day["steps"] and a["id"] not in auto \
+                and not conn.execute("SELECT 1 FROM workouts WHERE activity_id=? AND deleted_at IS NULL", (a["id"],)).fetchone():
             w.append({"level": "info", "code": "doble_conteo",
                       "text": "%s: si el contador de pasos incluye la sesión, indica sus pasos para no contarlos dos veces" % a["type"].capitalize()})
     return {"date": d, "warnings": w, "has_important": any(x["level"] == "importante" for x in w), "needs_neat": day.get("neat_kcal") is None,
@@ -1658,6 +1650,7 @@ def history(conn, a, b):
             "entries": st["entry_count"], "approx_kcal": st["approx_kcal"], "weight_kg": st["day"]["weight_kg"], "avg7": st["avg7"],
             "steps": st["day"]["steps"], "tdee": st["energy"]["total"], "tdee_complete": st["energy"]["complete"],
             "balance": st["balance"], "target_kcal": (st["target"] or {}).get("kcal"),
+            "steps_in_acts": (st["energy"] or {}).get("steps_in_activities") or 0,
             "target_protein_g": (st["target"] or {}).get("protein_g"), "target_carbs_g": (st["target"] or {}).get("carbs_g"),
             "target_fat_g": (st["target"] or {}).get("fat_mid_g"),
             "training": ", ".join(x["type"] for x in st["activities"]), "party": bool(st.get("party")),
