@@ -364,7 +364,11 @@ function estBadges(es) {
 }
 const estTag = (es) => { const b = estBadges(es); return b.length ? h("span", { class: "estb" }, b) : null; };
 // Valores de la etiqueta (a mano o de Open Food Facts): una marca discreta junto al nombre
-const lblMark = (f) => f && f.status === "etiqueta" && f.kind !== "receta" && !isSupp(f) ? h("span", { class: "lblm", title: "Valores de la etiqueta" }, icon("ok")) : null;
+// Valores de la etiqueta (a mano o de Open Food Facts): un sello en la esquina de la foto (en las tarjetas y en las listas)
+const isLbl = (f) => !!(f && f.status === "etiqueta" && f.kind !== "receta" && !isSupp(f));
+const lblSeal = () => h("span", { class: "lbls", title: "Valores de la etiqueta", html: '<svg viewBox="0 0 24 24"><path class="s1" d="M12 2.5l2.3 1.7 2.9-.3 1.1 2.7 2.6 1.4-.6 2.8 1.2 2.6-2.2 1.9-.3 2.9-2.8.6L14.5 21 12 19.6 9.5 21l-1.7-2.3-2.8-.6-.3-2.9-2.2-1.9 1.2-2.6-.6-2.8 2.6-1.4 1.1-2.7 2.9.3z"/><path class="s2" d="M8.4 12.1l2.4 2.4 4.8-5"/></svg>' });
+const withSeal = (el, f) => (isLbl(f) ? h("span", { class: "lblw" }, el, lblSeal()) : el);
+const lblMark = () => null;
 function qBadge(q) { return q && q !== "etiqueta" ? h("span", { class: "q " + q, title: QUAL[q] }, QUAL[q]) : null; }
 function macroTxt(n, cls = "mc") {
   return h("span", { class: cls }, h("span", { class: "p" }, "P ", v(n, "protein_g")), " · ", h("span", { class: "c" }, "C ", v(n, "carbs_g")), " · ", h("span", { class: "g" }, "G ", v(n, "fat_g")));
@@ -1241,9 +1245,10 @@ function mealBlock(st, meal, closed) {
   const supHide = new Set(Object.values(st.meals).flatMap((m) => m.entries).filter((e) => supIds.has(e.food_id)).map((e) => e.id));
   const m0 = st.meals[meal], m = supHide.size ? { ...m0, entries: m0.entries.filter((e) => !supHide.has(e.id)) } : m0;
   if (meal === "otro" && !m.entries.length && closed) return null;
-  const head = h("div", { class: "meal-h" }, h("h3", null, m.label),
-    m.entries.length ? h("span", { class: "mt num" }, h("b", null, v(m.totals, "kcal")), " kcal") : null,
-    m.entries.length ? h("span", { class: "mchips num" }, h("i", { class: "p" }, v(m.totals, "protein_g")), h("i", { class: "c" }, v(m.totals, "carbs_g")), h("i", { class: "g" }, v(m.totals, "fat_g"))) : null,
+  // El nombre de la comida y, debajo y en pequeño, lo que suma (kcal y P/C/G)
+  const head = h("div", { class: "meal-h mh2" }, h("div", { class: "mh-t" }, h("h3", null, m.label),
+    m.entries.length ? h("div", { class: "mh-s" }, h("span", { class: "mt num" }, h("b", null, v(m.totals, "kcal")), " kcal"),
+      h("span", { class: "mchips num" }, h("i", { class: "p" }, v(m.totals, "protein_g")), h("i", { class: "c" }, v(m.totals, "carbs_g")), h("i", { class: "g" }, v(m.totals, "fat_g")))) : null),
     closed ? null : h("button", { class: "add-btn add", onclick: () => addSheet(meal) }, "+ Añadir"));
   if (!m.entries.length) return h("div", { class: "meal" }, head, closed ? h("div", { class: "empty-meal" }, "—") : h("div", { class: "empty-meal", onclick: () => addSheet(meal) }, "Añadir " + m.label.toLowerCase()));
   const list = h("div", { class: "list" });
@@ -1413,8 +1418,9 @@ function tilePhoto(name, cat, img) {
 function foodTile(f, onclick) {
   const cat = f.kind === "receta" ? "receta" : f.category;
   const [n, lbl] = foodBasis(f);
-  return h("button", { class: "tile", onclick, type: "button" }, tilePhoto(f.name, cat, f.image),
-    h("div", { class: "tile-tx" }, h("div", { class: "tn" }, dname(f), lblMark(f)), h("div", { class: "ts" }, f.kind === "receta" ? "Receta" : dname(f) !== f.name ? f.category || "" : f.brand || f.category || ""),
+  const ph = tilePhoto(f.name, cat, f.image); if (isLbl(f)) ph.append(lblSeal());
+  return h("button", { class: "tile", onclick, type: "button" }, ph,
+    h("div", { class: "tile-tx" }, h("div", { class: "tn" }, dname(f)), h("div", { class: "ts" }, f.kind === "receta" ? "Receta" : dname(f) !== f.name ? f.category || "" : f.brand || f.category || ""),
       macroBadges(n, lbl)));
 }
 function tplTile(t, onclick) {
@@ -1752,7 +1758,7 @@ function summaryView(s, extra) {
   const bal = s.balance;
   return h("div", null,
     h("table", { class: "t sumtbl v2" },
-      h("tr", null, h("th", null, ""), h("th", { class: "r" }, "Día"), h("th", { class: "r" }, "Objetivo", h("small", { class: "th-sub" }, "y diferencia"))),
+      h("tr", null, h("th", null, ""), h("th", { class: "r" }, "Día"), h("th", { class: "r" }, "Objetivo")),
       main("Calorías", v(t, "kcal") + " kcal", tg.kcal ? og(tg.kcal, d.kcal, Math.abs(d.kcal) <= 0.05 * tg.kcal) : ""),
       sub("Proteína", v(t, "protein_g") + " g", tg.protein_g != null ? og(tg.protein_g, d.protein_g, d.protein_g >= -5) : ""),
       sub("Carbohidratos", v(t, "carbs_g") + " g", tg.carbs_g != null ? og(tg.carbs_g, d.carbs_g, Math.abs(d.carbs_g) <= 0.15 * tg.carbs_g) : ""),
@@ -1770,7 +1776,7 @@ function summaryView(s, extra) {
       gap(),
       main("Peso", s.weight_kg != null ? kgf(s.weight_kg) + " kg" : "—", ""),
       main("Pasos", s.steps != null ? fmt(s.steps) : "—", ""),
-      h("tr", { class: "main" }, h("td", null, "Entreno"), h("td", { class: "r wrapv", colspan: 2 }, s.activities.length ? s.activities.map((a) => `${a.description || (ACT_TYPES.find((x) => x[0] === a.type) || [0, a.type])[1]}${a.minutes ? " · " + fmt(a.minutes) + " min" : ""}`).join(", ") : "descanso"))),
+      h("tr", { class: "main" }, h("td", null, "Entreno"), h("td", { class: "r wrapv" }, s.activities.length ? s.activities.map((a) => `${a.description || (ACT_TYPES.find((x) => x[0] === a.type) || [0, a.type])[1]}${a.minutes ? " · " + fmt(a.minutes) + " min" : ""}`).join(", ") : "descanso"), h("td", null))),
     (t.missing || []).length ? h("div", { class: "note warn" }, "* Totales mínimos: hay valores desconocidos.") : null,
     s.observations && s.observations.length ? h("ul", { class: "obs" }, s.observations.map((o) => h("li", null, o))) : null,
     extra || null);
@@ -2007,15 +2013,16 @@ function measuresEditor(f, onDirty, onUnlock) {
       const i = meds.indexOf(m); if (i < 0) return; if (m.id) deleted.push(m.id); meds.splice(i, 1); if (def === m) def = null; drawMeds(); onDirty(); } }, icon("x"));
     m.el = h("div", { class: "med" }, h("div", { class: "med-top" }, m.star, m.label, m.wEl, m.x), m.ownEl);
     for (const el of [m.label, m.amt, ...Object.values(m.own)]) el.addEventListener("input", () => { refresh(); onDirty(); });
-    meds.push(m); if (fresh) { if (!def && meds.length === 1) def = m; drawMeds(); setTimeout(() => m.label.focus(), 30); }
+    meds.push(m); if (fresh) { drawMeds(); setTimeout(() => m.label.focus(), 30); }
     return m;
   };
   for (const p of P) if (p !== unit0 && p.id !== baseId) addMed(p);
   { const k = f.default_unit || ""; def = meds.find((m) => m.id && "p:" + m.id === k) || null;
     if (!def && !k && base0 && base0.id !== baseId) def = meds.find((m) => m.id === base0.id) || null; }
-  // Por defecto al añadir: la medida marcada o, si no hay ninguna marcada, los gramos (una medida nueva a mano sale marcada;
-  // el paquete entero de Open Food Facts, no)
-  const defMed = () => (mode === "ud" ? null : def && meds.includes(def) ? def : null);
+  // Por defecto al añadir, sin elegir nada: la primera medida que sea una unidad (lata, barrita, rebanada…); si solo está
+  // el paquete o el envase entero, los gramos
+  const isWhole = (m) => /^(1\s+)?(paquete|envase|caja|bolsa entera|tarro)\b/i.test(m.label.value.trim()) && !(mode === "ml" && parseNum(m.amt.value) <= 500);
+  const defMed = () => (mode === "ud" ? null : meds.find((m) => m.label.value.trim() && parseNum(m.amt.value) > 0 && !isWhole(m)) || null);
   const vals = () => Object.fromEntries(MK.map((k) => [k, parseNum(vIn[k].value)]));
   const calc = (m) => { const a = parseNum(m.amt.value), v = vals();
     return a > 0 && mode !== "ud" ? Object.fromEntries(MK.map((k) => [k, v[k] == null || Number.isNaN(v[k]) ? null : r1((v[k] * a) / 100)])) : null; };
@@ -2024,25 +2031,21 @@ function measuresEditor(f, onDirty, onUnlock) {
   modeSel.addEventListener("change", () => { mode = modeSel.value; drawVals(); drawMeds(); onDirty(); });
   const lockLnk = h("button", { type: "button", class: "mx-lock hidden", title: "Los valores vienen de Open Food Facts", onclick: () => onUnlock && onUnlock() }, icon("lock"), "Open Food Facts · ", h("u", null, "editar"));
   const valsBox = h("div"), medsBox = h("div", { class: "meds" }), legend = h("span", { class: "med-leg hidden" }, h("i"), "por defecto");
-  // Los gramos también se pueden elegir por defecto (lo normal si la única medida es el paquete entero)
-  const gStar = h("button", { type: "button", class: "med-rd", "aria-label": "Por defecto: gramos", onclick: () => { def = null; refresh(); onDirty(); } });
-  const gTx = h("span", null, "Gramos"), gRow = h("div", { class: "med med-g" }, h("div", { class: "med-top" }, gStar, gTx));
   const addBtn = h("button", { type: "button", class: "icon-btn round mx-add", title: "Añadir medida", "aria-label": "Añadir medida", onclick: () => addMed({}, true) }, icon("plus"));
   function refresh() {
     const dm = defMed();
-    legend.classList.toggle("hidden", !meds.length || mode === "ud");
-    gRow.classList.toggle("hidden", !meds.length || mode === "ud"); gTx.textContent = mode === "ml" ? "Mililitros" : "Gramos"; gStar.classList.toggle("on", !dm);
+    legend.classList.add("hidden");
     meds.forEach((m) => {
       const c = calc(m), hasW = parseNum(m.amt.value) > 0;
       m.wEl.classList.toggle("hidden", mode === "ud"); m.unitTx.textContent = mode; m.amt.placeholder = mode === "ml" ? "ml" : "g";
       m.vEl.classList.add("hidden"); m.ownEl.classList.toggle("hidden", !!c || (mode !== "ud" && !m.legacy));  // una medida es lo que pesa: sus valores salen de los gramos
       if (c) m.vEl.textContent = `${c.kcal == null ? "?" : fmt(c.kcal)} kcal · P ${c.protein_g == null ? "?" : fmt(c.protein_g, 1)} · C ${c.carbs_g == null ? "?" : fmt(c.carbs_g, 1)} · G ${c.fat_g == null ? "?" : fmt(c.fat_g, 1)}`;
-      m.star.classList.toggle("hidden", mode === "ud"); m.star.classList.toggle("on", dm === m);
+      m.star.classList.add("hidden");
       m.el.classList.toggle("def", dm === m);
     });
   }
   function drawMeds() {
-    medsBox.replaceChildren(...(meds.length ? [gRow] : []), ...meds.map((m) => m.el));
+    medsBox.replaceChildren(...meds.map((m) => m.el));
     refresh(); lockApply();
   }
   const drawVals = () => valsBox.replaceChildren(...[mode === "ud" ? field("Una unidad es", unitLabel) : null,
@@ -2152,7 +2155,7 @@ function foodEditor(f, opt = {}) {
       h("button", { type: "button", class: "btn sm", onclick: (e) => { offImg = o.image_url; pendingImg = o.image_url; drawPhoto(); e.currentTarget.parentNode.remove(); toast("Se cambiará al guardar"); } }, "Usar esta foto")));
   };
   // Solo si aún no viene de Open Food Facts (al completarlo, desaparece)
-  completeBtn = !isNew && !offCode && !/suplement/i.test(f.category || "") ? h("button", { type: "button", class: "off-cta", onclick: () => {
+  completeBtn = !isNew && !offCode && f.status !== "etiqueta" && !/suplement/i.test(f.category || "") ? h("button", { type: "button", class: "off-cta", onclick: () => {
     const m = sheet("Completar producto", offChooser((o) => { m.close(); applyOff(o); }, false, null, f.id), null, { sub: "Con el código de barras o el enlace de Open Food Facts: valores, ración y foto" });
   } }, h("span", { class: "off-ic" }, icon("barcode")), h("span", null, h("b", null, "Completar con código de barras"), h("small", null, "Valores, ración y foto de Open Food Facts")), h("span", { class: "chev" }, icon("right"))) : null;
   // Suplementos: «Cuándo se toma» (sale si la categoría es Suplemento)
@@ -2229,7 +2232,7 @@ function offChooser(onFound, big, onManual, selfId) {
       // Ya está en tu biblioteca: un aviso aparte con el producto (abrirlo o cerrar); no se crea otro igual
       const ds = sheet(mine.length === 1 ? "Ya tienes este producto" : `Ya tienes ${mine.length} productos con este código`,
         h("div", { class: "list" }, mine.map((x) => { const fo = foodOf(x.id);
-          return h("div", { class: "item b", onclick: () => { ds.close(); close(); foodEditor(fo.id ? fo : null); } }, mono(x.name, fo.category, fo.image),
+          return h("div", { class: "item b", onclick: () => { ds.close(); close(); foodEditor(fo.id ? fo : null); } }, withSeal(mono(x.name, fo.category, fo.image), fo),
             h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, dname(fo.id ? fo : x)), lblMark(fo)), h("div", { class: "sub" }, fo.id ? foodSub(fo) : "")),
             h("span", { class: "chev" }, icon("right"))); })),
         [h("span", { class: "grow" }), h("button", { class: "btn", onclick: () => ds.close() }, "Cerrar")], { center: true, key: "off-dup" });
@@ -2368,7 +2371,7 @@ function foodPicker(title, onPick, excludeId) {
     const t = norm(q.value.trim());
     const L = S.catalog.foods.filter((f) => !f.deleted && f.id !== excludeId && (!t || norm(f.name + " " + (f.brand || "")).includes(t)))
       .sort((a, b) => (b.favorite || 0) - (a.favorite || 0) || (b.uses_60d || 0) - (a.uses_60d || 0) || a.name.localeCompare(b.name)).slice(0, 60);
-    res.replaceChildren(...(L.length ? L.map((f) => h("div", { class: "item b", onclick: () => { ps.close(); onPick(f); } }, mono(f.name, f.kind === "receta" ? "receta" : f.category, f.image),
+    res.replaceChildren(...(L.length ? L.map((f) => h("div", { class: "item b", onclick: () => { ps.close(); onPick(f); } }, withSeal(mono(f.name, f.kind === "receta" ? "receta" : f.category, f.image), f),
       h("div", { class: "it-m" }, h("div", { class: "nm" }, h("span", { class: "ell" }, dname(f)), lblMark(f)), h("div", { class: "sub" }, foodSub(f))))) : [h("div", { class: "muted", style: { padding: "18px 0", textAlign: "center" } }, "Sin resultados")]));
   };
   q.addEventListener("input", drawRes);
@@ -2639,7 +2642,7 @@ function viewProgress() {
     h("div", { class: "row prog-head", style: { marginBottom: "12px" } }, h("h2", { class: "vt" }, "Evolución"), h("span", { class: "grow" }),
       range),
     h("div", { class: "kpis k3" },
-      kpi("Peso medio", lastAvg ? kgf(lastAvg.avg7) + " kg" : "—", dW != null ? `${signedKg(dW)} kg en ${({ 7: "7 días", 30: "30 días", 90: "90 días", 365: "1 año" })[S.progDays] || "el periodo"}` : "últimos 7 días"),
+      kpi("Peso medio", lastAvg ? kgf(lastAvg.avg7) + " kg" : "—", dW != null ? `${signedKg(dW)} kg en ${({ 7: "7 d", 30: "30 d", 90: "90 d", 365: "1 año" })[S.progDays] || "el periodo"}` : "últimos 7 días"),
       kpi("Ingesta media", avgN.kcal != null ? fmt(avgN.kcal) + " kcal" : "—", avgN.kcal != null ? chipsOf(avgN) : "sin días apuntados"),
       kpi("Gasto real", cal.observed_maintenance != null ? fmt(cal.observed_maintenance) + " kcal" : "—", cal.observed_maintenance != null ? "según tu peso" : "faltan datos", () => pgSheet("Calibración del gasto", calPanel(S.progress.calibration)))),
     // Una tarjeta por tema con el resumen del periodo; «Más» abre la ficha con todo, y desde ella se ve cada día (la misma ficha que en Hoy)
@@ -3043,30 +3046,40 @@ function weightChart(ws, bodies, sel, next, o = {}) {
 
 // Pasos en Progreso: un día por barra (los días sin datos quedan en hueco), la línea del objetivo y lo básico
 // Frente a tu objetivo (Progreso): por cada día cerrado, cuánto te pasaste (barra hacia arriba) o te quedaste corto (hacia abajo)
+// Comida frente al objetivo, cada día: kcal o cada macro (se elige arriba); en objetivo = dentro del margen
+const BAL_K = [["kcal", "kcal", 150, " kcal", "target_kcal"], ["protein_g", "Proteína", 10, " g", "target_protein_g"], ["carbs_g", "Carbos", 25, " g", "target_carbs_g"], ["fat_g", "Grasas", 8, " g", "target_fat_g"]];
 function balancePanel(hist, P) {
-  const ds = (hist || []).filter((x) => x.status === "cerrado" && x.entries > 0 && x.kcal != null && x.target_kcal);
-  if (!ds.length) return null;
-  const dif = (x) => x.kcal - x.target_kcal, by = Object.fromEntries(ds.map((x) => [x.date, x]));
-  // Desde el primer día cerrado (mínimo 14 días, máximo el rango elegido) para que las barras no queden finísimas
-  const first = ds[0].date, span0 = Math.round((new Date(todayISO()) - new Date(first)) / 864e5) + 1;
-  const n = Math.max(14, Math.min(S.progDays || 30, 90, span0)), end = todayISO(), days = Array.from({ length: n }, (_, i) => addDays(end, i - n + 1));
-  const up = Math.max(150, ...ds.map(dif)), dn = Math.max(150, ...ds.map((x) => -dif(x))), span = up + dn;
-  const avg = ds.reduce((a, x) => a + dif(x), 0) / ds.length, ok = ds.filter((x) => Math.abs(dif(x)) <= 150).length, sum = ds.reduce((a, x) => a + dif(x), 0);
-  const kpi = (l, v, s_) => h("div", { class: "kpi" }, h("div", { class: "l" }, l), h("div", { class: "v num" }, v), h("div", { class: "s" }, s_ || ""));
-  const word = (v) => Math.abs(v) <= 150 ? "en tu objetivo" : v > 0 ? "por encima" : "por debajo";
-  return h("div", { class: "card panel" }, P ? pgHead("Comida", "frente a tu objetivo", () => foodMore(P)) : pgHead("Frente a tu objetivo", "kcal de más o de menos cada día"),
-    h("div", { class: "kpis k3" },
-      kpi("Media", signed(Math.round(avg)), "kcal al día"),
-      kpi("En objetivo", `${ok} de ${ds.length}`, "días"),
-      kpi("Acumulado", signed(Math.round(sum)), "kcal")),
-    h("div", { class: "bal-bars" }, h("i", { class: "zero", style: { top: (100 * up) / span + "%" } }),
-      days.map((d) => { const x = by[d], v = x ? dif(x) : null;
-        const cls = v == null ? "gap" : Math.abs(v) <= 150 ? "in" : v > 0 ? "over" : "under";
-        const hh = v == null ? 0 : Math.max(2, (100 * Math.abs(v)) / span);
-        return h("span", { class: "bal-b " + cls, onclick: v == null ? null : () => openDay(d, (st) => energySheet(st)), "data-tip": `${dateLabel(d, { weekday: "long", day: "numeric", month: "short" })}\n` + (v == null ? "Sin cerrar" : `${signed(Math.round(v))} kcal · ${word(v)}\nComiste ${fmt(x.kcal)} de ${fmt(x.target_kcal)}`) },
-          v == null ? null : h("i", { style: v >= 0 ? { bottom: (100 * dn) / span + "%", height: hh + "%" } : { top: (100 * up) / span + "%", height: hh + "%" } })); })),
-    h("div", { class: "pbars-x faint" }, h("span", null, dateLabel(days[0], { day: "numeric", month: "short" })), h("span", null, "hoy")),
-    h("div", { class: "bal-leg faint" }, h("span", null, h("i", { class: "over" }), "Por encima"), h("span", null, h("i", { class: "in" }), "En objetivo (±150)"), h("span", null, h("i", { class: "under" }), "Por debajo")));
+  const all = (hist || []).filter((x) => x.status === "cerrado" && x.entries > 0 && x.kcal != null && x.target_kcal);
+  if (!all.length) return null;
+  const card = h("div", { class: "card panel" });
+  const draw = () => {
+    const [k, kl, tol, u, tk] = BAL_K.find((x) => x[0] === (S.balK || "kcal"));
+    const ds = all.filter((x) => x[k] != null && x[tk] != null);
+    const dif = (x) => x[k] - x[tk], by = Object.fromEntries(ds.map((x) => [x.date, x]));
+    // Desde el primer día cerrado (mínimo 14 días, máximo el rango elegido) para que las barras no queden finísimas
+    const first = all[0].date, span0 = Math.round((new Date(todayISO()) - new Date(first)) / 864e5) + 1;
+    const n = Math.max(14, Math.min(S.progDays || 30, 90, span0)), end = todayISO(), days = Array.from({ length: n }, (_, i) => addDays(end, i - n + 1));
+    const up = Math.max(tol, ...ds.map(dif)), dn = Math.max(tol, ...ds.map((x) => -dif(x))), span = up + dn;
+    const avg = ds.length ? ds.reduce((a, x) => a + dif(x), 0) / ds.length : 0, ok = ds.filter((x) => Math.abs(dif(x)) <= tol).length, sum = ds.reduce((a, x) => a + dif(x), 0);
+    const kpi = (l, v_, s_) => h("div", { class: "kpi" }, h("div", { class: "l" }, l), h("div", { class: "v num" }, v_), h("div", { class: "s" }, s_ || ""));
+    const seg = h("div", { class: "seg sm bal-seg" }, BAL_K.map(([kk, l]) => h("button", { class: kk === k ? "on" : "", onclick: () => { S.balK = kk; draw(); } }, l)));
+    card.className = "card panel bal-" + k.replace("_g", "");
+    card.replaceChildren(P ? pgHead("Comida", "frente a tu objetivo", () => foodMore(P)) : pgHead("Frente a tu objetivo", "de más o de menos cada día"), seg,
+      h("div", { class: "kpis k3" },
+        kpi("Media", signed(Math.round(avg)), u.trim() + " al día"),
+        kpi("En objetivo", `${ok} de ${ds.length}`, "días"),
+        kpi("Acumulado", signed(Math.round(sum)), u.trim())),
+      h("div", { class: "bal-bars" }, h("i", { class: "zero", style: { top: (100 * up) / span + "%" } }),
+        days.map((d) => { const x = by[d], v_ = x ? dif(x) : null;
+          const cls = v_ == null ? "gap" : Math.abs(v_) <= tol ? "in" : v_ > 0 ? "over" : "under";
+          const hh = v_ == null ? 0 : Math.max(2, (100 * Math.abs(v_)) / span);
+          return h("span", { class: "bal-b " + cls, onclick: v_ == null ? null : () => openDay(d, (st) => energySheet(st)), "data-tip": `${dateLabel(d, { weekday: "long", day: "numeric", month: "short" })}\n` + (v_ == null ? "Sin cerrar" : `${fmt(x[k])}${u} de ${fmt(x[tk])}${u} · ${signed(Math.round(v_))}${u}`) },
+            v_ == null ? null : h("i", { style: v_ >= 0 ? { bottom: (100 * dn) / span + "%", height: hh + "%" } : { top: (100 * up) / span + "%", height: hh + "%" } })); })),
+      h("div", { class: "pbars-x faint" }, h("span", null, dateLabel(days[0], { day: "numeric", month: "short" })), h("span", null, "hoy")),
+      h("div", { class: "bal-leg faint" }, h("span", null, h("i", { class: "over" }), "Por encima"), h("span", null, h("i", { class: "in" }), `En objetivo (±${tol}${u.trim() === "g" ? " g" : ""})`), h("span", null, h("i", { class: "under" }), "Por debajo")));
+  };
+  draw();
+  return card;
 }
 function stepsPanel(hist, goal) {
   const ds = (hist || []).filter((x) => x.steps != null);
