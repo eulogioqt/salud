@@ -627,7 +627,9 @@ function energySheet(st, focus, sh0) {
   const eb = [dayNav(st, (st2) => energySheet(st2, null, esh)), hero, eaten, burned, obs,
     h("div", { class: "faint bd-foot" }, "El gasto es una estimación: tu metabolismo en reposo (según peso, altura, edad y sexo) + lo que te mueves en el día + tus pasos + tus entrenos + la digestión (10 % de lo que comes).")];
   const eopts = { titleExtra: closedNote }, et = closed ? "Resumen del día" : "Desglose del día";
-  const esh = sh0 ? (sh0.set(et, eb, null, eopts), sh0) : sheet(et, eb, null, eopts);
+  const efoot = st._nav || location.hash.startsWith("#/progress") ? null : [h("span", { class: "grow" }),
+    h("button", { class: "btn sm", onclick: () => { for (const c_ of [...OPEN_SHEETS]) c_(); histIdle(() => { S.openMore = "comida"; location.hash = "#/progress"; }); } }, "Ver todo en Evolución")];
+  const esh = sh0 ? (sh0.set(et, eb, efoot, eopts), sh0) : sheet(et, eb, efoot, eopts);
   if (focus === "gasto") setTimeout(() => { const b = esh.el.querySelector(".sheet-b"); if (b && burned.isConnected) b.scrollTo({ top: b.scrollTop + burned.getBoundingClientRect().top - b.getBoundingClientRect().top - 8, behavior: "smooth" }); burned.classList.add("bd-focus"); }, 120);
 }
 function energyTable(en, balance) {
@@ -638,7 +640,7 @@ function energyTable(en, balance) {
     r("Efecto térmico (TEF)", fmt(en.tef), "10 % de lo ingerido"),
     r("NEAT sin pasos", fmt(en.neat), en.neat_source),
     r("Pasos", en.steps_kcal == null ? h("span", { class: "miss" }, "falta") : fmt(en.steps_kcal),
-      en.steps == null ? null : `${fmt(en.steps_effective)} pasos netos` + (en.steps_in_activities ? ` (−${fmt(en.steps_in_activities)} del entreno)` : "")),
+      en.steps == null ? null : (en.steps_in_activities ? `${fmt(en.steps_effective)} pasos sin contar los ${fmt(en.steps_in_activities)} del entreno` : `${fmt(en.steps_effective)} pasos`)),
     ...en.exercise.map((x) => r("Ejercicio: " + x.type, fmt(x.kcal), x.source.startsWith("estimado") ? "neto, estimado" : x.source)),
     en.calibration && en.calibration.ajuste_kcal ? r("Calibración de la base", signed(en.calibration.ajuste_kcal), "según tus pesajes") : null,
     h("tr", { class: "tot" }, h("td", null, "Gasto total estimado"), h("td", { class: "num" }, fmt(en.total))),
@@ -755,7 +757,7 @@ async function weightSheet(st, sh0) {
       h("div", { class: "row", style: { margin: "14px 0 6px" } }, h("b", null, "Evolución"), h("span", { class: "grow" }),
         h("div", { class: "seg" }, [[7, "7 d"], [30, "30 d"], [90, "90 d"]].map(([d, l]) => h("button", { class: days === d ? "on" : "", onclick: () => { days = d; draw(); } }, l)))),
       h("div", { class: "card panel" }, weightChart(ws, P.body, st.date))],
-      st._nav ? null : scale ? sheetFoot(`Último envío de la báscula: ${agoTxt(S.pasos.bascula)}`) : sheetFoot(null, "bascula"), { wide: true });
+      st._nav ? null : scale ? sheetFoot(`Último envío de la báscula: ${agoTxt(S.pasos.bascula)}`, null, undefined, undefined, "peso") : sheetFoot(null, "bascula", undefined, undefined, "peso"), { wide: true });
   };
   draw();
 }
@@ -784,8 +786,9 @@ async function stepsData(st) {
 const agoTxt = (ts) => { if (!ts) return "—"; const m = Math.round((Date.now() - new Date(ts.replace(" ", "T"))) / 60000); if (Number.isNaN(m)) return "—"; return m < 1 ? "ahora" : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : dateLabel(ts.slice(0, 10), { day: "numeric", month: "short" }); };
 // Pie común de las fichas que llegan del móvil: estado del último envío + Conexiones + Ver todo en Progreso
 // Conectado: estado del último envío + Conexiones + Ver todo. Sin conectar: «Sin conectar» + Conectar (verde) + Ver todo.
-function sheetFoot(status, mode = null, label = "Ver todo en Evolución", hash = "#/progress") {
-  const off = !!mode, go = () => { for (const c of [...OPEN_SHEETS]) c(); histIdle(() => { location.hash = hash; }); };
+// «Ver todo en Evolución» lleva a Evolución y abre el «Más» de lo mismo (pasos, peso…)
+function sheetFoot(status, mode = null, label = "Ver todo en Evolución", hash = "#/progress", more = null) {
+  const off = !!mode, go = () => { for (const c of [...OPEN_SHEETS]) c(); histIdle(() => { S.openMore = more || mode; location.hash = hash; }); };
   return [h("div", { class: "sfoot" },
     h("span", { class: "sf-st" + (off ? " off" : "") }, h("i", { class: "sf-dot" }), off ? "Sin conectar" : status),
     h("div", { class: "sf-b" },
@@ -793,7 +796,7 @@ function sheetFoot(status, mode = null, label = "Ver todo en Evolución", hash =
         : h("button", { class: "btn sm", onclick: () => connectionsSheet() }, icon("plug"), "Conexiones"),
       label && !location.hash.startsWith(hash) ? h("button", { class: "btn sm", onclick: go }, label) : null))];
 }
-function stepsFooter(d) { return sheetFoot(`Último envío del móvil: ${agoTxt(d.last_received)}`); }
+function stepsFooter(d) { return sheetFoot(`Último envío del móvil: ${agoTxt(d.last_received)}`, null, undefined, undefined, "pasos"); }
 // Ficha de pasos del día (desde Hoy): objetivo, gasto, distancia, racha y el día por horas frente a tu media
 async function stepsStatsSheet(st, sh0) {
   const sub = dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" });
@@ -839,7 +842,7 @@ async function stepsStatsSheet(st, sh0) {
     const fut = today && i > now, wv = Math.round(wkH[i]);
     return tip(h("div", { class: "sc" + (fut ? " fut" : "") + (!fut && !v ? " zero" : "") + (today && i === now ? " now" : "") },
       h("i", { style: { height: (fut || !v ? 0 : Math.max(3, (100 * v) / mx)) + "%" } }, wv > 0 ? h("u", { style: { height: (100 * wv) / v + "%" } }) : null)),
-      `${String(i).padStart(2, "0")}:00–${String(i + 1).padStart(2, "0")}:00\n${fut ? "—" : fmt(v) + " pasos"}` + (wv > 0 ? `\n${fmt(wv)} del entreno (no cuentan en el gasto)` : ""));
+      `${String(i).padStart(2, "0")}:00–${String(i + 1).padStart(2, "0")}:00\n${fut ? "—" : fmt(v) + " pasos"}` + (wv > 0 ? `\n${fmt(wv)} del entreno (su gasto va en el entreno)` : ""));
   }));
   const wkSteps = en.steps_in_activities || 0;
   const wkTxt = wks.map((x) => [x.run_km >= 0.05 ? `${fmt(x.run_km, 1)} km corriendo` : null, x.walk_km >= 0.05 ? `${fmt(x.walk_km, 1)} km andando` : null].filter(Boolean).join(" y ")).filter(Boolean).join(" · ");
@@ -852,20 +855,18 @@ async function stepsStatsSheet(st, sh0) {
       h("div", { class: "sh2-side" },
         h("div", { class: "sh2-msg" + (steps >= goal ? " ok" : "") }, steps >= goal ? [icon("check"), "Objetivo cumplido"] : `Te faltan ${fmt(goal - steps)} pasos`),
         kv("bolt", "Gasto", en.steps_kcal != null ? `≈ ${fmt(en.steps_kcal)} kcal` : "—"),
-        wkSteps ? kv("dumbbell", "Del entreno", `−${fmt(wkSteps)} pasos`) : null,
+        wkSteps ? kv("dumbbell", "Pasos del entreno", fmt(wkSteps)) : null,
         kv("route", "Distancia", km != null ? `${fmt(km, 1)} km` : "—"),
         kv("flame", "Racha", d.streak ? `${d.streak} ${d.streak === 1 ? "día" : "días"}` : "—")),
-      h("button", { class: "more-lnk", onclick: () => stepsMoreSheet(st) }, icon("cal"), "Semana, rachas y récords", h("span", { class: "grow" }), "›")),
+    ),
     h("div", { class: "card panel flat" }, h("h3", { style: { margin: 0 } }, "Por horas"), hchart,
       h("div", { class: "sch-x" }, [0, 6, 12, 18, 24].map((x) => h("span", null, x + " h"))),
       hrs[peak] ? h("div", { class: "faint sm", style: { marginTop: "6px" } }, `Hora más activa: ${peak}:00 · ${fmt(hrs[peak])} pasos`) : null,
-      wkSteps ? h("div", { class: "sch-wk" }, h("i"), h("span", null, h("b", null, `${fmt(wkSteps)} pasos del entreno`), wkTxt ? ` (${wkTxt})` : "", " · no suman al gasto por pasos: ya van en el entreno")) : null),
+      wkSteps ? h("div", { class: "sch-wk" }, h("i"), h("span", null, h("b", null, `Del entreno: ${fmt(wkSteps)} pasos`), wkTxt ? ` (${wkTxt})` : "", ". Su gasto va en el del entreno; el de los pasos es del resto del día.")) : null),
   ], st._nav ? null : stepsFooter(d, sh), { wide: true });
 }
-// Más estadísticas de pasos: semana L–D, rachas y récords, últimos 30 días y media por día de la semana
-async function stepsMoreSheet(st) {
-  const sh = sheet("Estadísticas de pasos", h("div", { class: "muted" }, "Cargando…"), null, { wide: true });
-  let d; try { d = await stepsData(st); } catch (e) { toast(e.message, { error: true }); sh.close(); return; }
+// La semana (L–D) y las rachas y récords de siempre (para el «Más» de Pasos en Evolución)
+function stepsRecords(st, d) {
   const en = st.energy, goal = d.goal, byDate = d.byDate;
   const kmOf = (n) => (en.stride_m ? (n * en.stride_m) / 1000 : null);
   const wk0 = mondayOf(st.date), wkDays = [...Array(7)].map((_, i) => addDays(wk0, i));
@@ -891,7 +892,7 @@ async function stepsMoreSheet(st) {
     last30.map((x) => tip(h("i", { class: (x.date === st.date ? "cur" : "") + (x.steps >= goal ? " ok" : ""), style: { height: Math.max(3, (100 * x.steps) / dmx) + "%" } }),
       `${dateLabel(x.date, { weekday: "short", day: "numeric", month: "short" })}\n${fmt(x.steps)} pasos`))) : h("div", { class: "muted sm" }, "Sin datos todavía.");
   const rec = (ic, l, v, sub_) => h("div", { class: "srec" }, h("span", { class: "srec-i" }, icon(ic)), h("div", null, h("div", { class: "srec-l" }, l), h("b", { class: "num" }, v), h("div", { class: "srec-s" }, sub_ || "")));
-  sh.set("Estadísticas de pasos", [
+  return [
     h("div", { class: "sgrid" },
       h("div", { class: "card panel flat" }, h("div", { class: "row" }, h("h3", { style: { margin: 0 } }, "Esta semana"), h("span", { class: "grow" }), h("span", { class: "faint sm" }, `--- objetivo ${fmt(goal)}`)),
         h("div", { class: "sw-tot" }, h("b", { class: "num" }, fmt(thisWk)), " pasos", kmOf(thisWk) != null ? h("span", { class: "faint" }, ` · ${fmt(kmOf(thisWk), 1)} km`) : null,
@@ -903,11 +904,7 @@ async function stepsMoreSheet(st) {
         rec("cal", "Mejor semana", bestWk ? fmt(bestWk[1]) : "—", bestWk ? "desde el " + dateLabel(bestWk[0], { day: "numeric", month: "short" }) : ""),
         rec("bolt", "Mejor hora", d.best_hour ? fmt(d.best_hour.steps) : "—", d.best_hour ? `${d.best_hour.hour}:00 · ${dateLabel(d.best_hour.date, { day: "numeric", month: "short" })}` : ""),
         rec("target", "Objetivo (30 días)", `${hit30} de ${last30.length || 0}`, "días cumplidos")))),
-    h("div", { class: "card panel flat" }, h("div", { class: "row" }, h("h3", { style: { margin: 0 } }, "Últimos 30 días"), h("span", { class: "grow" }),
-      avg7 != null ? h("span", { class: "faint sm" }, `media 7 días ${fmt(avg7)}`) : null), dchart,
-      dowAvg.some((x) => x != null) ? [h("div", { class: "faint sm", style: { marginTop: "12px" } }, "Media por día de la semana (8 semanas)"),
-        h("div", { class: "sdow" }, dowAvg.map((v, i) => h("div", null, h("em", null, LD[i]), h("b", { class: "num" }, v != null ? fmt(v / 1000, 1) + "k" : "—"))))] : null),
-  ], stepsFooter(d, sh), { wide: true });
+  ];
 }
 function hourBars(hrs, today) {
   const mx = Math.max(1, ...hrs), now = new Date().getHours();
@@ -2676,6 +2673,8 @@ function bodySheet() {
 // --------------------------------------------------------------- progreso
 function viewProgress() {
   const P = S.progress; if (!P) return h("div");
+  if (S.openMore) { const m = S.openMore; S.openMore = null;
+    setTimeout(() => (m === "pasos" ? stepsMore(P.history, P.steps_goal) : ["peso", "bascula"].includes(m) ? weightMore(P) : m === "comida" ? foodMore(P) : null), 0); }
   const ws = P.weights, measured = ws.filter((w) => w.weight_kg != null);
   const last = measured[measured.length - 1];
   const lastAvg = [...ws].reverse().find((w) => w.avg7 != null);
@@ -3146,42 +3145,43 @@ function stepsPanel(hist, goal) {
     h("div", { class: "kpis k3" }, kpi("Media", fmt(avg), `${ds.length} ${ds.length === 1 ? "día" : "días"}`), kpi("Objetivo", `${hit} de ${ds.length}`, Math.round((100 * hit) / ds.length) + " % de los días"),
       kpi("Mejor día", fmt(best.steps), dateLabel(best.date, { day: "numeric", month: "short" }))),
     h("div", { class: "pbars" }, h("i", { class: "goal", style: { bottom: (100 * goal) / mx + "%" } }),
-      days.map((d) => { const v = by[d], wv = byWk[d] || 0; return h("span", { class: v == null ? "gap" : v >= goal ? "ok" : "", onclick: v == null ? null : () => openStepsDay(d), style: { height: v == null ? "0" : Math.max(2, (100 * v) / mx) + "%" }, "data-tip": `${dateLabel(d, { weekday: "long", day: "numeric", month: "short" })}\n${v == null ? "Sin datos" : fmt(v) + " pasos" + (v >= goal ? " · objetivo cumplido" : "")}` + (v && wv ? `\n${fmt(wv)} del entreno (no suman al gasto)` : "") },
+      days.map((d) => { const v = by[d], wv = byWk[d] || 0; return h("span", { class: v == null ? "gap" : v >= goal ? "ok" : "", onclick: v == null ? null : () => openStepsDay(d), style: { height: v == null ? "0" : Math.max(2, (100 * v) / mx) + "%" }, "data-tip": `${dateLabel(d, { weekday: "long", day: "numeric", month: "short" })}\n${v == null ? "Sin datos" : fmt(v) + " pasos" + (v >= goal ? " · objetivo cumplido" : "")}` + (v && wv ? `\n${fmt(wv)} del entreno (su gasto va en el entreno)` : "") },
         v && wv ? h("u", { style: { height: Math.min(100, (100 * wv) / v) + "%" } }) : null); })),
     h("div", { class: "pbars-x faint" }, h("span", null, dateLabel(days[0], { day: "numeric", month: "short" })), h("span", null, "hoy")));
 }
 // Pasos: arriba el acceso a cada día; las cifras del periodo, la media por día de la semana, las rachas y la gráfica
-function stepsMore(hist, goal) {
+async function stepsMore(hist, goal) {
   const ds = (hist || []).filter((x) => x.steps != null);
   if (!ds.length) return openStepsDay(todayISO());
   const kpi = (l, v_, s_) => h("div", { class: "kpi" }, h("div", { class: "l" }, l), h("div", { class: "v num" }, v_), h("div", { class: "s" }, s_ || ""));
   const tot = ds.reduce((a, x) => a + x.steps, 0), avg = tot / ds.length, hit = ds.filter((x) => x.steps >= goal).length;
-  const best = ds.reduce((a, x) => (x.steps > a.steps ? x : a));
-  // Racha: días seguidos cumpliendo (la actual y la mejor del periodo)
-  const sorted = [...ds].sort((a, b) => a.date.localeCompare(b.date));
-  let run = 0, bestRun = 0, prev = null;
-  for (const x of sorted) { run = x.steps >= goal ? (prev && addDays(prev, 1) === x.date && run > 0 ? run + 1 : 1) : 0; if (x.steps < goal) run = 0; bestRun = Math.max(bestRun, run); prev = x.date; }
-  const lastD = sorted[sorted.length - 1], curRun = lastD && (lastD.date === todayISO() || lastD.date === addDays(todayISO(), -1)) ? run : 0;
+  const wk = ds.reduce((a, x) => a + (x.steps_in_acts || 0), 0);
+  const sorted = [...ds].sort((a, b) => a.date.localeCompare(b.date)), lastD = sorted[sorted.length - 1];
   // Media por día de la semana (lunes primero)
   const wd = Array.from({ length: 7 }, () => []);
   for (const x of ds) { const [y, m, d] = x.date.split("-").map(Number); wd[(new Date(y, m - 1, d).getDay() + 6) % 7].push(x.steps); }
   const wavg = wd.map((L) => (L.length ? L.reduce((a, b) => a + b, 0) / L.length : null)), wmx = Math.max(goal, ...wavg.filter((x) => x != null)) * 1.05;
   const bestWd = wavg.indexOf(Math.max(...wavg.filter((x) => x != null)));
   const WD = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+  const recBox = h("div", null, h("div", { class: "muted sm", style: { padding: "8px 0" } }, "Cargando…"));
   pgSheet("Pasos", [
     pgDays("los pasos y el gasto de cada día", () => openStepsDay(lastD ? lastD.date : todayISO())),
-    h("div", { class: "kpis k2x2" },
+    h("div", { class: "kpis k3" },
       kpi("Media", fmt(avg), "pasos al día"), kpi("Objetivo cumplido", `${hit} de ${ds.length}`, Math.round((100 * hit) / ds.length) + " % de los días"),
-      kpi("Mejor día", fmt(best.steps), dateLabel(best.date, { weekday: "short", day: "numeric", month: "short" })),
-      kpi("Racha", `${curRun} ${curRun === 1 ? "día" : "días"}`, `mejor: ${bestRun} ${bestRun === 1 ? "día" : "días"}`)),
+      kpi("Total", fmt(tot), wk ? `${fmt(wk)} del entreno` : `${ds.length} días`)),
+    recBox,
+    h("div", { class: "card panel flat" }, h("h3", null, "Cada día"), ...[...stepsPanel(hist, goal).children].slice(2)),
     h("div", { class: "card panel flat" }, h("h3", null, "Por día de la semana"),
       h("div", { class: "wdb" }, wavg.map((x, i) => h("div", { class: "wdb-c" + (i === bestWd ? " best" : "") },
         h("b", { class: "num" }, x == null ? "—" : fmt(x / 1000, 1) + "k"),
         h("div", { class: "wdb-t" }, h("i", { class: x != null && x >= goal ? "ok" : "", style: { height: x == null ? "0" : Math.max(3, (100 * x) / wmx) + "%" } })),
         h("span", null, WD[i]))))),
-    h("div", { class: "card panel flat" }, h("h3", null, "Cada día"), ...[...stepsPanel(hist, goal).children].slice(2)),
-    h("div", { class: "faint sm" }, `${fmt(tot)} pasos en total · ${ds.length} días con pasos`),
   ]);
+  // La semana en curso y las rachas y récords de siempre (con los datos de hoy)
+  try {
+    const st = await api("GET", "/api/state?date=" + todayISO()), d = await stepsData(st);
+    recBox.replaceChildren(...stepsRecords(st, d));
+  } catch (e) { recBox.remove(); }
 }
 // Calibración del gasto (Progreso): lo que dicen tus pesajes frente a lo que calcula el modelo
 const CAL_ROWS = [["cal_ajuste_kcal", "Base: metabolismo y día a día", (v) => signed(v) + " kcal/día"], ["cal_pasos_factor", "Pasos", (v) => "× " + fmt(v, 2)], ["cal_ejercicio_factor", "Entrenos", (v) => "× " + fmt(v, 2)]];
