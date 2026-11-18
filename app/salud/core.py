@@ -1370,7 +1370,7 @@ def energy(conn, d, intake_kcal=None, day=None, acts=None, raw=False):
     stride_m = (h or 170) * float(s["factor_zancada"]) / 100
     # Pasos dados durante una sesión de carrera/hyrox/caminata: su gasto ya va en la sesión. Si los pasos llegan del móvil
     # por tramos, se calculan solos con la hora del entreno; si no, los indica la persona.
-    auto = {}
+    auto, dist_auto = {}, {}
     # Entrenos: los pasos que el móvil cuenta durante la sesión ya van en las kcal del entreno (las estima el agente con
     # todo lo que se movió), así que se descuentan siempre, sea del tipo que sea.
     if day["steps"] and any(a["steps_in_activity"] is None for a in acts):
@@ -1383,6 +1383,22 @@ def energy(conn, d, intake_kcal=None, day=None, acts=None, raw=False):
                              (t0.strftime("%Y-%m-%dT%H:%M:%S"), t1.strftime("%Y-%m-%dT%H:%M:%S"))).fetchone()
             if n[1]:
                 auto[w["activity_id"]] = int(n[0] or 0)
+        # Sin pasos por tramos (solo el total del día, como con Apple Salud): los de correr y andar del entreno salen de
+        # su distancia (corriendo, la zancada es ~1,45 veces la de andar)
+        for w in conn.execute("SELECT w.activity_id, e.name, SUM(s.distance_m) AS dist FROM workouts w JOIN workout_exercises e ON e.workout_id=w.id "
+                              "JOIN workout_sets s ON s.exercise_id=e.id WHERE w.date=? AND w.deleted_at IS NULL AND w.activity_id IS NOT NULL "
+                              "AND s.distance_m > 0 GROUP BY w.activity_id, e.id", (d,)):
+            nm = _norm(w["name"])
+            run = re.search(r"corr|carrera|run|cinta|trot|jog", nm)
+            walk = re.search(r"camin|andar|walk|paseo|marcha|senderis", nm)
+            if not (run or walk):
+                continue
+            st = (h or 170) * float(s["factor_zancada"]) / 100 * (1.45 if run else 1)
+            dist_auto.setdefault(w["activity_id"], 0)
+            dist_auto[w["activity_id"]] += w["dist"] / st
+        for aid, n_ in dist_auto.items():
+            if aid not in auto:
+                auto[aid] = int(min(n_, day["steps"]))
     steps_in_acts = sum(a["steps_in_activity"] if a["steps_in_activity"] is not None else
                         auto.get(a["id"], 0) for a in acts)
     if day["steps"] is None or kg is None:

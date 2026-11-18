@@ -827,3 +827,21 @@ class TestOffBebida(unittest.TestCase):
             def read(self): return _j.dumps(prod).encode()
         with mock.patch("urllib.request.urlopen", return_value=R()):
             self.assertEqual(off.lookup("8410494303365")["unit"], "ml")
+
+
+class TestPasosEnEntreno(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(); self.conn = connect(os.path.join(self.tmp.name, "t.db")); init_db(self.conn)
+        core.update_settings(self.conn, {"sexo": "M", "altura_cm": "165", "edad": "23", "peso_estimado_kg": "60"}, "test")
+
+    def test_sin_tramos_se_restan_por_distancia(self):
+        from salud import training as T
+        d = core.today()
+        core.update_day(self.conn, d, {"steps": 8000})
+        T.create_workout(self.conn, {"date": d, "start_time": "20:00", "title": "Hyrox", "duration_min": 60, "activity_type": "hyrox",
+                                     "exercises": [{"name": "Correr", "kind": "cardio", "sets": [{"distance_m": 2000, "seconds": 600}]},
+                                                   {"name": "Remo", "kind": "cardio", "sets": [{"distance_m": 1000, "seconds": 240}]}]}, "test")
+        en = core.energy(self.conn, d)
+        self.assertGreater(en["steps_in_activities"], 1500)
+        self.assertLess(en["steps_in_activities"], 2500)
+        self.assertEqual(en["steps_effective"], 8000 - en["steps_in_activities"])

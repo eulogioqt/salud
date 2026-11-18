@@ -253,6 +253,7 @@ TOOLS = [
     ("registrar_entreno", "Entreno (capturas de Hevy). Analízalo (ejercicios, series al fallo, reps, cargas, volumen, RPE, distancias, duración, descansos, peso de la persona) y pasa tu estimación de `kcal_netas` (netas: sin el metabolismo basal) e `intensity` (suave|normal|dura|muy dura). "
      "Formato: {date, start_time, title, duration_min, activity_type, intensity, kcal_netas, hevy_volume_kg, description, "
      "exercises:[{name (exactamente el de Hevy), kind: peso|lastre|corporal|asistido|tiempo|cardio, notes, sets:[{type: omitir|W|F|D, weight_kg, reps, seconds, distance_m, rpe}]}]}. "
+     "Tipo de serie: omítelo en las normales (en Hevy salen con su número: 1, 2, 3…); W, F o D solo si Hevy pone esa letra (la medalla de un récord no es «al fallo»). "
      "Mancuernas: peso de las dos; máquinas con su peso incluido.",
      _o({"entreno": {"type": "object"}}, ["entreno"]), lambda a: ["entreno", "--contenido=" + json.dumps(a["entreno"], ensure_ascii=False)], False),
     ("editar_entreno", "Corrige un entreno (mismo formato, solo los campos que cambian).", _o({"id": I, "cambios": {"type": "object"}}, ["id", "cambios"]),
