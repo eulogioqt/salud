@@ -2890,3 +2890,4 @@ body.rp-on { overflow: hidden; }
 .sch-wk b { color: var(--text); font-weight: 600; }
 .swk .sw { flex-direction: row; align-items: flex-end; position: relative; } .swk .sw i { flex: 1; min-width: 0; }
 .swk > .sw { display: flex !important; flex: 1 1 0 !important; flex-direction: row !important; align-items: flex-end !important; }
+.sch-wk { margin-top: 10px; }

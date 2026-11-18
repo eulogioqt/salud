@@ -846,7 +846,6 @@ async function stepsStatsSheet(st, sh0) {
   }));
   const wkSteps = en.steps_in_activities || 0;
   const wkTxt = wks.map((x) => [x.run_km >= 0.05 ? `${fmt(x.run_km, 1)} km corriendo` : null, x.walk_km >= 0.05 ? `${fmt(x.walk_km, 1)} km andando` : null].filter(Boolean).join(" y ")).filter(Boolean).join(" · ");
-  const peak = hrs.reduce((b, v, i) => (v > hrs[b] ? i : b), 0);
   const nav = dayNav(st, (st2) => stepsStatsSheet(st2, sh));
   sh.set("Pasos", [nav,
     h("div", { class: "sh2" },
@@ -861,7 +860,6 @@ async function stepsStatsSheet(st, sh0) {
     ),
     h("div", { class: "card panel flat" }, h("h3", { style: { margin: 0 } }, "Por horas"), hchart,
       h("div", { class: "sch-x" }, [0, 6, 12, 18, 24].map((x) => h("span", null, x + " h"))),
-      hrs[peak] ? h("div", { class: "faint sm", style: { marginTop: "6px" } }, `Hora más activa: ${peak}:00 · ${fmt(hrs[peak])} pasos`) : null,
       wkSteps ? h("div", { class: "sch-wk" }, h("i"), h("span", null, h("b", null, `Del entreno: ${fmt(wkSteps)} pasos`), wkTxt ? ` (${wkTxt})` : "", ". Su gasto va en el del entreno; el de los pasos es del resto del día.")) : null),
   ], st._nav ? null : stepsFooter(d, sh), { wide: true });
 }
