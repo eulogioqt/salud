@@ -366,7 +366,10 @@ const estTag = (es) => { const b = estBadges(es); return b.length ? h("span", { 
 // Valores de la etiqueta (a mano o de Open Food Facts): una marca discreta junto al nombre
 // Valores de la etiqueta (a mano o de Open Food Facts): un sello en la esquina de la foto (en las tarjetas y en las listas)
 const isLbl = (f) => !!(f && f.status === "etiqueta" && f.kind !== "receta" && !isSupp(f));
-const lblSeal = () => h("span", { class: "lbls", title: "Valores de la etiqueta", html: '<svg viewBox="0 0 24 24"><path class="s1" d="M12 2.5l2.3 1.7 2.9-.3 1.1 2.7 2.6 1.4-.6 2.8 1.2 2.6-2.2 1.9-.3 2.9-2.8.6L14.5 21 12 19.6 9.5 21l-1.7-2.3-2.8-.6-.3-2.9-2.2-1.9 1.2-2.6-.6-2.8 2.6-1.4 1.1-2.7 2.9.3z"/><path class="s2" d="M8.4 12.1l2.4 2.4 4.8-5"/></svg>' });
+const SEAL_SVG = '<svg viewBox="0 0 24 24"><path class="s1" d="M12 2.5l2.3 1.7 2.9-.3 1.1 2.7 2.6 1.4-.6 2.8 1.2 2.6-2.2 1.9-.3 2.9-2.8.6L14.5 21 12 19.6 9.5 21l-1.7-2.3-2.8-.6-.3-2.9-2.2-1.9 1.2-2.6-.6-2.8 2.6-1.4 1.1-2.7 2.9.3z"/><path class="s2" d="M8.4 12.1l2.4 2.4 4.8-5"/></svg>';
+const SEAL_TIP = "Valores de la etiqueta\nVerificados: copiados de la etiqueta o de Open Food Facts";
+// En las tarjetas: el sello con «Etiqueta» (se entiende sin más); en las listas, solo el sello. Mantener pulsado o pasar el ratón: qué significa
+const lblSeal = (big) => h("span", { class: "lbls" + (big ? " big" : ""), "data-tip": SEAL_TIP, html: SEAL_SVG + (big ? "<b>Etiqueta</b>" : "") });
 const withSeal = (el, f) => (isLbl(f) ? h("span", { class: "lblw" }, el, lblSeal()) : el);
 const lblMark = () => null;
 function qBadge(q) { return q && q !== "etiqueta" ? h("span", { class: "q " + q, title: QUAL[q] }, QUAL[q]) : null; }
@@ -1418,7 +1421,7 @@ function tilePhoto(name, cat, img) {
 function foodTile(f, onclick) {
   const cat = f.kind === "receta" ? "receta" : f.category;
   const [n, lbl] = foodBasis(f);
-  const ph = tilePhoto(f.name, cat, f.image); if (isLbl(f)) ph.append(lblSeal());
+  const ph = tilePhoto(f.name, cat, f.image); if (isLbl(f)) ph.append(lblSeal(true));
   return h("button", { class: "tile", onclick, type: "button" }, ph,
     h("div", { class: "tile-tx" }, h("div", { class: "tn" }, dname(f)), h("div", { class: "ts" }, f.kind === "receta" ? "Receta" : dname(f) !== f.name ? f.category || "" : f.brand || f.category || ""),
       macroBadges(n, lbl)));
@@ -2156,9 +2159,11 @@ function foodEditor(f, opt = {}) {
       h("button", { type: "button", class: "btn sm", onclick: (e) => { offImg = o.image_url; pendingImg = o.image_url; drawPhoto(); e.currentTarget.parentNode.remove(); toast("Se cambiará al guardar"); } }, "Usar esta foto")));
   };
   // Solo si aún no viene de Open Food Facts (al completarlo, desaparece)
+  // Solo si los valores son estimados (elegido en «Valores», aunque aún no se haya guardado)
   completeBtn = !isNew && !offCode && !/suplement/i.test(f.category || "") ? h("button", { type: "button", class: "off-cta", onclick: () => {
     const m = sheet("Completar producto", offChooser((o) => { m.close(); applyOff(o); }, false, null, f.id), null, { sub: "Con el código de barras o el enlace de Open Food Facts: valores, ración y foto" });
   } }, h("span", { class: "off-ic" }, icon("barcode")), h("span", null, h("b", null, "Completar con código de barras"), h("small", null, "Valores, ración y foto de Open Food Facts")), h("span", { class: "chev" }, icon("right"))) : null;
+  if (completeBtn) { const showCta = () => completeBtn.classList.toggle("hidden", srcSel.value !== "estimacion"); srcSel.addEventListener("change", showCta); showCta(); }
   // Suplementos: «Cuándo se toma» (sale si la categoría es Suplemento)
   const sched = suppSchedule(f);
   const showSched = () => sched.el.classList.toggle("hidden", !/suplement/i.test(cat.value));

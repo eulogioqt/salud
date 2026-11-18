@@ -2865,3 +2865,8 @@ body.rp-on { overflow: hidden; }
 .fe-more[open] > summary::after { transform: rotate(-135deg); margin-top: 3px; }
 .fe-more > summary:hover::before, .fe-more > summary:hover::after { color: var(--text); border-color: var(--text); }
 .fe-more[open] > summary { margin-bottom: 10px; }
+/* Sello «Etiqueta»: en la foto de las tarjetas, una pastilla blanca con el sello y la palabra */
+.lbls { pointer-events: auto; cursor: help; }
+.lbls.big { width: auto; height: 22px; padding: 0 8px 0 3px; gap: 3px; display: inline-flex; align-items: center; background: var(--surface); border-radius: 99px; filter: none; box-shadow: 0 1px 3px rgba(0,0,0,.14); }
+.lbls.big svg { width: 17px; height: 17px; }
+.lbls.big b { font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: .01em; }
