@@ -2156,7 +2156,7 @@ function foodEditor(f, opt = {}) {
       h("button", { type: "button", class: "btn sm", onclick: (e) => { offImg = o.image_url; pendingImg = o.image_url; drawPhoto(); e.currentTarget.parentNode.remove(); toast("Se cambiará al guardar"); } }, "Usar esta foto")));
   };
   // Solo si aún no viene de Open Food Facts (al completarlo, desaparece)
-  completeBtn = !isNew && !offCode && f.status !== "etiqueta" && !/suplement/i.test(f.category || "") ? h("button", { type: "button", class: "off-cta", onclick: () => {
+  completeBtn = !isNew && !offCode && !/suplement/i.test(f.category || "") ? h("button", { type: "button", class: "off-cta", onclick: () => {
     const m = sheet("Completar producto", offChooser((o) => { m.close(); applyOff(o); }, false, null, f.id), null, { sub: "Con el código de barras o el enlace de Open Food Facts: valores, ración y foto" });
   } }, h("span", { class: "off-ic" }, icon("barcode")), h("span", null, h("b", null, "Completar con código de barras"), h("small", null, "Valores, ración y foto de Open Food Facts")), h("span", { class: "chev" }, icon("right"))) : null;
   // Suplementos: «Cuándo se toma» (sale si la categoría es Suplemento)
