@@ -222,7 +222,7 @@ document.addEventListener("click", (e) => {
 let SAVING = 0;
 function sheet(title, body, footer, opts = {}) {
   if (typeof hideTip === "function") hideTip();  // que no se quede encima el globo del dato que se tocó
-  const tkey = typeof title === "string" ? title : null;
+  const tkey = opts.key || (typeof title === "string" ? title : null);
   if (tkey && LAST_SHEET && LAST_SHEET.key === tkey && LAST_SHEET.ctl.el.isConnected && !LAST_SHEET.ctl.el.parentNode.classList.contains("closing")
       && Date.now() - LAST_SHEET.t < 1200) return LAST_SHEET.ctl;
   // Los modales se apilan: uno nuevo se abre encima. Si se abre uno que ya estaba más abajo (mismo título o misma clave),
@@ -800,7 +800,7 @@ function stepsFooter(d) { return sheetFoot(`Último envío del móvil: ${agoTxt(
 // Ficha de pasos del día (desde Hoy): objetivo, gasto, distancia, racha y el día por horas frente a tu media
 async function stepsStatsSheet(st, sh0) {
   const sub = dateLabel(st.date, { weekday: "long", day: "numeric", month: "long" });
-  const sh = sh0 || sheet("Pasos", h("div", { class: "muted" }, "Cargando…"), null, { wide: true, sub });
+  const sh = sh0 || sheet("Pasos", h("div", { class: "muted" }, "Cargando…"), null, { wide: true, sub, key: "dia:pasos" });
   let d; try { d = await stepsData(st); } catch (e) { toast(e.message, { error: true }); sh.close(); return; }
   const en = st.energy, steps = st.day.steps || 0, today = st.date === st.today, now = new Date().getHours(), goal = d.goal;
   const hrs = d.hours || Array(24).fill(0), avg = d.avg_hours;
@@ -853,10 +853,11 @@ async function stepsStatsSheet(st, sh0) {
         h("button", { class: "sgoal", title: "Cambiar el objetivo de pasos", onclick: goalSheet }, `de ${fmt(goal)}`, icon("edit")))),
       h("div", { class: "sh2-side" },
         h("div", { class: "sh2-msg" + (steps >= goal ? " ok" : "") }, steps >= goal ? [icon("check"), "Objetivo cumplido"] : `Te faltan ${fmt(goal - steps)} pasos`),
-        kv("bolt", "Gasto", en.steps_kcal != null ? `≈ ${fmt(en.steps_kcal)} kcal` : "—"),
+        // Con entreno: los pasos que cuentan para el gasto (con sus kcal) y, aparte, los del entreno
+        wkSteps ? kv("bolt", "Pasos", [fmt(Math.max(0, steps - wkSteps)), h("small", { class: "kv-s" }, en.steps_kcal != null ? ` (≈ ${fmt(en.steps_kcal)} kcal)` : "")])
+          : kv("bolt", "Gasto", en.steps_kcal != null ? `≈ ${fmt(en.steps_kcal)} kcal` : "—"),
         wkSteps ? kv("dumbbell", "Pasos del entreno", fmt(wkSteps)) : null,
-        kv("route", "Distancia", km != null ? `${fmt(km, 1)} km` : "—"),
-        kv("flame", "Racha", d.streak ? `${d.streak} ${d.streak === 1 ? "día" : "días"}` : "—")),
+        kv("route", "Distancia", km != null ? `${fmt(km, 1)} km` : "—")),
     ),
     h("div", { class: "card panel flat" }, h("h3", { style: { margin: 0 } }, "Por horas"), hchart,
       h("div", { class: "sch-x" }, [0, 6, 12, 18, 24].map((x) => h("span", null, x + " h"))),
@@ -2753,7 +2754,7 @@ function foodMore(P) {
     calPanel(P.calibration),
     h("details", { class: "card panel flat pg-det" }, h("summary", null, "Todos los días"), daysTable(hist))]);
 }
-function pgSheet(title, body) { return sheet(title, [body].flat().filter(Boolean), null, { wide: true }); }
+function pgSheet(title, body) { return sheet(title, [body].flat().filter(Boolean), null, { wide: true, key: "mas:" + title }); }
 async function openStepsDay(d) {
   try { const st = await api("GET", "/api/state?date=" + (d || todayISO())); st._nav = true; stepsStatsSheet(st); } catch (e) { toast(e.message, { error: true }); }
 }

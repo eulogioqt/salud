@@ -1386,7 +1386,26 @@ def energy(conn, d, intake_kcal=None, day=None, acts=None, raw=False):
                                                  "duration_min": r["duration_min"], "run_km": 0.0, "walk_km": 0.0, "steps": 0.0})
             x["run_km" if run else "walk_km"] += r["dist"] / 1000
             x["steps"] += r["dist"] / (stride_m * (1.45 if run else 1))
+        # Si el móvil manda los pasos por tramos, nunca más de los que contó durante el entreno (si no lo llevabas encima, 0)
+        bk = rows(conn.execute("SELECT start, end, steps FROM step_buckets WHERE substr(start,1,10)=? AND (julianday(end)-julianday(start))*24 <= 1.01", (d,)))
+        def _recorded(x):
+            if not bk or not x["start_time"] or not x["duration_min"]:
+                return None
+            from datetime import datetime as _dt, timedelta as _td
+            t0 = _dt.fromisoformat("%sT%s:00" % (d, x["start_time"][:5])); t1 = t0 + _td(minutes=float(x["duration_min"]))
+            tot = 0.0
+            for b_ in bk:
+                b0 = _dt.fromisoformat(b_["start"][:19]); b1 = _dt.fromisoformat((b_["end"] or b_["start"])[:19])
+                span = max((b1 - b0).total_seconds(), 60)
+                ov = (min(t1, b1) - max(t0, b0)).total_seconds()
+                if ov > 0:
+                    tot += b_["steps"] * min(1, ov / span)
+            return tot
         for x in wk.values():
+            rec = _recorded(x)
+            if rec is not None:
+                x["recorded"] = int(round(rec))
+                x["steps"] = min(x["steps"], rec)
             x.update(steps=int(round(x["steps"])), run_km=round(x["run_km"], 2), walk_km=round(x["walk_km"], 2))
             auto[x["activity_id"]] = x["steps"]
             steps_wk.append(x)

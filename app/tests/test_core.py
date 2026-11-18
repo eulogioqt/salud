@@ -845,3 +845,13 @@ class TestPasosEnEntreno(unittest.TestCase):
         self.assertGreater(en["steps_in_activities"], 1500)
         self.assertLess(en["steps_in_activities"], 2500)
         self.assertEqual(en["steps_effective"], 8000 - en["steps_in_activities"])
+
+    def test_sin_movil_en_el_entreno_no_resta(self):
+        from salud import training as T
+        d = core.today()
+        core.update_day(self.conn, d, {"steps": 5000})
+        self.conn.execute("INSERT INTO step_buckets(start,end,steps) VALUES(?,?,?)", (d + "T10:00:00", d + "T10:59:59", 5000))
+        self.conn.commit()
+        T.create_workout(self.conn, {"date": d, "start_time": "20:00", "title": "Correr", "duration_min": 40, "activity_type": "carrera",
+                                     "exercises": [{"name": "Correr", "kind": "cardio", "sets": [{"distance_m": 5000, "seconds": 1500}]}]}, "test")
+        self.assertEqual(core.energy(self.conn, d)["steps_in_activities"], 0)
