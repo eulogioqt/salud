@@ -2000,6 +2000,9 @@ function measuresEditor(f, onDirty, onUnlock) {
   const deleted = [], meds = [];
   let locked = false, def = null;  // def: la medida por defecto (objeto) o null
   // Cada medida se construye una vez (si se rehiciera al escribir, el móvil cerraría el teclado en cada letra)
+  // Medida de antes sin peso pero con sus kcal (p. ej. «1 tortita», 25 kcal): su peso sale de las kcal por 100 (se puede cambiar)
+  const guessW = (m) => { if (!m.legacy || mode === "ud" || parseNum(m.amt.value) > 0) return; const b100 = parseNum(vIn.kcal.value);
+    if (b100 > 0 && m.kcal0 > 0) m.amt.value = String(Math.round((1000 * m.kcal0) / b100) / 10).replace(".", ","); };
   const addMed = (p, fresh) => {
     // se ve solo el nombre («lata»); al guardar queda «1 lata (330 ml)»
     let shown = isW(p) ? (p.label || "").replace(/\s*\(\s*[\d.,]+\s*(g|ml)\s*\)\s*$/i, "").replace(/^1\s+/, "") : (p.label || "");
@@ -2007,6 +2010,8 @@ function measuresEditor(f, onDirty, onUnlock) {
     const m = { id: p.id || null, legacy: !!p.id && !isW(p) && MK.some((k) => p[k] != null), label: h("input", { class: "input", value: shown, placeholder: "lata, cucharada…" }),
       amt: numIn(isW(p) ? p.amount : null, mode === "ml" ? "ml" : "g"), own: {} };
     for (const k of MK) m.own[k] = numIn(isW(p) ? null : p[k]);
+    m.kcal0 = isW(p) ? null : p.kcal;
+    guessW(m);
     m.unitTx = h("span", null, mode);
     m.wEl = h("label", { class: "med-w" }, m.amt, m.unitTx);
     m.star = h("button", { type: "button", class: "med-rd", title: "Por defecto al añadirlo", "aria-label": "Por defecto", onclick: () => { def = m; refresh(); onDirty(); } });
@@ -2042,7 +2047,7 @@ function measuresEditor(f, onDirty, onUnlock) {
     meds.forEach((m) => {
       const c = calc(m), hasW = parseNum(m.amt.value) > 0;
       m.wEl.classList.toggle("hidden", mode === "ud"); m.unitTx.textContent = mode; m.amt.placeholder = mode === "ml" ? "ml" : "g";
-      m.vEl.classList.add("hidden"); m.ownEl.classList.toggle("hidden", !!c || (mode !== "ud" && !m.legacy));  // una medida es lo que pesa: sus valores salen de los gramos
+      m.vEl.classList.add("hidden"); m.ownEl.classList.toggle("hidden", !!c || mode !== "ud");  // una medida es su nombre y lo que pesa: sus valores salen de los gramos
       if (c) m.vEl.textContent = `${c.kcal == null ? "?" : fmt(c.kcal)} kcal · P ${c.protein_g == null ? "?" : fmt(c.protein_g, 1)} · C ${c.carbs_g == null ? "?" : fmt(c.carbs_g, 1)} · G ${c.fat_g == null ? "?" : fmt(c.fat_g, 1)}`;
       m.star.classList.toggle("hidden", meds.length < 2 || mode === "ud"); m.star.classList.toggle("on", dm === m);
       m.el.classList.toggle("def", dm === m);
@@ -2067,6 +2072,7 @@ function measuresEditor(f, onDirty, onUnlock) {
     fromOff(o) {
       mode = o.unit === "ml" ? "ml" : "g"; modeSel.value = mode;
       for (const k of MK) vIn[k].value = o.per100[k] == null ? "" : String(o.per100[k]).replace(".", ",");
+      meds.forEach(guessW);
       if (o.serving) {
         let m = meds.find((x) => Math.abs((parseNum(x.amt.value) || 0) - o.serving.amount) < 0.6);
         if (!m) m = addMed({ label: o.serving.label.replace(/\s*\([^)]*\)\s*$/, ""), amount: o.serving.amount, unit: mode });
@@ -2092,7 +2098,7 @@ function measuresEditor(f, onDirty, onUnlock) {
         if (!label && !a) continue;  // fila vacía
         if (!label) return { error: `Ponle nombre a la medida de ${fmt(a)} ${mode}` };
         else if (c) label = `${/^\d/.test(label) ? "" : "1 "}${label.replace(/\s*\([^)]*\)\s*$/, "")} (${fmt(a)} ${mode})`;  // «lata» → «1 lata (330 ml)»
-        if (!c && mode !== "ud" && !m.legacy) return { error: `Pon cuánto pesa «${label}»` };
+        if (!c && mode !== "ud") return { error: `Pon cuánto pesa «${label}»` };
         if (!c && MK.every((k) => own[k] == null)) return { error: `Pon los valores de «${label}»` };
         out.push({ id: m.id, label, amount: c ? a : null, unit: c ? mode : "ud", quality, is_default: false, ...(c || own), ...(dm === m && !m.id ? { by_unit: true } : {}) });
       }
