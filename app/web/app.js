@@ -852,7 +852,7 @@ async function stepsStatsSheet(st, sh0) {
       h("div", { class: "sh2-ring" }, ring, h("div", { class: "sh2-in" }, h("b", { class: "num" }, fmt(steps)), h("span", null, "pasos"),
         h("button", { class: "sgoal", title: "Cambiar el objetivo de pasos", onclick: goalSheet }, `de ${fmt(goal)}`, icon("edit")))),
       h("div", { class: "sh2-side" },
-        h("div", { class: "sh2-msg" + (steps >= goal ? " ok" : "") }, steps >= goal ? [icon("check"), "Objetivo cumplido"] : `Te faltan ${fmt(goal - steps)} pasos`),
+        steps < goal ? h("div", { class: "sh2-msg" }, `Te faltan ${fmt(goal - steps)} pasos`) : null,
         // Con entreno: los pasos que cuentan para el gasto (con sus kcal) y, aparte, los del entreno
         kv("route", "Distancia", km != null ? `${fmt(km, 1)} km` : "—"),
         // Con entreno: barra con el reparto (liso = resto del día, rayado = entreno) y cada parte debajo
