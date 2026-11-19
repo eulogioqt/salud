@@ -2904,3 +2904,14 @@ body.rp-on { overflow: hidden; }
 @media (min-width: 641px) { .sh2 { column-gap: 72px; grid-template-columns: 180px minmax(240px, 280px); } }
 .sh2 > .sh2-ring { grid-row: auto; } .sh2 > .sh2-side { align-self: center; }
 @media (max-width: 640px) { .sh2 { column-gap: 24px; } }
+/* Pasos: lo que falta (o «Objetivo cumplido») bajo el anillo; el anillo siempre en el color de los pasos */
+.sh2-rc { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.sh2 > .sh2-rc { grid-row: auto; }
+.sh2-goal { font-size: 12.5px; color: var(--muted); text-align: center; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+.sh2-goal b { color: var(--text); font-weight: 700; }
+.sh2-goal.ok { color: var(--accent); font-weight: 650; } .sh2-goal.ok svg { width: 14px; height: 14px; stroke-width: 2.6; }
+.sring.done .rg-fg { stroke: #d6a23f; }
+.sring .rg-ov1 { stroke: #b07f22; } .sring .rg-ov2 { stroke: #8a611a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sring .rg-ov1 { stroke: #e7bb5e; } :root:not([data-theme="light"]) .sring .rg-ov2 { stroke: #f3d28f; } }
+:root[data-theme="dark"] .sring .rg-ov1 { stroke: #e7bb5e; } :root[data-theme="dark"] .sring .rg-ov2 { stroke: #f3d28f; }
+@media (max-width: 640px) { .sh2-goal { font-size: 12px; } }
