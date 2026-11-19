@@ -855,10 +855,13 @@ async function stepsStatsSheet(st, sh0) {
         h("div", { class: "sh2-msg" + (steps >= goal ? " ok" : "") }, steps >= goal ? [icon("check"), "Objetivo cumplido"] : `Te faltan ${fmt(goal - steps)} pasos`),
         // Con entreno: los pasos que cuentan para el gasto (con sus kcal) y, aparte, los del entreno
         kv("route", "Distancia", km != null ? `${fmt(km, 1)} km` : "—"),
-        wkSteps ? kv("bolt", "Pasos", [fmt(Math.max(0, steps - wkSteps)), h("small", { class: "kv-s" }, en.steps_kcal != null ? ` (≈ ${fmt(en.steps_kcal)} kcal)` : "")])
-          : kv("bolt", "Gasto", en.steps_kcal != null ? `≈ ${fmt(en.steps_kcal)} kcal` : "—"),
-        wkSteps ? kv("dumbbell", "Pasos del entreno", fmt(wkSteps)) : null,
-        wkSteps ? h("div", { class: "kv-note" }, "Su gasto cuenta en el entreno") : null),
+        // Con entreno: barra con el reparto (liso = resto del día, rayado = entreno) y cada parte debajo
+        wkSteps ? [
+          h("div", { class: "stp-bar" }, h("i", { class: "d", style: { flex: Math.max(0, steps - wkSteps) } }), h("i", { class: "e", style: { flex: wkSteps } })),
+          h("div", { class: "stp-split" },
+            h("div", null, h("span", null, "Resto del día"), h("b", null, fmt(Math.max(0, steps - wkSteps))), h("small", null, en.steps_kcal != null ? `≈ ${fmt(en.steps_kcal)} kcal` : "")),
+            h("div", { class: "r" }, h("span", null, "Entreno"), h("b", null, fmt(wkSteps)), h("small", null, "Gasto en el entreno")))]
+          : kv("bolt", "Gasto", en.steps_kcal != null ? `≈ ${fmt(en.steps_kcal)} kcal` : "—")),
     ),
     h("div", { class: "card panel flat" }, h("h3", { style: { margin: 0 } }, "Por horas"), hchart,
       h("div", { class: "sch-x" }, [0, 6, 12, 18, 24].map((x) => h("span", null, x + " h"))),
