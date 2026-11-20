@@ -846,6 +846,19 @@ class TestPasosEnEntreno(unittest.TestCase):
         self.assertLess(en["steps_in_activities"], 2500)
         self.assertEqual(en["steps_effective"], 8000 - en["steps_in_activities"])
 
+    def test_generico_distancia_a_pie_y_no_maquinas(self):
+        from salud import training as T
+        d = core.today()
+        core.update_day(self.conn, d, {"steps": 9000})
+        T.create_workout(self.conn, {"date": d, "start_time": "19:00", "title": "Mixto", "duration_min": 60, "activity_type": "hyrox",
+                                     "exercises": [{"name": "Cinta", "kind": "cardio", "sets": [{"distance_m": 1000, "seconds": 400}]},
+                                                   {"name": "Paseo del Granjero", "kind": "cardio", "sets": [{"distance_m": 100}]},
+                                                   {"name": "Máquina de Esquí", "kind": "cardio", "sets": [{"distance_m": 1000, "seconds": 240}]},
+                                                   {"name": "Bicicleta", "kind": "cardio", "sets": [{"distance_m": 5000, "seconds": 600}]}]}, "test")
+        x = core.energy(self.conn, d)["steps_workouts"][0]
+        self.assertAlmostEqual(x["run_km"], 1.0)   # cinta a 9 km/h: corriendo aunque el nombre no lo diga
+        self.assertAlmostEqual(x["walk_km"], 0.1)  # granjero: andando; esquí y bici no cuentan
+
     def test_sin_movil_en_el_entreno_no_resta(self):
         from salud import training as T
         d = core.today()

@@ -927,12 +927,14 @@ function wkHead(w) {
     wkChips(w, [w.volume_kg ? fmt(w.volume_kg) + " kg" : null, w.sets_count ? w.sets_count + " series" : null].filter(Boolean).join(" · "))];
 }
 // Último entreno (en Resumen, encima de «Actividad»)
-function lastCard(ws) {
+function lastCard(ws, streak) {
   const w = [...(ws || [])].sort((a, b) => (b.date + (b.start_time || "")).localeCompare(a.date + (a.start_time || "")))[0];
   if (!w) return null;
   const ago = Math.round((new Date(todayISO()) - new Date(w.date)) / 864e5);
   return h("button", { class: "card lastw", onclick: () => workoutSheet(w.id) },
-    h("div", { class: "lw-top" }, h("span", { class: "lw-l" }, "Último entreno"), h("span", { class: "lw-ago" }, ago === 0 ? "hoy" : ago === 1 ? "ayer" : `hace ${ago} días`)),
+    // La racha (semanas seguidas entrenando) va aquí: no depende del periodo elegido abajo
+    h("div", { class: "lw-top" }, h("span", { class: "lw-l" }, "Último entreno"), h("span", { class: "lw-ago" }, ago === 0 ? "hoy" : ago === 1 ? "ayer" : `hace ${ago} días`),
+      streak ? h("span", { class: "lw-streak", title: "Semanas seguidas entrenando" }, `🔥 ${streak} ${streak === 1 ? "semana" : "semanas"}`) : null),
     ...wkHead(w));
 }
 function tResumen(st, ws) {
@@ -944,7 +946,7 @@ function tResumen(st, ws) {
   // Una sola línea: ‹ periodo › y, a la derecha, semana / mes / año / todo
   const sel = h("div", { class: "pline" },
     R.all ? null : h("button", { class: "icon-btn round", disabled: !R.canPrev, onclick: () => nav(-1), "aria-label": "Anterior" }, icon("left")),
-    h("div", { class: "pl-c" }, h("b", null, R.all ? "Todo" : R.label), h("span", null, `${fmt(days0)} ${days0 === 1 ? "día entrenado" : "días entrenados"} · racha ${st.streak} sem.`)),
+    h("div", { class: "pl-c" }, h("b", null, R.all ? "Todo" : R.label), h("span", null, `${fmt(days0)} ${days0 === 1 ? "día entrenado" : "días entrenados"}`)),
     R.all ? null : h("button", { class: "icon-btn round", disabled: !R.canNext, onclick: () => nav(1), "aria-label": "Siguiente" }, icon("right")),
     h("span", { class: "grow" }), gsel);
   const pv = P.prev, c = P.cur, vs = R.prevLabel ? "vs " + R.prevLabel : "";
@@ -987,7 +989,7 @@ function tResumen(st, ws) {
   return h("div", null,
     sel,
     stats,
-    lastCard(ws),
+    lastCard(ws, st.streak),
     R.gran === "semana" ? null : h("div", { class: "card panel" }, h("h3", null, "Calendario"),
       R.gran === "mes" ? monthCal(st.byDate, R.from, R.end) : heatmap(st.byDate, R.from, R.to)),
     showBars ? h("div", { class: "card panel" }, h("div", { class: "row", style: { marginBottom: "8px" } }, h("h3", { style: { margin: 0 } }, P.gran === "day" ? "Por día" : P.gran === "week" ? "Por semana" : "Por mes"), h("span", { class: "grow" }), chartSeg), chartBox) : null,

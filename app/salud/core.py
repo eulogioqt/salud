@@ -1374,14 +1374,18 @@ def energy(conn, d, intake_kcal=None, day=None, acts=None, raw=False):
     auto, steps_wk = {}, []
     if day["steps"]:
         wk = {}
-        for r in conn.execute("SELECT w.id AS wid, w.activity_id, w.title, w.start_time, w.duration_min, e.name, SUM(s.distance_m) AS dist "
+        # Genérico: todo ejercicio con distancia es a pie (correr, andar, trineo, granjero, zancadas…), salvo las máquinas y
+        # deportes que no lo son (remo, esquí, bici, natación…). Corriendo si el nombre lo dice o, si no, si va a ≥ 6,5 km/h.
+        for r in conn.execute("SELECT w.id AS wid, w.activity_id, w.title, w.start_time, w.duration_min, e.name, SUM(s.distance_m) AS dist, "
+                              "SUM(CASE WHEN s.seconds > 0 THEN s.distance_m END) AS dist_t, SUM(CASE WHEN s.seconds > 0 THEN s.seconds END) AS secs "
                               "FROM workouts w JOIN workout_exercises e ON e.workout_id=w.id JOIN workout_sets s ON s.exercise_id=e.id "
                               "WHERE w.date=? AND w.deleted_at IS NULL AND w.activity_id IS NOT NULL AND s.distance_m > 0 GROUP BY w.id, e.id", (d,)):
             nm = _norm(r["name"])
-            run = bool(re.search(r"corr|carrera|run\b|running|cinta|trot|jog", nm))
-            walk = not run and bool(re.search(r"camin|andar|walk|paseo|marcha|senderis|zancad|lunge|trineo|sled", nm))
-            if not (run or walk):
+            if re.search(r"remo|row|esqu|ski|bici|bike|cicl|cycl|spin|nata|swim|kayak|canoa|pirag|elipt|ellipt|patin|skate", nm):
                 continue
+            kmh = r["dist_t"] / r["secs"] * 3.6 if r["secs"] else None
+            run = bool(re.search(r"corr|carrera|run\b|running|trot|jog|sprint", nm)) or (
+                not re.search(r"camin|andar|walk|paseo|marcha|senderis|zancad|lunge|trineo|sled|granjer|farmer", nm) and kmh is not None and kmh >= 6.5)
             x = wk.setdefault(r["activity_id"], {"workout_id": r["wid"], "activity_id": r["activity_id"], "title": r["title"], "start_time": r["start_time"],
                                                  "duration_min": r["duration_min"], "run_km": 0.0, "walk_km": 0.0, "steps": 0.0})
             x["run_km" if run else "walk_km"] += r["dist"] / 1000

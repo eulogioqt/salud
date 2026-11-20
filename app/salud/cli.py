@@ -277,11 +277,15 @@ def main(argv=None):
     if c == "hoy":
         print_day(conn, d)
     elif c == "buscar":
-        term = core._norm(" ".join(a.texto))
+        # Cada palabra en el nombre, la marca o la descripción («la bolsa gris del Mercadona»)
+        words = [w for w in core._norm(" ".join(a.texto)).split() if w]
+        hit = lambda *xs: all(w in core._norm(" ".join(x or "" for x in xs)) for w in words)
         for fo in core.list_foods(conn, True):
-            if term in core._norm(fo["name"]) or term in core._norm(fo.get("original_name") or ""):
+            if hit(fo["name"], fo.get("original_name"), fo.get("brand"), fo.get("notes")):
                 flags = "".join([" [oculto]" if fo["hidden"] else "", " [%s]" % fo["status"]])
                 print("%d · %s (%s)%s" % (fo["id"], fo["name"], fo["kind"], flags))
+                if fo.get("notes"):
+                    print("    descripción: %s" % fo["notes"])
                 for u in fo["units"]:
                     per = u["per"]
                     if u["key"] in ("g", "ml"):
@@ -289,8 +293,8 @@ def main(argv=None):
                     else:
                         print("    %s: %s → %s [%s]" % (u["key"], u["label"], macro_line(per), u["quality"]))
         for t in core.list_templates(conn, True):
-            if term in core._norm(t["name"]):
-                print("H%d · %s (comida habitual) → %s" % (t["id"], t["name"], macro_line(t["nutr"]) if t["nutr"] else "—"))
+            if hit(t["name"], t.get("notes")):
+                print("H%d · %s (receta) → %s" % (t["id"], t["name"], macro_line(t["nutr"]) if t["nutr"] else "—"))
                 for it in t["items"]:
                     print("    item %d: %s · %s" % (it["id"], it["food_name"], it.get("unit_label", it["unit_key"])))
     elif c == "add":
